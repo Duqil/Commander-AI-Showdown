@@ -4,6 +4,7 @@ Name=Anhelo
 1 Anhelo, the Painter
 [Main]
 1 A Little Chat
+1 Abstract Paintmage
 1 Aminatou's Augury
 1 Arcane Signet
 1 Artist's Talent
@@ -23,11 +24,9 @@ Name=Anhelo
 1 Darkwater Catacombs
 1 Deep Analysis
 1 Determined Iteration
-1 Dimir Signet
 1 Double Vision
 1 Drawn from Dreams
 1 Dread Summons
-1 Electrickery
 1 Exotic Orchard
 1 Exsanguinate
 1 Extravagant Replication
@@ -35,11 +34,12 @@ Name=Anhelo
 1 Feed the Swarm
 1 Fellwar Stone
 1 Flawless Forgery
+1 Flow State
 1 Foreboding Ruins
 1 Geyadrone Dihada
 1 Ghoulish Procession
-1 Goblin Electromancer
 1 Hex
+1 Improvisation Capstone
 6 Island
 1 Izzet Signet
 1 Jadar, Ghoulcaller of Nephalia
@@ -59,7 +59,6 @@ Name=Anhelo
 1 Mystic Confluence
 1 Parnesse, the Subtle Brush
 1 Path of Ancestry
-1 Ponder
 1 Preordain
 1 Prisoner's Dilemma
 1 Puppeteer Clique
@@ -68,14 +67,12 @@ Name=Anhelo
 1 Reign of the Pit
 1 Rekindling Phoenix
 1 Rite of the Raging Storm
-1 River's Rebuke
 1 Rotten Reunion
 1 Seething Landscape
 1 Shadowblood Ridge
 1 Sinister Concierge
 1 Skyclave Shade
 1 Smoldering Marsh
-1 Spellbinding Soprano
 1 Spikefield Hazard
 1 Storm-Kiln Artist
 1 Strago and Relm
@@ -92,5 +89,3 @@ Name=Anhelo
 1 Torment of Hailfire
 1 Twinning Staff
 1 Waste Management
-1 Xander's Pact
-1 Zaffai, Thunder Conductor
