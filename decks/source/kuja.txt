@@ -1,0 +1,82 @@
+1 Kuja, Genome Sorcerer / Trance Kuja, Fate Defied (FIN) 497
+1 Abrade (FDN) 327
+1 Arcane Signet (FIC) 332
+1 Ayara, First of Locthwain (ELD) 350
+1 Baron Rivalry (FCA) 33
+1 Basalt Ravager (KHM) 122
+1 Bedevil (FIC) 319
+1 Black Mage's Rod (FIN) 90
+1 Black Waltz No. 3 (FIN) 478
+1 Blackcleave Cliffs (ONE) 248
+1 Blood Cultist (ALA) 157
+1 Bloodfell Caves (FRF) 165
+1 Bloodline Necromancer (C17) 14
+1 Boltwave (FDN) 79
+1 Caldera Pyremaw (TDC) 73
+1 Circle of Power (FIN) 92
+1 City on Fire (PMOM) 135p
+1 Command Tower (40K) 272
+1 Cornered by Black Mages (FIN) 93
+1 Damnation (2X2) 73
+1 Darkness of Eternity (FCA) 8
+1 Dawn Warriors' Legacy (FCA) 41
+1 Demand Answers (MKM) 122
+1 Dragonskull Summit (XLN) 252
+1 El Dorado Sarcophagus (SLD) 2218
+1 Electrodominance (RNA) 99
+1 Electrostatic Field (PLST) GRN-97
+1 Electrostatic Infantry (DMU) 122
+1 Evolving Wilds (AKH) 242
+1 Exsanguinate (FDN) 173
+1 Fandaniel, Telophoroi Ascian (FIC) 146
+1 Feed the Swarm (NCC) 250
+1 Flare of Malice (MH3) 95
+1 Gleeful Arsonist (DSC) 56
+1 Go for the Throat (2X2) 76
+1 Graven Cairns (DSC) 280
+1 Gut Shot (PLST) MM2-117
+1 Harmonic Prodigy (MH2) 132
+1 Ingris Stingerquill (FRA) 351
+1 Kefka, Dancing Mad (FIC) 174
+1 Lethal Scheme (FIC) 277
+1 Light Up the Stage (CLB) 802
+1 Lindblum, Industrial Regency / Mage Siege (FIN) 312
+1 Locke, Treasure Hunter (FIC) 177
+1 Mana Geyser (5DN) 75
+1 Midgar, City of Mako / Reactor Raid (FIN) 313
+8 Mountain (SLD) 2079
+1 Mysidian Elder (FIN) 145
+1 Neheb, the Eternal (CMM) 545 *E*
+1 Night's Whisper (FIC) 280
+1 Ob Nixilis, Captive Kingpin (MAT) 176
+1 Patchwork Banner (BLB) 247
+1 Path of Ancestry (ECC) 158
+1 Phyrexian Arena (FDN) 322
+1 Queen Brahne (FIN) 464
+1 Rakdos Carnarium (2X2) 329
+1 Rakdos Charm (RTR) 184
+1 Rakdos Signet (CLU) 226
+1 Rakdos's Return (RTR) 188
+1 Seething Song (MRD) 104
+1 Shadowblood Ridge (OTC) 317
+1 Shared Animosity (MOR) 104
+1 Smoldering Marsh (LCC) 353
+1 Spikefield Hazard / Spikefield Cave (ZNR) 166
+1 Storm-Kiln Artist (PLST) STX-115
+1 Sulfurous Springs (FIC) 427
+1 Summon: Esper Ramuh (FIN) 367
+1 Suplex (FIN) 164
+12 Swamp (SLD) 2078
+1 Temple of Malice (THB) 247
+1 Terminate (ECC) 134
+1 Terramorphic Expanse (C18) 286
+1 The Darkness Crystal (FIN) 335
+1 The Destined Black Mage (FIC) 447
+1 Thrum of the Vestige (FCA) 40
+1 Tor Wauki the Younger (DMC) 46
+1 Transpose (FIC) 119
+1 Untimely Malfunction (DSK) 161
+1 Vandalblast (CMM) 646
+1 Virtue of Courage / Embereth Blaze (WOE) 157
+1 Wizard's Lightning (DOM) 152
+1 Zenos yae Galvus / Shinryu, Transcendent Rival (FIN) 455

@@ -1,0 +1,7 @@
+# Forge is downloaded and built by scripts/setup_forge.sh, not stored in git.
+vendor/
+forge-bridge/target/
+forge.log
+__pycache__/
+*.pyc
+.venv/
