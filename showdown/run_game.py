@@ -7,6 +7,9 @@ Examples:
     python -m showdown.run_game --bots simple forge random forge --seed 7
         Mix Python bots with Forge's own AI ("forge").
 
+    python -m showdown.run_game --bots boy:alice simple simple simple
+        Watch a Boy play (it doesn't learn here; use showdown.batch to train).
+
     python -m showdown.run_game --decks zidane kuja --quiet
         A two-player game, only the result printed.
 """
@@ -17,6 +20,7 @@ import argparse
 from pathlib import Path
 
 from showdown.bots.base import Bot
+from showdown.bots.boy_bot import BoyBot
 from showdown.bots.random_bot import RandomBot
 from showdown.bots.simple_bot import SimpleBot
 from showdown.bridge.game_runner import Seat, run_game
@@ -25,14 +29,20 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DECK_DIR = REPO_ROOT / "decks" / "forge"
 
 
-def make_bot(kind: str, seed: int | None) -> Bot | None:
+def make_bot(kind: str, seed: int | None, learn: bool = False) -> Bot | None:
+    """Make a bot from its name: "simple", "random", "forge" or "boy:<name>".
+
+    A Boy only learns from the game when ``learn`` is True (training does that).
+    """
+    if kind.startswith("boy:"):
+        return BoyBot(kind.removeprefix("boy:"), learn=learn, seed=seed)
     if kind == "forge":
         return None  # Forge's built-in AI
     if kind == "simple":
         return SimpleBot()
     if kind == "random":
         return RandomBot(seed)
-    raise SystemExit(f"Unknown bot '{kind}'. Choose from: simple, random, forge")
+    raise SystemExit(f"Unknown bot '{kind}'. Choose from: simple, random, forge, boy:<name>")
 
 
 def main() -> None:
@@ -40,7 +50,7 @@ def main() -> None:
     parser.add_argument("--decks", nargs="+", default=["zidane", "anhelo", "nelly", "kuja"],
                         help="deck names in decks/forge/ (2 to 4)")
     parser.add_argument("--bots", nargs="+", default=None,
-                        help="one per deck: simple, random or forge (default: all simple)")
+                        help="one per deck: simple, random, forge or boy:<name> (default: all simple)")
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--quiet", action="store_true", help="don't print the game log")
     parser.add_argument("--forge-log", type=Path, default=REPO_ROOT / "forge.log",
