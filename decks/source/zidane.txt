@@ -1,0 +1,83 @@
+1 Zidane, Tantalus Thief (FIN) 405
+1 Act of Aggression (C15) 141
+1 Akroan Horse (THS) 210
+1 Alexios, Deimos of Kosmos (ACR) 134
+1 Angel of the Ruins (FIC) 229
+1 Arcane Signet (FIC) 335
+1 Ash Barrens (PIP) 253
+1 Assault Suit (CMM) 369
+1 Battlefield Forge (FIC) 375
+1 Bazaar Trader (WWK) 72
+1 Beza, the Bounding Spring (PBLB) 2p
+1 Blade of Selves (CLB) 596
+1 Boros Garrison (ONC) 146
+1 Bucknard's Everfull Purse (PLST) AFC-57
+1 Call for Aid (LTC) 113
+1 Circuit Mender (NEO) 242
+1 Claim the Firstborn (ELD) 118
+1 Clifftop Retreat (TDC) 351
+1 Cloudshift (AVR) 12
+1 Command Tower (NCC) 395
+1 Conjurer's Closet (INR) 259 *F*
+1 Crime Novelist (MKM) 121
+1 Custody Battle (ONS) 197
+1 Demand Answers (MKM) 122
+1 Ephemerate (STA) 5
+1 Evolving Wilds (PIP) 263
+1 Firbolg Flutist (CLB) 582
+1 Fling (M12) 134
+1 Fraying Line (CLB) 314
+1 Furycalm Snarl (FIC) 397
+1 Garnet Til Alexandros 17th (FCA) 24
+1 Generous Plunderer (BIG) 41
+1 Goblin Cadets (CMD) 125
+1 Harmless Offering (EMN) 131
+1 Hijack (XLN) 148
+1 Hithlain Rope (LTC) 156
+1 Humble Defector (CMR) 667
+1 Insurrection (CMM) 699
+1 Jinxed Choker (MRD) 189
+1 Jinxed Idol (M11) 208
+1 Jinxed Ring (STH) 137
+1 Magda, the Hoardmaster (OTJ) 334
+1 Mass Mutiny (OTC) 174
+1 Memories of Nibelheim (FCA) 26
+1 Mind Stone (CLB) 325
+1 Mob Rule (VOC) 147
+1 Monologue Tax (C21) 346
+10 Mountain (FIN) 303
+1 Myriad Landscape (PIP) 274
+1 Phelia, Exuberant Shepherd (MH3) 40
+9 Plains (FIN) 295
+1 Professional Face-Breaker (FIC) 296
+1 Rain of Riches (NCC) 150
+1 Ranger of Eos (PLST) MM3-19
+1 Reprieve (LTR) 26
+1 Restless Bivouac (WOE) 303
+1 Rugged Prairie (FIC) 417
+1 Seize the Spotlight (NCC) 152
+1 Shiny Impetus (TDC) 231
+1 Solemn Simulacrum (FIC) 360
+1 Song-Mad Treachery / Song-Mad Ruins (ZNR) 165
+1 Stiltzkin, Moogle Merchant (FIN) 327
+1 Sunscorched Divide (FIC) 433
+1 Sword of the Animist (FIC) 362
+1 Swords to Plowshares (FIC) 256
+1 Take the Bait (MKC) 353
+1 Talisman of Conviction (PIP) 243
+1 Tataru Taru (FIC) 138
+1 Teleportation Circle (AFR) 364
+1 Temple of Triumph (PIP) 312
+1 Terramorphic Expanse (PIP) 313
+1 The Jolly Balloon Man (DSK) 219
+1 Traitorous Blood (ISD) 166
+1 Treasure Nabber (CMM) 265
+1 Unexpected Request (FIN) 167
+1 Vaan, Aspiring Sky Pirate (FCA) 38
+1 Vaan, Street Thief (FIN) 467
+1 Vandalblast (FIC) 298
+1 Welcoming Vampire (LCC) 140
+1 Witch Enchanter / Witch-Blessed Meadow (MH3) 239
+1 Wrangle (AER) 101
+1 Yes Man, Personal Securitron (PIP) 373
+1 Yuffie, Materia Hunter (FIC) 158

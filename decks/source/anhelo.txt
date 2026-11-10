@@ -1,0 +1,87 @@
+1 Anhelo, the Painter (NCC) 100
+1 A Little Chat (SNC) 47
+1 Abstract Paintmage (SOS) 171
+1 Aminatou's Augury (DSC) 71
+1 Arcane Signet (NCC) 360
+1 Artist's Talent (PBLB) 124p
+1 Ash Barrens (NCC) 386
+1 Bedevil (NCC) 331
+1 Blood Artist (INR) 326
+1 Bloodghast (SLD) 6
+1 Breach the Multiverse (MOM) 358
+1 Cascade Bluffs (NCC) 390
+1 Choked Estuary (NCC) 393
+1 Command Tower (NCC) 395
+1 Cormela, Glamour Thief (SNC) 177
+1 Coruscation Mage (BLB) 131
+1 Cruel Ultimatum (ALA) 164
+1 Crumbling Necropolis (NCC) 397
+1 Cryptic Pursuit (NCC) 70
+1 Darkwater Catacombs (NCC) 398
+1 Deep Analysis (NCC) 218
+1 Determined Iteration (NCC) 45
+1 Double Vision (M21) 365
+1 Drawn from Dreams (NCC) 220
+1 Dread Summons (NCC) 249
+1 Exotic Orchard (NCC) 400
+1 Exsanguinate (CMM) 638
+1 Extravagant Replication (NCC) 126
+1 Fact or Fiction (NCC) 221
+1 Feed the Swarm (NCC) 250
+1 Fellwar Stone (NCC) 367
+1 Flawless Forgery (NCC) 26
+1 Flow State (SOS) 49
+1 Foreboding Ruins (NCC) 403
+1 Geyadrone Dihada (MH2) 199
+1 Ghoulish Procession (INR) 110
+1 Hex (NCC) 252
+1 Improvisation Capstone (SOS) 120
+6 Island (SNC) 264
+1 Izzet Signet (NCC) 369
+1 Jadar, Ghoulcaller of Nephalia (MID) 108
+1 Jaya's Immolating Inferno (CMR) 415
+1 Judith, Carnage Connoisseur (MKM) 210
+1 Jwari Disruption / Jwari Ruins (ZNR) 64
+1 Kess, Dissident Mage (NCC) 344
+1 Lightning Greaves (NCC) 371
+1 Maestros Charm (SNC) 199
+1 Maestros Confluence (NCC) 75
+1 Maestros Theater (SNC) 251
+1 Magma Opus (STX) 346
+1 Make an Example (NCC) 37
+1 Morbid Opportunist (SPG) 32
+5 Mountain (SNC) 268
+1 Myriad Landscape (NCC) 416
+1 Mystic Confluence (NCC) 227
+1 Parnesse, the Subtle Brush (NCC) 106
+1 Path of Ancestry (NCC) 419
+1 Preordain (CMR) 640
+1 Prisoner's Dilemma (MKC) 344
+1 Puppeteer Clique (NCC) 257
+1 Rakdos Signet (NCC) 378
+1 Ral, Storm Conduit (SLD) 523 *F*
+1 Reign of the Pit (NCC) 258
+1 Rekindling Phoenix (NCC) 273
+1 Rite of the Raging Storm (NCC) 274
+1 Rotten Reunion (MID) 119
+1 Seething Landscape (MH3) 225
+1 Shadowblood Ridge (NCC) 426
+1 Sinister Concierge (NCC) 131
+1 Skyclave Shade (PLST) ZNR-298
+1 Smoldering Marsh (NCC) 428
+1 Spikefield Hazard / Spikefield Cave (ZNR) 166 *F*
+1 Storm-Kiln Artist (STX) 115
+1 Strago and Relm (FIC) 155
+1 Summon: G.F. Cerberus (FIN) 368
+1 Sunken Hollow (NCC) 431
+5 Swamp (SNC) 266
+1 Talrand, Sky Summoner (C21) 131
+1 Talrand's Invocation (NCC) 234
+1 Temple of Epiphany (NCC) 432
+1 The Haunt of Hightower (PLST) RNA-273
+1 Thriving Bluff (NCC) 438
+1 Thriving Isle (NCC) 441
+1 Thriving Moor (NCC) 442
+1 Torment of Hailfire (HOU) 77
+1 Twinning Staff (NCC) 383
+1 Waste Management (NCC) 40

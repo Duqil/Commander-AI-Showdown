@@ -1,0 +1,83 @@
+1 Nelly Borca, Impulsive Accuser (MKC) 318
+1 Access Tunnel (TDC) 337
+1 Agitator Ant (MKC) 145
+1 Agrus Kos, Spirit of Justice (MKM) 184
+1 Alexios, Deimos of Kosmos (ACR) 134
+1 Angel of the Ruins (FIC) 229
+1 Anya, Merciless Angel (MKC) 199
+1 Arcane Signet (FIC) 335
+1 Ash Barrens (FIC) 374
+1 Aurelia, the Law Above (MKM) 188
+1 Austere Command (CMR) 618
+1 Bloodthirsty Blade (C19) 53
+1 Boros Charm (CMR) 442
+1 Boros Garrison (ONC) 146
+1 Boros Reckoner (MKC) 201
+1 Boros Signet (GK1) 97
+1 Brash Taunter (MKC) 148
+1 Castle Ardenvale (TDC) 346
+1 Clifftop Retreat (TDC) 351
+1 Comeuppance (MKC) 58
+1 Command Tower (MKC) 256
+1 Deflecting Palm (KTK) 173
+1 Duelist's Heritage (NCC) 197
+1 Elspeth, Sun's Champion (SLD) 1140
+1 Escape Tunnel (MKM) 261
+1 Etali, Primal Storm (MKC) 152
+1 Exotic Orchard (FIC) 390
+1 Feather, Radiant Arbiter (MKC) 313
+1 Fiendish Duo (J25) 545
+1 Frontier Warmonger (MKC) 154
+1 Ghostly Prison (TDC) 116
+1 Gideon's Sacrifice (WAR) 14
+1 Gisela, Blade of Goldnight (MKC) 211
+1 Goblin Spymaster (CLB) 795
+1 Grenzo, Havoc Raiser (TDC) 216
+1 Havoc Eater (MKC) 341
+1 Hot Pursuit (MKC) 342
+1 Immortal Obligation (MKC) 321
+1 Iroas, God of Victory (JOU) 150
+1 J. Jonah Jameson (SPM) 261
+1 Kazuul, Tyrant of the Cliffs (MKC) 157
+1 Keeper of the Accord (CMR) 621
+1 Kher Keep (CLB) 899
+1 Komainu Battle Armor (NEC) 60
+1 Labyrinth of Skophos (THB) 346
+1 Loran of the Third Path (BRO) 304
+1 Martial Impetus (CLB) 33
+1 Maximum Carnage (SPM) 83
+1 Mind Stone (CLB) 325
+1 Mob Verdict (MKC) 343
+9 Mountain (MKM) 283
+1 Myriad Landscape (CMM) 421
+1 Orzhov Advokist (MKC) 77
+1 Path to Exile (2X2) 23
+10 Plains (MKM) 277
+1 Promise of Loyalty (FIC) 249
+1 Redemption Arc (MKC) 324
+1 Reliquary Tower (CMM) 663
+1 Rite of the Raging Storm (NCC) 274
+1 Rogue's Passage (FIC) 415
+1 Scavenger Grounds (FIC) 419
+1 Seal of Cleansing (MH2) 264
+1 Selfless Squire (MKC) 82
+1 Sevinne's Reclamation (MKC) 83
+1 Shiny Impetus (TDC) 231
+1 Slayers' Stronghold (FIC) 424
+1 Smuggler's Share (NCC) 122
+1 Solemn Simulacrum (FIC) 360
+1 Spectacular Showdown (CLB) 634
+1 Steel Hellkite (MKC) 239
+1 Summon: Yojimbo (FIC) 28
+1 Sun Titan (FIC) 254
+1 Sunhome, Fortress of the Legion (OTC) 324
+1 Take the Bait (MKC) 353
+1 Talisman of Conviction (PIP) 243
+1 Taunt from the Rampart (LTC) 151
+1 Temple of Triumph (PM20) 257p
+1 Thought Vessel (FIC) 368
+1 Tome of Legends (FIC) 369
+1 Vengeful Ancestor (MKC) 163
+1 Vow of Duty (CMR) 54
+1 Vow of Lightning (PLST) CMR-209
+1 Windborn Muse (DMR) 415

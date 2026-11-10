@@ -1,0 +1,69 @@
+# The Forge ↔ Python bridge
+
+## The idea
+
+Forge asks a `PlayerController` object every time a player must decide
+something. There are about 150 kinds of question (choose targets, order
+blockers, pick a mode, scry, ...).
+
+`PythonPlayerController` **extends Forge's own AI controller** and overrides a
+few of those questions so they go to Python. Every question we don't override
+is still answered by Forge's AI. This lets us move decisions to Python one at
+a time, starting with the ones that matter most.
+
+## Decisions Python makes today
+
+| kind | When | Python returns | `None` means |
+|---|---|---|---|
+| `mulligan` | Opening hand | `true` keep / `false` mulligan | Forge AI decides |
+| `choose_play` | You have priority and at least one legal play | option `index` | pass priority |
+| `attack` | Your declare-attackers step, if anything can attack | `{"<card id>": defender index}` | Forge AI attacks |
+
+Still answered by Forge's AI: targets and X values of a chosen play, mana
+payment, blocks, combat damage order, all "choose a card/mode/player" effects,
+scry, discard, and so on. These are the next candidates to move over.
+
+Safety nets in the Java side:
+* Options are pre-filtered to legal plays (timing + can pay the cost).
+* An attack that breaks a rule (for example a goaded creature that must
+  attack) is thrown away and Forge's AI attacks instead. It logs
+  `[bridge] Python's attack broke an attack rule` to `forge.log`.
+* If Python keeps choosing a play Forge can't complete (no legal target), the
+  player passes after 15 tries instead of looping forever.
+
+## Wire format
+
+Local TCP socket, one JSON object per line. Python listens, starts Java, Java
+connects back.
+
+Java → Python:
+
+```json
+{"type": "game_start", "seats": [{"seat": 0, "name": "1-Zidane", "deck": "Zidane", "controller": "python"}, ...]}
+{"type": "event", "log": ["Turn: Turn 3 (1-Zidane)", "Land: 1-Zidane played Mountain (50)"]}
+{"type": "decision", "id": 12, "kind": "choose_play", "player": "1-Zidane",
+ "state": {...}, "options": [{"index": 0, "card": {...}, "description": "...", "is_land": true, "is_spell": false}]}
+{"type": "game_over", "winner": "4-Kuja", "draw": false, "turns": 26, "players": [{"name": "...", "life": -1, "lost": true}]}
+```
+
+Python → Java (only in reply to a decision):
+
+```json
+{"id": 12, "choice": 0}
+```
+
+`state` is the game from the deciding player's point of view: turn, phase
+(`MAIN1`, `COMBAT_DECLARE_ATTACKERS`, ...), whose turn it is, and for every
+player their life, hand size, battlefield, graveyard and command zone. Only
+your own `hand` is included, so bots can't peek. `turns` counts each player's
+turn separately (4 players × 5 rounds = 20 turns).
+
+## Adding a new decision
+
+1. In `PythonPlayerController.java`, override the Forge method (see
+   `forge-game/.../PlayerController.java` for the list), build a JSON message
+   and call `ask("my_kind", extra)`. Fall back to `super.method(...)` when the
+   answer is `null`.
+2. Rebuild: `./scripts/build_bridge.sh`.
+3. In `showdown/bots/base.py`, add a method with a `None` default, and route
+   `"my_kind"` to it in `game_runner.answer_decision`.
