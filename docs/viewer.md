@@ -27,7 +27,7 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   the newest moment. Drag the slider to move through the game. Click any log
   line to jump there. Keyboard: Space, ← →, Home, End.
 * **New game** plays again with the same decks and bots (new shuffle).
-  **Stop** ends a running game. **Decks…** goes back to the setup screen,
+  **Stop** ends a running game. **Main Menu** goes back to the setup screen,
   where saved games can be watched again.
 * **Board.** Each player has a coloured board: life, cards in hand (✋),
   library (📚), graveyard (🪦, click to see it), exile (🌀), poison and
