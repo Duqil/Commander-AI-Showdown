@@ -86,9 +86,20 @@ python -m showdown.run_game --decks zidane kuja --quiet    # 2 players, result o
 ```
 
 Decks: `zidane`, `anhelo`, `nelly`, `kuja`. Bots: `simple` (our bot), `forge`
-(Forge's own AI), `random`.
+(Forge's own AI), `random`, and `boy:<name>` (a learning bot, see section 6).
 
-## 6. Getting updates
+## 6. Train The Boys (learning bots)
+
+```bash
+python -m showdown.batch --bots boy:alice simple simple simple --games 50 --parallel 2
+python -m showdown.batch --report        # how Alice has been doing
+```
+
+`boy:<any name>` is a bot that learns from every game it plays; its brain is
+saved in `boys/`. `showdown.batch` plays many games without watching (about
+45 seconds each). More in [docs/boys.md](docs/boys.md).
+
+## 7. Getting updates
 
 ```bash
 git pull
@@ -102,6 +113,7 @@ Running the setup again is always safe; it's much faster the second time.
 ## More
 
 - [docs/viewer.md](docs/viewer.md): everything about the browser viewer.
+- [docs/boys.md](docs/boys.md): The Boys, how they learn and how to train them.
 - [docs/development.md](docs/development.md): how the code fits together,
   adding decks, running tests, where files go.
 - [docs/bridge.md](docs/bridge.md): how Python and Forge talk to each other.

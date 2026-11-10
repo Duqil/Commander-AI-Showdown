@@ -1,0 +1,162 @@
+"""Tests for The Boys (learning bots) and the batch runner. No Forge needed.
+
+Run with:  python -m unittest discover -s tests -v
+"""
+
+from __future__ import annotations
+
+import random
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from showdown.bots.boy_bot import BoyBot
+from showdown.boys import features, storage, threat
+from showdown.boys.brain import Brain
+from showdown.boys.reward import game_reward
+
+
+def creature(cid, power, toughness=None, tapped=False, **extra):
+    return {"id": cid, "name": f"C{cid}", "type": "Creature", "cmc": 2, "power": power,
+            "toughness": power if toughness is None else toughness, "tapped": tapped, **extra}
+
+
+def table(you="1-A", active="1-A", phase="MAIN1"):
+    """Four players: B has a big board (the leader), C is at 6 life with nothing, D is average."""
+    return {
+        "turn": 5, "active_player": active, "phase": phase, "you": you, "stack_size": 0,
+        "players": [
+            {"name": "1-A", "life": 30, "hand_size": 3, "hand": [], "battlefield": [creature(1, 3), creature(2, 2)]},
+            {"name": "2-B", "life": 40, "hand_size": 5, "battlefield": [creature(10, 6), creature(11, 5)]},
+            {"name": "3-C", "life": 4, "hand_size": 0, "battlefield": []},
+            {"name": "4-D", "life": 25, "hand_size": 2, "battlefield": [creature(30, 2)]},
+        ],
+    }
+
+
+def attack_decision(state=None):
+    return {
+        "kind": "attack", "player": "1-A", "state": state or table(),
+        "defenders": [{"index": 0, "name": "2-B", "is_player": True},
+                      {"index": 1, "name": "3-C", "is_player": True},
+                      {"index": 2, "name": "4-D", "is_player": True}],
+        "attackers": [{**creature(1, 3), "can_attack": [0, 1, 2]},
+                      {**creature(2, 2), "can_attack": [0, 1, 2]}],
+    }
+
+
+class ThreatTest(unittest.TestCase):
+    def test_leader_is_biggest_board(self):
+        self.assertEqual(threat.leader(table()), "2-B")
+
+    def test_threat_rank(self):
+        state = table()
+        self.assertEqual(threat.threat_rank(state, "2-B"), 0.0)
+        self.assertEqual(threat.threat_rank(state, "3-C"), 1.0)
+
+    def test_can_kill(self):
+        self.assertTrue(threat.can_kill({"life": 4}, 5))
+        self.assertFalse(threat.can_kill({"life": 40}, 5))
+
+    def test_lost_players_are_ignored(self):
+        state = table()
+        state["players"][1]["lost"] = True
+        self.assertEqual(threat.leader(state), "4-D")
+
+
+class FeatureTest(unittest.TestCase):
+    def test_attack_features(self):
+        decision = attack_decision()
+        ctx = features.attack_context(decision)
+        feats, targets = features.attack_options(decision["attackers"][0], decision, ctx)
+        self.assertEqual(targets, [None, 0, 1, 2])
+        self.assertEqual(feats[1]["target_is_leader"], 1.0)    # B
+        self.assertEqual(feats[2]["target_killable"], 1.0)     # C at 4 life, we have 5 power
+        self.assertEqual(feats[2]["target_weak"], 1.0)         # C has no creatures
+        self.assertEqual(feats[1]["target_bad_block"], 1.0)    # B's 6/6 eats our 3/3
+        # SimpleBot attacks the lowest life player, so its prior points at C.
+        self.assertEqual(feats[2]["simple_prior"], 1.0)
+
+    def test_play_options_add_pass(self):
+        decision = {"state": table(), "options": [
+            {"index": 0, "card": {"name": "Evolving Wilds", "type": "Land", "cmc": 0},
+             "description": "Sacrifice: search", "is_land": False, "is_spell": False}]}
+        feats = features.play_options(decision)
+        self.assertEqual(len(feats), 2)
+        self.assertEqual(feats[0]["land_ability"], 1.0)
+        self.assertEqual(feats[1]["pass"], 1.0)
+
+
+class BrainTest(unittest.TestCase):
+    def test_softmax_sums_to_one(self):
+        probs = Brain("t").probabilities("play", [{"simple_prior": 1.0}, {}, {}])
+        self.assertAlmostEqual(sum(probs), 1.0)
+        self.assertGreater(probs[0], probs[1])
+
+    def test_learns_to_prefer_rewarded_feature(self):
+        """Option with feature "good" pays off, the other doesn't. The weight should grow."""
+        brain = Brain("t")
+        rng = random.Random(0)
+        options = [{"good": 1.0}, {"bad": 1.0}]
+        for _ in range(300):
+            step = brain.choose("attack", options, rng)
+            brain.learn([step], reward=1.0 if step.picked == 0 else 0.0)
+        self.assertGreater(brain.weights["attack"]["good"], brain.weights["attack"].get("bad", 0.0))
+        self.assertGreater(brain.probabilities("attack", options)[0], 0.8)
+
+    def test_save_and_load_round_trip(self):
+        brain = Brain("t", games=3)
+        brain.weights["attack"]["target_is_leader"] = 0.7
+        again = Brain.from_dict(brain.to_dict())
+        self.assertEqual(again.games, 3)
+        self.assertEqual(again.weights["attack"]["target_is_leader"], 0.7)
+
+
+class RewardTest(unittest.TestCase):
+    def test_reward(self):
+        self.assertEqual(game_reward(True, 3, 3), 1.5)
+        self.assertEqual(game_reward(False, 0, 3), 0.0)
+        self.assertAlmostEqual(game_reward(False, 2, 3), 1 / 3)
+
+
+class BoyBotTest(unittest.TestCase):
+    def setUp(self):
+        # Keep test brains out of the real boys/ folder.
+        self.tmp = tempfile.TemporaryDirectory()
+        patch_dir = mock.patch.object(storage, "BOYS_DIR", Path(self.tmp.name))
+        patch_dir.start()
+        self.addCleanup(patch_dir.stop)
+        self.addCleanup(self.tmp.cleanup)
+        storage._brains.clear()
+        self.addCleanup(storage._brains.clear)
+
+    def test_attacks_are_legal(self):
+        bot = BoyBot("tester", seed=1)
+        decision = attack_decision()
+        for _ in range(20):
+            attacks = bot.declare_attackers(decision)
+            for cid, target in attacks.items():
+                attacker = next(a for a in decision["attackers"] if str(a["id"]) == cid)
+                self.assertIn(target, attacker["can_attack"])
+
+    def test_learns_and_saves_after_game(self):
+        bot = BoyBot("tester", learn=True, seed=1)
+        bot.declare_attackers(attack_decision())
+        state = table()
+        state["players"][2]["lost"] = True  # C was knocked out before the end
+        bot.last_state = state
+        bot.game_over({"winner": "2-B", "players": state["players"]}, "1-A")
+        self.assertEqual(bot.result["outlived"], 1)
+        self.assertAlmostEqual(bot.result["reward"], 0.5 / 3)
+        self.assertTrue((Path(self.tmp.name) / "tester.json").exists())
+        self.assertEqual(storage.load_brain("tester").games, 1)
+        self.assertIn("boy:tester", __import__("showdown.batch", fromlist=["x"]).bots_available())
+
+    def test_rejects_bad_names(self):
+        with self.assertRaises(ValueError):
+            storage.brain_path("../evil")
+
+
+if __name__ == "__main__":
+    unittest.main()

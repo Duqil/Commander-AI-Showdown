@@ -93,6 +93,8 @@ def play(
                 on_message({"type": "answer", "decision": msg, "choice": choice,
                             "bot": bot.name if bot else None})
         elif kind == "game_over":
+            for player_name, bot in bots_by_name.items():
+                bot.game_over(msg, player_name)  # learning bots learn here
             return GameResult(
                 winner=msg.get("winner"),
                 draw=msg.get("draw", False),

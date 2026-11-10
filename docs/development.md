@@ -26,6 +26,8 @@ for the answer. Details are in [bridge.md](bridge.md).
 | `forge-bridge/` | The Java side: a Forge player controller that asks Python |
 | `showdown/bridge/` | Python side of the connection and the game loop |
 | `showdown/bots/` | Bots. Start with `simple_bot.py` |
+| `showdown/boys/` | The Boys' brains, features, threat assessment and reward ([boys.md](boys.md)) |
+| `showdown/batch.py` | Plays many games without watching; used for training |
 | `showdown/viewer/` | The browser viewer (web server + page in `static/`) |
 | `showdown/decks/` | Deck converter (uses Scryfall for flavor-name cards) |
 | `decks/` | Deck lists, source and Forge format |
@@ -36,7 +38,7 @@ for the answer. Details are in [bridge.md](bridge.md).
 | Option | Meaning |
 |---|---|
 | `--decks A B ...` | 2 to 4 deck names from `decks/forge/` (default: all four) |
-| `--bots A B ...` | one per deck: `simple`, `random` or `forge` (default: all `simple`) |
+| `--bots A B ...` | one per deck: `simple`, `random`, `forge` or `boy:<name>` (default: all `simple`) |
 | `--seed N` | random seed, passed to Forge and the random bot |
 | `--quiet` | print only the result, not the game log |
 | `--forge-log PATH` | where Forge's own output goes (default `forge.log`) |
