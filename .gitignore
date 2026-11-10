@@ -8,4 +8,4 @@ __pycache__/
 games/
 forge-batch-*.log
 # Trained Boys (brains + training history) stay on your machine.
-boys/
+/boys/
