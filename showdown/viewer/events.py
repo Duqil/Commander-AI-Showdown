@@ -82,6 +82,7 @@ class TimelineBuilder:
     def __init__(self) -> None:
         self.turn = 0
         self.controllers: dict[str, str] = {}  # player name -> "python" / "forge"
+        self.seen_choices: dict[int, dict] = {}  # card id -> its "chosen" dict, last time we looked
 
     def feed(self, msg: dict) -> list[Event]:
         kind = msg.get("type")
@@ -112,6 +113,27 @@ class TimelineBuilder:
                 events[-1]["state"] = state  # the table as it is after these lines
             else:
                 events.append(make_event("log", "", turn=self.turn, category="STATE", state=state))
+            events += self._new_choices(state)
+        return events
+
+    def _new_choices(self, state: dict) -> list[Event]:
+        """Log choices like "choose a color" (Thriving lands), which Forge's own log leaves out.
+
+        Each card in the snapshot may carry a "chosen" dict. We remember what we
+        saw last time and write a log line whenever a card's choice is new.
+        """
+        events = []
+        for player in state.get("players", []):
+            for card in player.get("battlefield", []):
+                chosen = card.get("chosen")
+                if not chosen or self.seen_choices.get(card["id"]) == chosen:
+                    continue
+                self.seen_choices[card["id"]] = chosen
+                who = card.get("controller", player["name"])
+                # e.g. {"color": "red"} -> "Red"; {"type": "Wizard"} -> "Wizard"
+                what = ", ".join(str(v).title() if k == "color" else str(v) for k, v in chosen.items())
+                events.append(make_event("log", f"{who} chose {what} for {card['name']}",
+                                         turn=self.turn, player=who, category="CHOICE"))
         return events
 
     def _on_answer(self, msg: dict) -> list[Event]:

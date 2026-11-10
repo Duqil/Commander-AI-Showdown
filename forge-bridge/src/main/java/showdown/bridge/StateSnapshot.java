@@ -124,14 +124,43 @@ public final class StateSnapshot {
                 cj.addProperty("blocking", true);
             }
         }
+        JsonObject chosen = chosen(c);
+        if (chosen.size() > 0) {
+            cj.add("chosen", chosen); // e.g. {"color": "Blue"} for a Thriving land
+        }
         if (!c.getCounters().isEmpty()) {
             JsonObject counters = new JsonObject();
             for (CounterType type : c.getCounters().elementSet()) {
                 counters.addProperty(type.getName(), c.getCounters().count(type));
             }
-            cj.add("counters", counters); // e.g. {"P1P1": 2, "LOYALTY": 4}
+            cj.add("counters", counters); // e.g. {"+1/+1": 2, "Loyalty": 4}
         }
         return cj;
+    }
+
+    /**
+     * Choices made for a card as it entered or resolved: "choose a color"
+     * (Thriving lands), "choose a creature type", "choose a player", "name a
+     * card", "choose a number". Empty when nothing was chosen.
+     */
+    public static JsonObject chosen(Card c) {
+        JsonObject ch = new JsonObject();
+        if (c.hasChosenColor()) {
+            ch.addProperty("color", String.join(", ", c.getChosenColors()));
+        }
+        if (c.hasChosenType()) {
+            ch.addProperty("type", c.getChosenType());
+        }
+        if (c.hasChosenPlayer()) {
+            ch.addProperty("player", c.getChosenPlayer().getName());
+        }
+        if (c.hasNamedCard()) {
+            ch.addProperty("name", c.getNamedCard());
+        }
+        if (c.hasChosenNumber()) {
+            ch.addProperty("number", c.getChosenNumber());
+        }
+        return ch;
     }
 
     /** Spells and abilities waiting to resolve, top of the stack first. */
