@@ -58,6 +58,9 @@ const app = {
   lastLife: {},      // to flash life changes
   knownCards: new Set(), // card ids drawn before, to animate new arrivals
   followLog: true,   // keep the log scrolled to the newest line (off while you scroll up)
+  stepping: false,   // true while playback moves forward one event (not when jumping)
+  shownStack: [],    // the stack drawn right now, to spot newly cast spells
+  holdUntil: 0,      // playback waits until this time (performance.now()) for an animation
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -169,7 +172,7 @@ async function pollBatch() {
   const b = await api("/api/batch");
   if (b.status === "none") return;
   renderBatch(b);
-  if (b.status === "running") batchTimer = setTimeout(pollBatch, 1500);
+  if (b.status === "running" || b.status === "stopping") batchTimer = setTimeout(pollBatch, 1500);
 }
 
 function renderBatch(b) {
@@ -179,7 +182,7 @@ function renderBatch(b) {
   const finished = b.done - b.crashed;
   const left = b.avg_seconds && b.status === "running"
     ? ` · about ${Math.ceil(((b.games - b.done) * b.avg_seconds) / b.parallel / 60)} min left` : "";
-  const statusText = { running: "Running", finished: "Finished", stopped: "Stopped", error: "Error" }[b.status];
+  const statusText = { running: "Running", stopping: "Stopping", finished: "Finished", stopped: "Stopped", error: "Error" }[b.status];
   let html = `<b>${statusText}</b>: ${b.done} of ${b.games} games${left}
     <div class="progress"><div style="width:${pct}%"></div></div>
     <table><tr><th>Seat</th><th>Deck</th><th>Bot</th><th>Wins</th><th></th>${b.seats.some((s) => s.avg_reward !== null) ? "<th>Avg reward</th>" : ""}</tr>`;
@@ -194,11 +197,19 @@ function renderBatch(b) {
     ${b.avg_seconds ?? "–"} s per game${b.error ? ` · <span class="error">${b.error}</span>` : ""}</p>`;
   box.innerHTML = html;
   if (b.status === "running") {
-    const stop = el("button", "", "Stop after the running games");
-    stop.onclick = () => api("/api/batch/stop", {}).then(pollBatch);
-    box.append(stop);
+    // Two ways to stop: let the games already being played finish (they count),
+    // or end everything right away (unfinished games are thrown away).
+    const buttons = el("div", "batch-stop");
+    const soft = el("button", "", "Stop after the running games");
+    soft.title = "Start no more games. The ones being played finish and count.";
+    soft.onclick = () => api("/api/batch/stop", {}).then(pollBatch);
+    const now = el("button", "danger", "Stop now");
+    now.title = "End all games right away. Unfinished games don't count and nobody learns from them.";
+    now.onclick = () => api("/api/batch/stop", { now: true }).then(pollBatch);
+    buttons.append(soft, now);
+    box.append(buttons);
   }
-  if (b.status !== "running") loadSavedList(); // new saved games may be there
+  if (b.status !== "running" && b.status !== "stopping") loadSavedList(); // new saved games may be there
 }
 
 async function loadSavedList() {
@@ -232,7 +243,8 @@ $("#start").onclick = async () => {
 // ===========================================================================
 function resetPlayback() {
   Object.assign(app, { events: [], stateSeqs: [], seats: [], pos: 0, shownStateSeq: -1,
-                       lastLife: {}, playing: false }); // a new game opens paused: press ▶ to start
+                       lastLife: {}, playing: false, shownStack: [], holdUntil: 0 }); // a new game opens paused: press ▶ to start
+  cancelCastAnimation();
   app.knownCards.clear();
   $("#log").innerHTML = "";
   $("#boards").innerHTML = "";
@@ -319,8 +331,9 @@ function tick() {
     delay = eventDelay(app.events[app.pos]);
     stepForward();
     steps++;
+    if (app.holdUntil > performance.now()) break; // an animation started: let it play
   }
-  schedule(delay);
+  schedule(Math.max(delay, app.holdUntil - performance.now()));
 }
 
 function stepForward() {
@@ -331,11 +344,14 @@ function stepForward() {
   const style = EVENT_STYLES[ev.kind];
   if (style?.banner && app.speed !== Infinity) showBanner(ev.text);
   if (ev.kind === "game_over") { app.playing = false; updateButtons(); showBanner(ev.text, 6000); }
+  app.stepping = true; // render() may animate what changed, since we moved one step forward
   render();
+  app.stepping = false;
 }
 
 /** Jump the playhead to any position (scrubbing, step back, replay). */
 function goTo(pos) {
+  cancelCastAnimation();
   app.pos = Math.max(0, Math.min(pos, app.events.length));
   rebuildLog();
   render();
@@ -367,6 +383,8 @@ function render() {
   if (seq !== app.shownStateSeq) { // only redraw when the table changed
     app.shownStateSeq = seq;
     if (seq < 0) {
+      app.shownStack = [];
+      drawTargetArrows();
       if (app.seats.length) drawEmptyBoards();
     } else {
       const state = app.events[seq].state;
@@ -376,6 +394,12 @@ function render() {
         : "Opening hands (mulligans)";
       drawBoards(state);
       drawStack(state);
+      const before = new Set(app.shownStack.map((item) => item.id));
+      app.shownStack = state.stack || [];
+      // A spell that just went on the stack: show it big (only when playing forward).
+      const cast = app.shownStack.find((item) => item.kind === "spell" && item.id !== undefined && !before.has(item.id));
+      if (cast && app.stepping) playCastAnimation(cast);
+      drawTargetArrows();
       if (app.followLog) $("#log").scrollTop = $("#log").scrollHeight; // the stack may have resized it
     }
   }
@@ -432,13 +456,16 @@ function makeBoard(name) {
   const head = el("div", "board-head");
   head.append(el("span", "name", name));
   head.append(el("span", "bot", info.controller === "forge" ? "Forge AI" : botLabel(botOf(seat))));
-  // A commander waiting in the command zone is shown as a small thumbnail in
-  // the header, so it doesn't take a whole row. Hover it for the big picture.
+  // Everything that isn't a card fits on one line, so the cards get the height:
+  // name, bot, counts (hand, library, ...), then the commander and the life total.
+  head.append(el("div", "stats"));
+  // A commander waiting in the command zone is a small picture (just its art)
+  // next to the life total. Hover it for the whole card.
   const command = el("div", "zone-row command-row");
   command.dataset.zone = "command";
   head.append(command);
   head.append(el("span", "life", "40"));
-  b.append(head, el("div", "stats"));
+  b.append(head);
   // Zones, top to bottom. Each is a row of cards we fill in updateBoard().
   for (const zone of ["creatures", "other", "lands", "hand"]) {
     const row = el("div", `zone-row ${zone}-row`);
@@ -762,7 +789,7 @@ $("#btn-back").onclick = () => { setPlaying(false); goTo(app.pos - 1); };
 $("#btn-restart").onclick = () => { goTo(0); setPlaying(true); };
 $("#btn-live").onclick = () => goTo(app.events.length);
 $("#scrub").oninput = (e) => goTo(Number(e.target.value));
-$("#btn-setup").onclick = () => { setPlaying(false); showSetup(); };
+$("#btn-setup").onclick = () => { setPlaying(false); cancelCastAnimation(); app.shownStack = []; drawTargetArrows(); showSetup(); };
 $("#btn-stop").onclick = () => api("/api/game/stop", {});
 $("#btn-new").onclick = async () => {
   if (!app.config) return showSetup();
@@ -771,7 +798,10 @@ $("#btn-new").onclick = async () => {
 };
 $("#show-noisy").onchange = rebuildLog;
 $("#show-hands").onchange = () => { app.shownStateSeq = -2; render(); };
-$("#card-size").oninput = (e) => document.documentElement.style.setProperty("--card-size", `${e.target.value}px`);
+$("#card-size").oninput = (e) => {
+  document.documentElement.style.setProperty("--card-size", `${e.target.value}px`);
+  drawTargetArrows(); // cards moved
+};
 
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || $("#game").classList.contains("hidden")) return;
@@ -785,6 +815,159 @@ document.addEventListener("keydown", (e) => {
   };
   if (keys[e.key]) { e.preventDefault(); keys[e.key](); }
 });
+
+// ===========================================================================
+// Cast animation: a spell that is cast is shown big in the middle of its
+// caster's board for a moment, then it shrinks into the Stack box on the right
+// (where it waits to resolve). Playback waits for it. Faster at higher speeds,
+// skipped at 10x and Max.
+// ===========================================================================
+const CAST_MS = 1500; // at 1x: about 0.3 s in, 0.8 s shown, 0.4 s out
+
+function playCastAnimation(item) {
+  if (!item.card || app.speed >= 10) return;
+  const board = $(`#boards [data-player="${CSS.escape(item.controller)}"]`);
+  if (!board) return;
+  cancelCastAnimation();
+  const total = CAST_MS / app.speed;
+  app.holdUntil = performance.now() + total;
+
+  const r = board.getBoundingClientRect();
+  const layer = el("div", "cast-layer");
+  // Dim the caster's board so the card stands out.
+  const dim = el("div", "cast-dim");
+  Object.assign(dim.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+  // The card, as big as fits in the board (but not huge).
+  const width = Math.min(250, r.width * 0.45, (r.height - 60) / 1.397);
+  const card = el("img", "cast-card");
+  card.src = imageUrl(item.card);
+  card.alt = item.card.name;
+  const left = r.left + r.width / 2 - width / 2;
+  const top = r.top + r.height / 2 - (width * 1.397) / 2 - 14;
+  Object.assign(card.style, { width: `${width}px`, left: `${left}px`, top: `${top}px`,
+                              boxShadow: `0 0 0 4px var(--seat-${seatIndex(item.controller)}), 0 0 40px rgba(0,0,0,.8)` });
+  const label = el("div", "cast-label", `${item.controller} casts ${item.card.name}`);
+  Object.assign(label.style, { left: `${r.left + r.width / 2}px`, top: `${top + width * 1.397 + 10}px` });
+  layer.append(dim, card, label);
+  document.body.append(layer);
+  app.castLayer = layer;
+
+  // Where it goes: the Stack box on the right (the newest item is listed first).
+  const target = $("#stack").firstElementChild || $("#stack");
+  const t = target.getBoundingClientRect();
+  const dx = t.left + t.width / 2 - (left + width / 2);
+  const dy = t.top + t.height / 2 - (top + (width * 1.397) / 2);
+  const opts = { duration: total, easing: "ease-in-out", fill: "forwards" };
+  card.animate([
+    { transform: "scale(.4)", opacity: 0, offset: 0 },
+    { transform: "scale(1)", opacity: 1, offset: 0.2 },
+    { transform: "scale(1)", opacity: 1, offset: 0.72 },
+    { transform: `translate(${dx}px, ${dy}px) scale(.15)`, opacity: 0.2, offset: 1 },
+  ], opts);
+  for (const node of [dim, label]) {
+    node.animate([{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], opts);
+  }
+  setTimeout(() => {
+    if (app.castLayer !== layer) return;
+    cancelCastAnimation();
+    drawTargetArrows(); // held back while the card was shown big
+  }, total);
+}
+
+function cancelCastAnimation() {
+  app.castLayer?.remove();
+  app.castLayer = null;
+  app.holdUntil = 0;
+}
+
+// ===========================================================================
+// Targeting arrows: while a spell or ability is on the stack, a red arrow goes
+// from its source to each thing it targets. The top of the stack (the one that
+// resolves next) is bright; older items are faint. The arrow ends on the target
+// a little toward the source, not in the middle of it.
+// ===========================================================================
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** The card element showing this card id (also inside a group like "Treasure x3"). */
+function cardNode(id) {
+  for (const node of document.querySelectorAll("#boards .card")) {
+    const c = node._card;
+    if (c && (c.id === id || c._ids?.includes(id))) return node;
+  }
+  return null;
+}
+
+/** Where an arrow for this stack item starts: its card on the table, or its line in the Stack box. */
+function arrowSource(item, index) {
+  return (item.card && item.kind !== "spell" && cardNode(item.card.id)) || $("#stack").children[index] || null;
+}
+
+/** Where an arrow ends: a card, a player's life total, or a spell in the Stack box. */
+function arrowTarget(t) {
+  if (t.card !== undefined) return cardNode(t.card);
+  if (t.player !== undefined) return $(`#boards [data-player="${CSS.escape(t.player)}"] .life`);
+  if (t.spell !== undefined) {
+    const i = app.shownStack.findIndex((item) => item.id === t.spell);
+    return i >= 0 ? $("#stack").children[i] : null;
+  }
+  return null;
+}
+
+/** A point inside rectangle r, part of the way from its center toward (x, y). */
+function pointToward(r, x, y, part = 0.55) {
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const dx = x - cx, dy = y - cy;
+  const len = Math.hypot(dx, dy) || 1;
+  // How far we can go in that direction before leaving the rectangle.
+  const toEdge = Math.min(dx ? r.width / 2 / Math.abs(dx / len) : Infinity,
+                          dy ? r.height / 2 / Math.abs(dy / len) : Infinity);
+  return [cx + (dx / len) * toEdge * part, cy + (dy / len) * toEdge * part];
+}
+
+function drawTargetArrows() {
+  let svg = $("#arrows");
+  if (!svg) {
+    svg = document.createElementNS(SVG_NS, "svg");
+    svg.id = "arrows";
+    svg.innerHTML = `<defs><marker id="arrow-head" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4"
+      orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e5534b"/></marker></defs>`;
+    document.body.append(svg);
+  }
+  svg.querySelectorAll(".arrow").forEach((n) => n.remove());
+  document.querySelectorAll(".targeted, .targeting").forEach((n) => n.classList.remove("targeted", "targeting"));
+  if ($("#game").classList.contains("hidden") || app.castLayer) return; // after the cast animation
+
+  app.shownStack.forEach((item, index) => {
+    const targets = item.targets || [];
+    const from = targets.length ? arrowSource(item, index) : null;
+    if (!from) return;
+    const top = index === 0;
+    if (top) from.classList.add("targeting");
+    const a = from.getBoundingClientRect();
+    for (const t of targets) {
+      const to = arrowTarget(t);
+      if (!to || to === from) continue;
+      if (top) to.classList.add("targeted");
+      const b = to.getBoundingClientRect();
+      // Start at the source's edge facing the target (its center for a card on the table).
+      const [x1, y1] = pointToward(a, b.left + b.width / 2, b.top + b.height / 2, from.classList.contains("card") ? 0 : 1);
+      const [x2, y2] = pointToward(b, x1, y1);
+      // A gentle curve: the control point sits off to the side of the straight line.
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, len = Math.hypot(x2 - x1, y2 - y1);
+      const cx = mx + ((y2 - y1) / (len || 1)) * len * 0.18;
+      const cy = my - ((x2 - x1) / (len || 1)) * len * 0.18;
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("class", `arrow${top ? "" : " faint"}`);
+      path.setAttribute("d", `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`);
+      path.setAttribute("marker-end", "url(#arrow-head)");
+      svg.append(path);
+    }
+  });
+}
+
+// Cards move when the window is resized or a board is scrolled: redraw the arrows.
+window.addEventListener("resize", drawTargetArrows);
+$("#boards").addEventListener("scroll", drawTargetArrows, true);
 
 // ===========================================================================
 // Start: if a game is already running (page reload), go straight to it.

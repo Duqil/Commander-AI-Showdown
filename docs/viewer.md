@@ -29,20 +29,26 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
 * **New game** plays again with the same decks and bots (new shuffle).
   **Stop** ends a running game. **Main Menu** goes back to the setup screen,
   where saved games can be watched again.
-* **Board.** Each player has a coloured board: life, cards in hand (✋),
-  library (📚), graveyard (🪦, click to see it), exile (🌀), poison and
-  commander damage taken. Rows are:
+* **Board.** Each player has a coloured board. Its top line holds the name,
+  the bot, cards in hand (✋), library (📚), graveyard (🪦, click to see it),
+  exile (🌀), poison and commander damage taken, then the life total. Rows are:
   creatures, other permanents, lands (identical lands are stacked with ×N),
   and the hand (untick **Hands** to hide them). Tapped cards are turned
   sideways, attackers glow red, blockers blue, and
   a coloured outline (in the owner's seat colour) marks a permanent controlled
   by someone who doesn't own it (Zidane steals!). The commander, while waiting
-  in the command zone, is a small thumbnail next to the player's name; a gold
+  in the command zone, is a small picture of its art next to the life total; a gold
   "+2" on it is the command tax.
   Creatures with +1/+1 counters show green stats (red for -1/-1); hover for
   the details. A purple badge shows a choice made for the card, like the
   colour of a Thriving land. Seats go clockwise from the top left.
   Hover a card for a big picture.
+* **Casting and targeting.** A spell that is cast is shown big in the middle
+  of its caster's board for a moment, then shrinks into the Stack box
+  (faster at higher speeds, skipped at 10× and Max). While a spell or ability
+  with targets is on the stack, a red arrow points from it to each target
+  (a card, or a player's life total). The arrow for the item that resolves
+  next is bright, older ones are faint.
 * **Log.** Forge's game log plus what the Python bots decided (in blue),
   and choices Forge doesn't log itself ("2-Anhelo chose Red for Thriving Moor").
   Phase and mana lines are hidden unless you tick "phases & mana".
@@ -50,12 +56,18 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
 ## Run many games (no viewing)
 
 Under **Run many games** in the main menu: pick how many games and how many
-at once (each needs about 2 GB of memory), then **Run games**. It uses the
+at once (1 to 5; each one is a Forge using about one CPU core and up to
+2 GB of memory), then **Run games**. It uses the
 decks and bots chosen above, plays the games without showing them, and shows
 a progress bar, wins per seat and, for Boys, their average reward. "Boys learn"
 lets Boys train from these games; untick it to just test them. "Save games for
 replay" puts every game under **Saved games**, so you can watch the
 interesting ones.
+
+Two buttons stop a batch: **Stop after the running games** starts no new games
+and lets the ones being played finish (they count). **Stop now** ends
+everything straight away; unfinished games are thrown away and nobody learns
+from them. On the command line, Ctrl+C stops right away too.
 
 Pick **New Boy…** in a bot dropdown to name a new learning bot; it's created
 the first time it plays. The same runner works from the command line:

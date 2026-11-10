@@ -87,11 +87,11 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
          min-height: 0; overflow: auto; }
 .board.active { box-shadow: 0 0 0 2px var(--seat) inset; }
 .board.lost { opacity: .45; filter: grayscale(.7); }
-.board-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.board-head { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
 .board-head .name { font-weight: 700; font-size: 15px; }
 .board-head .bot { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px;
                    padding: 0 6px; }
-.life { font-size: 26px; font-weight: 800; margin-left: auto; transition: color .3s; }
+.life { font-size: 26px; font-weight: 800; line-height: 32px; transition: color .3s; }
 .life.hurt { color: var(--danger); }
 .life.healed { color: var(--good); }
 .stats { display: flex; gap: 10px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
@@ -102,7 +102,12 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .zone-label { font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
 .hand-row { padding-top: 4px; border-top: 1px dashed var(--line); }
 .hand-row, .land-row { --card-w: calc(var(--card-size) * .75); }
-.command-row { --card-w: calc(var(--card-size) * .45); flex-wrap: nowrap; }
+/* The commander next to the life total: a landscape crop showing only the art, as tall as the life number. */
+.command-row { flex-wrap: nowrap; margin-left: auto; }
+.command-row .card { --card-w: 48px; width: 48px; height: 32px; border-radius: 5px; }
+.command-row .card img { object-position: 50% 22%; transform: scale(1.35); transform-origin: 50% 22%; }
+.command-row .card { overflow: hidden; }
+.command-row:empty + .life { margin-left: auto; }
 
 /* ---------- a card ---------- */
 .card { position: relative; width: var(--card-w); height: calc(var(--card-w) * 1.397); /* real cards are 63 x 88 mm */
@@ -166,4 +171,23 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 #batch td, #batch th { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--line); }
 #batch th { color: var(--muted); font-weight: 500; }
 #batch .bar { display: inline-block; height: 8px; background: var(--accent); border-radius: 4px; vertical-align: middle; }
+.batch-stop { display: flex; gap: 8px; margin-top: 6px; }
+button.danger { border-color: #e5534b; color: #ff8c84; }
+button.danger:hover { background: rgba(229, 83, 75, .15); }
 #batch .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+
+/* ---------- cast animation ---------- */
+.cast-layer { position: fixed; inset: 0; pointer-events: none; z-index: 40; }
+.cast-dim { position: fixed; background: rgba(0, 0, 0, .5); border-radius: 10px; }
+.cast-card { position: fixed; border-radius: 12px; }
+.cast-label { position: fixed; transform: translateX(-50%); white-space: nowrap; font-weight: 700;
+              background: rgba(20, 24, 31, .95); border: 1px solid var(--accent); padding: 4px 12px; border-radius: 8px; }
+
+/* ---------- targeting arrows ---------- */
+#arrows { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 30; }
+#arrows .arrow { stroke: #e5534b; stroke-width: 5; fill: none; stroke-linecap: round; stroke-dasharray: 12 7;
+                 filter: drop-shadow(0 0 5px #e5534b); animation: march .6s linear infinite; }
+#arrows .arrow.faint { stroke-width: 3; opacity: .35; filter: none; animation: none; }
+@keyframes march { to { stroke-dashoffset: -19; } }
+.card.targeted, .card.targeting, .stack-item.targeting { box-shadow: 0 0 0 3px #e5534b, 0 0 14px #e5534b; }
+.life.targeted { color: #ff8c84; text-shadow: 0 0 12px #e5534b; }

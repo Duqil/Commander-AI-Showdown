@@ -62,7 +62,9 @@ included when the table changed. Never hand an event's `state` to a bot.
 A decision's `state` is the game from the deciding player's point of view: turn, phase
 (`MAIN1`, `COMBAT_DECLARE_ATTACKERS`, ...), whose turn it is, and for every
 player their life, poison, commander damage taken, hand size, battlefield,
-graveyard, exile and command zone, plus the `stack`. Cards also say whether
+graveyard, exile and command zone, plus the `stack` (each item has an `id`, a
+`kind`: `spell`, `ability` or `trigger`, and its `targets` as `{"card": id}`,
+`{"player": name}` or `{"spell": stack id}`). Cards also say whether
 they are tapped, a token, a commander, attacking or blocking, what they are
 attached to, their counters, and their `owner` vs `controller`. Only
 your own `hand` is included, so bots can't peek. `turns` counts each player's
