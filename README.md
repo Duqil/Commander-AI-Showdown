@@ -32,6 +32,20 @@ No Python packages are needed; everything uses the standard library.
 ./scripts/setup_forge.sh      # clones + builds Forge into vendor/ (5-15 min), then the bridge
 ```
 
+On **Windows**, run this in **Git Bash** (it comes with Git). In VS Code: open the
+terminal (Ctrl+`), click the arrow next to `+` and pick "Git Bash".
+
+**Where files go.** The script installs nothing system-wide. Everything it
+downloads or builds stays in `vendor/` inside this folder (ignored by git, about 1.3 GB):
+
+| Folder | What |
+|---|---|
+| `vendor/forge/` | Forge's source code and the built engine |
+| `vendor/m2/` | Libraries Maven downloads to build Forge (normally `~/.m2`) |
+| `vendor/forge-data/` | Forge's settings and cache, created on the first game (normally `%APPDATA%\Forge` or `~/.forge`) |
+
+Delete `vendor/` to undo it all. Java, Maven, git and Python you install yourself.
+
 ## Play a game
 
 ```bash
