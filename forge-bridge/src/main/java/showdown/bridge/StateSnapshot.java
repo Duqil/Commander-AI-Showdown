@@ -107,6 +107,10 @@ public final class StateSnapshot {
         }
         if (c.isCommander()) {
             cj.addProperty("commander", true);
+            if (c.getOwner() != null) {
+                // Commander tax: {2} more for each time it was already cast from the command zone.
+                cj.addProperty("commander_tax", 2 * c.getOwner().getCommanderCast(c));
+            }
         }
         if (c.isFaceDown()) {
             cj.addProperty("face_down", true);

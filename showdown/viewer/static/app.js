@@ -148,7 +148,7 @@ $("#start").onclick = async () => {
 // ===========================================================================
 function resetPlayback() {
   Object.assign(app, { events: [], stateSeqs: [], seats: [], pos: 0, shownStateSeq: -1,
-                       lastLife: {}, playing: true });
+                       lastLife: {}, playing: false }); // a new game opens paused: press ▶ to start
   app.knownCards.clear();
   $("#log").innerHTML = "";
   $("#boards").innerHTML = "";
@@ -175,7 +175,14 @@ async function poll() {
       const data = await api(`/api/game/events?since=${app.events.length}`);
       app.status = data.status;
       app.config = data.config;
+      const hadState = app.stateSeqs.length > 0;
       for (const ev of data.events) addEvent(ev);
+      // Paused at the very start and the first table snapshot just arrived:
+      // show the opening table so there's something to look at before pressing play.
+      if (!hadState && app.stateSeqs.length && !app.playing && app.pos === 0) {
+        goTo(app.stateSeqs[0] + 1);
+        showBanner("Ready. Press ▶ or Space to start", 4000);
+      }
       if (data.events.length < 400) break;
     }
   } catch (e) {
@@ -280,7 +287,9 @@ function render() {
     } else {
       const state = app.events[seq].state;
       const phase = PHASE_NAMES[state.phase] || state.phase || "";
-      $("#turn-info").textContent = `Turn ${state.turn} · ${state.active_player ?? "–"} · ${phase}`;
+      $("#turn-info").textContent = state.turn
+        ? `Turn ${state.turn} · ${state.active_player ?? "–"} · ${phase}`
+        : "Opening hands (mulligans)";
       drawBoards(state);
       drawStack(state);
       if (app.followLog) $("#log").scrollTop = $("#log").scrollHeight; // the stack may have resized it
@@ -492,6 +501,7 @@ function updateCard(node, c, player) {
   const others = otherCounters(c);
   if (others.length) badge("counters", others.map(([k, v]) => `${v} ${shortCounter(k)}`).join(" "));
   if (c.chosen) badge("chosen", Object.values(c.chosen).join(", "), choiceText(c));
+  if (c.commander_tax) badge("tax", `+${c.commander_tax}`, `Command tax: {${c.commander_tax}} more to cast`);
   // Controlled by someone who doesn't own it (stolen): a border in the owner's colour.
   // The hover preview says "owned by ...".
   const stolen = c.owner && c.controller && c.owner !== c.controller;
@@ -558,6 +568,7 @@ function showPreview(card) {
   }
   for (const [k, v] of otherCounters(card)) bits.push(`${v} ${shortCounter(k)} counter${v > 1 ? "s" : ""}`);
   if (card.chosen) bits.push(choiceText(card));
+  if (card.commander) bits.push(`command tax ${card.commander_tax || 0}`);
   if (card.owner && card.controller && card.owner !== card.controller) bits.push(`owned by ${card.owner}`);
   box.querySelector(".preview-text").textContent = bits.filter(Boolean).join(" · ");
   box.classList.remove("hidden");

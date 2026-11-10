@@ -21,6 +21,7 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
 * **Setup screen.** Pick a deck and a bot for each seat (seats 3 and 4 can be
   empty for a 2 or 3 player game). Leave the seed empty for a random game, or
   give a number to replay the same shuffle with different bots.
+* **A new game opens paused** on the opening hands. Press ▶ (or Space) to start.
 * **Controls.** ⏮ replay from the start, ◀ / ▶ step one event, ⏸ pause,
   ⏭ jump to the latest moment, speed 0.5× to 10×, or **Max** to always show
   the newest moment. Drag the slider to move through the game. Click any log
@@ -36,7 +37,8 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   sideways, attackers glow red, blockers blue, and
   a coloured outline (in the owner's seat colour) marks a permanent controlled
   by someone who doesn't own it (Zidane steals!). The commander, while waiting
-  in the command zone, is a small thumbnail next to the player's name.
+  in the command zone, is a small thumbnail next to the player's name; a gold
+  "+2" on it is the command tax.
   Creatures with +1/+1 counters show green stats (red for -1/-1); hover for
   the details. A purple badge shows a choice made for the card, like the
   colour of a Thriving land. Seats go clockwise from the top left.
