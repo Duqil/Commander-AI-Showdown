@@ -50,6 +50,16 @@ class TimelineBuilderTest(unittest.TestCase):
         self.assertEqual(ev["category"], "STATE")
         self.assertIn("state", ev)
 
+    def test_a_new_choice_on_a_card_is_logged_once(self):
+        st = state()
+        st["players"][0]["battlefield"] = [{"id": 5, "name": "Thriving Bluff", "controller": "1-Zidane",
+                                            "chosen": {"color": "blue"}}]
+        msg = {"type": "event", "log": [], "entries": [], "state": st}
+        events = self.b.feed(msg)
+        self.assertEqual(events[-1]["category"], "CHOICE")
+        self.assertEqual(events[-1]["text"], "1-Zidane chose Blue for Thriving Bluff")
+        self.assertEqual([e for e in self.b.feed(msg) if e["category"] == "CHOICE"], [])  # not again
+
     def test_answer_becomes_bot_choice(self):
         decision = {"kind": "mulligan", "player": "1-Zidane"}
         [ev] = self.b.feed({"type": "answer", "decision": decision, "choice": True, "bot": "simple"})

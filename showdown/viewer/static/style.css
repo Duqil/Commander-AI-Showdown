@@ -122,7 +122,10 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
          background: rgba(0,0,0,.8); color: #fff; pointer-events: none; }
 .badge.pt { right: 2px; bottom: 2px; }
 .badge.count { left: 2px; top: 2px; background: var(--accent); color: #1a1406; }
-.badge.counters { left: 2px; bottom: 2px; background: #2f6f3a; }
+.badge.pt.buffed { background: #2f7d3a; }   /* has +1/+1 counters */
+.badge.pt.debuffed { background: #9e2b25; } /* has -1/-1 counters */
+.badge.counters { left: 2px; top: 50%; background: #3d4b60; }
+.badge.chosen { left: 50%; top: 2px; transform: translateX(-50%); background: #6b4fa0; white-space: nowrap; }
 .badge.stolen { right: 2px; top: 2px; background: var(--danger); }
 .badge.tapped-n { left: 2px; top: 20px; }
 

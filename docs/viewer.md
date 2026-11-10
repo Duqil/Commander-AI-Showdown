@@ -35,8 +35,12 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   and the hand (untick **Hands** to hide them). Tapped cards are turned
   sideways, attackers glow red, blockers blue, and a red "from X" badge marks
   a permanent controlled by someone who doesn't own it (Zidane steals!).
+  Creatures with +1/+1 counters show green stats (red for -1/-1); hover for
+  the details. A purple badge shows a choice made for the card, like the
+  colour of a Thriving land. Seats go clockwise from the top left.
   Hover a card for a big picture.
-* **Log.** Forge's game log plus what the Python bots decided (in blue).
+* **Log.** Forge's game log plus what the Python bots decided (in blue),
+  and choices Forge doesn't log itself ("2-Anhelo chose Red for Thriving Moor").
   Phase and mana lines are hidden unless you tick "phases & mana".
 
 ## Where files go

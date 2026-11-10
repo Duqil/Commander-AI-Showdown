@@ -295,6 +295,10 @@ function seatIndex(name) {
   return i < 0 ? 0 : i;
 }
 
+// Boards go clockwise around the table: top left, top right, bottom right, bottom left.
+// CSS "order" places seat i in grid cell CLOCKWISE[i] (cells are read row by row).
+const CLOCKWISE = [0, 1, 3, 2];
+
 function drawEmptyBoards() {
   const boards = $("#boards");
   if (boards.children.length) return;
@@ -302,6 +306,7 @@ function drawEmptyBoards() {
     const b = el("div", "board");
     b.style.setProperty("--seat", `var(--seat-${s.seat})`);
     b.append(el("div", "name", `${s.name} · ${botLabel(s.controller === "forge" ? "forge" : botOf(s.seat))}`));
+    b.style.order = CLOCKWISE[s.seat] ?? s.seat;
     boards.append(b);
   }
 }
@@ -318,6 +323,7 @@ function drawBoards(state) {
     if (!board) {
       if (i === 0) boards.innerHTML = "";
       board = makeBoard(p.name);
+      board.style.order = CLOCKWISE[i] ?? i;
       boards.append(board);
     }
     updateBoard(board, p, state);
@@ -471,11 +477,40 @@ function updateCard(node, c, player) {
   node.classList.toggle("attached", !!c._attached);
   node.querySelectorAll(".badge").forEach((b) => b.remove());
   const badge = (cls, text, title) => { const b = el("span", `badge ${cls}`, text); if (title) b.title = title; node.append(b); };
-  if (c.power !== undefined) badge("pt", `${c.power}/${c.toughness}`);
+  if (c.power !== undefined) {
+    // +1/+1 counters turn the stats green, -1/-1 counters red. Details are in the hover preview.
+    const net = ptCounters(c);
+    badge(`pt ${net > 0 ? "buffed" : net < 0 ? "debuffed" : ""}`, `${c.power}/${c.toughness}`);
+  }
   if (c._count > 1) badge("count", `×${c._count}`);
   if (c._count > 1 && c._tapped && c._tapped < c._count) badge("tapped-n", `${c._tapped} tapped`);
-  if (c.counters) badge("counters", Object.entries(c.counters).map(([k, v]) => `${v} ${shortCounter(k)}`).join(" "));
+  const others = otherCounters(c);
+  if (others.length) badge("counters", others.map(([k, v]) => `${v} ${shortCounter(k)}`).join(" "));
+  if (c.chosen) badge("chosen", Object.values(c.chosen).join(", "), choiceText(c));
   if (c.owner && c.controller && c.owner !== c.controller) badge("stolen", `from ${c.owner}`, `Owned by ${c.owner}`);
+}
+
+// Forge names these counters "+1/+1" and "-1/-1" (older Forge versions: "P1P1", "M1M1").
+const PLUS = new Set(["+1/+1", "P1P1"]);
+const MINUS = new Set(["-1/-1", "M1M1"]);
+
+/** Net +1/+1 counters on a creature (negative if -1/-1 counters win). */
+function ptCounters(c) {
+  let net = 0;
+  for (const [k, v] of Object.entries(c.counters || {})) {
+    if (PLUS.has(k)) net += v;
+    if (MINUS.has(k)) net -= v;
+  }
+  return net;
+}
+
+/** Counters other than +1/+1 and -1/-1 (loyalty, rope, ...), as [name, amount] pairs. */
+function otherCounters(c) {
+  return Object.entries(c.counters || {}).filter(([k]) => !PLUS.has(k) && !MINUS.has(k));
+}
+
+function choiceText(c) {
+  return Object.entries(c.chosen || {}).map(([k, v]) => `chosen ${k}: ${v}`).join(", ");
 }
 
 function shortCounter(name) {
@@ -502,7 +537,18 @@ function showPreview(card) {
   const box = $("#preview");
   box.querySelector("img").src = imageUrl(card);
   const bits = [card.name, card.type];
-  if (card.power !== undefined) bits.push(`${card.power}/${card.toughness}`);
+  if (card.power !== undefined) {
+    const net = ptCounters(card);
+    if (net) {
+      // e.g. "4/4 (2/2 + two +1/+1 counters)": the printed size before counters.
+      const sign = net > 0 ? "+1/+1" : "-1/-1";
+      bits.push(`${card.power}/${card.toughness} (${card.power - net}/${card.toughness - net} with ${Math.abs(net)} ${sign} counter${Math.abs(net) > 1 ? "s" : ""})`);
+    } else {
+      bits.push(`${card.power}/${card.toughness}`);
+    }
+  }
+  for (const [k, v] of otherCounters(card)) bits.push(`${v} ${shortCounter(k)} counter${v > 1 ? "s" : ""}`);
+  if (card.chosen) bits.push(choiceText(card));
   if (card.owner && card.controller && card.owner !== card.controller) bits.push(`owned by ${card.owner}`);
   box.querySelector(".preview-text").textContent = bits.filter(Boolean).join(" · ");
   box.classList.remove("hidden");
