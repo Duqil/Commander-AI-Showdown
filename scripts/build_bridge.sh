@@ -10,7 +10,9 @@ OUT="$ROOT/forge-bridge/target"
 
 rm -rf "$OUT/classes"
 mkdir -p "$OUT/classes"
-javac --release 17 -encoding UTF-8 -cp "$FORGE_JAR" -d "$OUT/classes" \
-    $(find "$ROOT/forge-bridge/src/main/java" -name '*.java')
+# Collect the .java files into a bash array. -print0 and mapfile -d '' split on
+# a "null" character instead of spaces, so folder names like "Code Projects" work.
+mapfile -d '' SOURCES < <(find "$ROOT/forge-bridge/src/main/java" -name '*.java' -print0)
+javac --release 17 -encoding UTF-8 -cp "$FORGE_JAR" -d "$OUT/classes" "${SOURCES[@]}"
 jar --create --file "$OUT/forge-bridge.jar" -C "$OUT/classes" .
 echo ">> Built $OUT/forge-bridge.jar"
