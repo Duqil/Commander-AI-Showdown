@@ -26,6 +26,7 @@ for the answer. Details are in [bridge.md](bridge.md).
 | `forge-bridge/` | The Java side: a Forge player controller that asks Python |
 | `showdown/bridge/` | Python side of the connection and the game loop |
 | `showdown/bots/` | Bots. Start with `simple_bot.py` |
+| `showdown/viewer/` | The browser viewer (web server + page in `static/`) |
 | `showdown/decks/` | Deck converter (uses Scryfall for flavor-name cards) |
 | `decks/` | Deck lists, source and Forge format |
 | `scripts/` | Setup and build scripts |
@@ -70,6 +71,7 @@ python -m unittest discover -s tests -v    # no Java needed: uses a fake Forge
 | `vendor/forge/` | Forge's source code and the built engine (pinned commit, see the script) |
 | `vendor/m2/` | Libraries Maven downloads to build Forge (normally `~/.m2`) |
 | `vendor/forge-data/` | Forge's settings and cache, created on the first game (normally `%APPDATA%\Forge` or `~/.forge`) |
+| `vendor/card-images/` | Card images the browser viewer downloads from Scryfall |
 
 If only the bridge's Java code changed, `./scripts/build_bridge.sh` rebuilds
 just that, without rebuilding Forge.

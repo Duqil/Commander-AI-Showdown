@@ -4,7 +4,7 @@ Four bots play a game of Commander (EDH) while you watch. You pick the decks;
 [Forge](https://github.com/Card-Forge/forge) enforces the rules, and our Python
 bots make the decisions.
 
-**Status:** games run in the terminal. A browser viewer with card art is on the way.
+**Status:** full games run in Forge; watch them in your browser or the terminal.
 
 ---
 
@@ -57,13 +57,25 @@ Everything it creates stays in the `vendor/` folder inside the project (about
 
 It's done when it prints `>> Done.`
 
-## 4. Run a game
+## 4. Watch a game in the browser
+
+```bash
+python -m showdown.viewer
+```
+
+(If `python` isn't found on Windows, use `py` instead, here and below.)
+
+This opens http://127.0.0.1:8000 in your browser. Pick a deck and a bot for
+each seat, then watch with card art, a game log and play/pause/speed controls.
+Stop the viewer with Ctrl+C in the terminal. Card images are saved in
+`vendor/card-images/` and finished games in `games/`. More in
+[docs/viewer.md](docs/viewer.md).
+
+## 5. Or run a game in the terminal
 
 ```bash
 python -m showdown.run_game
 ```
-
-(If `python` isn't found on Windows, use `py -m showdown.run_game`.)
 
 You'll see the game log scroll by and the winner at the end. Some variations:
 
@@ -76,7 +88,7 @@ python -m showdown.run_game --decks zidane kuja --quiet    # 2 players, result o
 Decks: `zidane`, `anhelo`, `nelly`, `kuja`. Bots: `simple` (our bot), `forge`
 (Forge's own AI), `random`.
 
-## 5. Getting updates
+## 6. Getting updates
 
 ```bash
 git pull
@@ -89,6 +101,7 @@ Running the setup again is always safe; it's much faster the second time.
 
 ## More
 
+- [docs/viewer.md](docs/viewer.md): everything about the browser viewer.
 - [docs/development.md](docs/development.md): how the code fits together,
   adding decks, running tests, where files go.
 - [docs/bridge.md](docs/bridge.md): how Python and Forge talk to each other.
