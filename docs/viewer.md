@@ -30,11 +30,13 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   where saved games can be watched again.
 * **Board.** Each player has a coloured board: life, cards in hand (✋),
   library (📚), graveyard (🪦, click to see it), exile (🌀), poison and
-  commander damage taken. Rows are: commander (while in the command zone),
+  commander damage taken. Rows are:
   creatures, other permanents, lands (identical lands are stacked with ×N),
   and the hand (untick **Hands** to hide them). Tapped cards are turned
-  sideways, attackers glow red, blockers blue, and a red "from X" badge marks
-  a permanent controlled by someone who doesn't own it (Zidane steals!).
+  sideways, attackers glow red, blockers blue, and
+  a coloured outline (in the owner's seat colour) marks a permanent controlled
+  by someone who doesn't own it (Zidane steals!). The commander, while waiting
+  in the command zone, is a small thumbnail next to the player's name.
   Creatures with +1/+1 counters show green stats (red for -1/-1); hover for
   the details. A purple badge shows a choice made for the card, like the
   colour of a Thriving land. Seats go clockwise from the top left.

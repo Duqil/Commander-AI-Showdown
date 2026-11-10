@@ -102,6 +102,7 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .zone-label { font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
 .hand-row { padding-top: 4px; border-top: 1px dashed var(--line); }
 .hand-row, .land-row { --card-w: calc(var(--card-size) * .75); }
+.command-row { --card-w: calc(var(--card-size) * .45); flex-wrap: nowrap; }
 
 /* ---------- a card ---------- */
 .card { position: relative; width: var(--card-w); height: calc(var(--card-w) * 1.397); /* real cards are 63 x 88 mm */
@@ -126,7 +127,7 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .badge.pt.debuffed { background: #9e2b25; } /* has -1/-1 counters */
 .badge.counters { left: 2px; top: 50%; background: #3d4b60; }
 .badge.chosen { left: 50%; top: 2px; transform: translateX(-50%); background: #6b4fa0; white-space: nowrap; }
-.badge.stolen { right: 2px; top: 2px; background: var(--danger); }
+.card.stolen { outline: 3px solid var(--owner); outline-offset: 1px; } /* owner's seat colour */
 .badge.tapped-n { left: 2px; top: 20px; }
 
 /* ---------- side preview, banner, popup ---------- */
@@ -151,3 +152,4 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
   #side { border-left: 0; border-top: 1px solid var(--line); max-height: 45vh; }
   #preview { display: none; }
 }
+.command-row .badge { display: none; } /* too small to read; hover shows the details */

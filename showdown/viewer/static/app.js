@@ -339,10 +339,15 @@ function makeBoard(name) {
   const head = el("div", "board-head");
   head.append(el("span", "name", name));
   head.append(el("span", "bot", info.controller === "forge" ? "Forge AI" : botLabel(botOf(seat))));
+  // A commander waiting in the command zone is shown as a small thumbnail in
+  // the header, so it doesn't take a whole row. Hover it for the big picture.
+  const command = el("div", "zone-row command-row");
+  command.dataset.zone = "command";
+  head.append(command);
   head.append(el("span", "life", "40"));
   b.append(head, el("div", "stats"));
   // Zones, top to bottom. Each is a row of cards we fill in updateBoard().
-  for (const zone of ["command", "creatures", "other", "lands", "hand"]) {
+  for (const zone of ["creatures", "other", "lands", "hand"]) {
     const row = el("div", `zone-row ${zone}-row`);
     row.dataset.zone = zone;
     if (zone === "lands") row.classList.add("land-row");
@@ -487,7 +492,11 @@ function updateCard(node, c, player) {
   const others = otherCounters(c);
   if (others.length) badge("counters", others.map(([k, v]) => `${v} ${shortCounter(k)}`).join(" "));
   if (c.chosen) badge("chosen", Object.values(c.chosen).join(", "), choiceText(c));
-  if (c.owner && c.controller && c.owner !== c.controller) badge("stolen", `from ${c.owner}`, `Owned by ${c.owner}`);
+  // Controlled by someone who doesn't own it (stolen): a border in the owner's colour.
+  // The hover preview says "owned by ...".
+  const stolen = c.owner && c.controller && c.owner !== c.controller;
+  node.classList.toggle("stolen", !!stolen);
+  if (stolen) node.style.setProperty("--owner", `var(--seat-${seatIndex(c.owner)})`);
 }
 
 // Forge names these counters "+1/+1" and "-1/-1" (older Forge versions: "P1P1", "M1M1").
