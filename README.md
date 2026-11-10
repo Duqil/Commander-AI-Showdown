@@ -1,86 +1,94 @@
 # Commander AI Showdown
 
-Teaching bots to play Commander. Four bots sit down with four decks; you pick
-the decks and watch. Later: a browser viewer with card images, and learning
-bots ("The Boys").
+Four bots play a game of Commander (EDH) while you watch. You pick the decks;
+[Forge](https://github.com/Card-Forge/forge) enforces the rules, and our Python
+bots make the decisions.
 
-**Status:** step 1, the bridge. Python can play full 4-player Commander games
-inside [Forge](https://github.com/Card-Forge/forge), which enforces all the rules.
+**Status:** games run in the terminal. A browser viewer with card art is on the way.
 
-## How it fits together
+---
 
-```
- Python (this repo)                     Java (Forge + forge-bridge/)
- ------------------                     ----------------------------
- showdown/run_game.py  starts  ───────► BridgeMain: loads decks, starts a game
- game_runner.py        ◄─── "decision" PythonPlayerController: "keep this hand?"
-   └─ bots/simple_bot.py  ───► answer   "what do you play?" "who attacks?"
-                       ◄─── "event"     game log lines
-                       ◄─── "game_over" winner, life totals
-```
+## 1. Install these (once)
 
-Forge knows every card and every rule. Whenever a Python-controlled player
-must decide something, Forge sends the question over a local socket and waits
-for the answer. Details are in [docs/bridge.md](docs/bridge.md).
+| Program | Version | Where to get it | Check it works |
+|---|---|---|---|
+| **Git** | any | [git-scm.com](https://git-scm.com/downloads) (includes Git Bash) | `git --version` |
+| **Python** | 3.10 or newer | [python.org](https://www.python.org/downloads/) | `python --version` |
+| **Java JDK** | 21 | [Temurin 21 from adoptium.net](https://adoptium.net/temurin/releases/?version=21) | `java -version` |
+| **Maven** | 3.9 or newer | [maven.apache.org](https://maven.apache.org/download.cgi) ("Binary zip archive") | `mvn -v` |
 
-## Setup (once)
+Tips for Windows:
 
-You need **Java 17+** (21 recommended), **Maven**, **git** and **Python 3.10+**.
-No Python packages are needed; everything uses the standard library.
+- **Python:** tick **"Add python.exe to PATH"** on the installer's first screen.
+- **Java:** in the Temurin installer, turn on **"Set JAVA_HOME variable"**. Use
+  Java 21; newer versions (like 25) are untested.
+- **Maven** has no installer. Unzip it somewhere you'll keep it (for example
+  `C:\Tools\apache-maven-3.9.x`), then add its `bin` folder to your PATH:
+  Start menu, search **"environment variables"**, open
+  *Edit the system environment variables* > *Environment Variables* >
+  select **Path** under *User variables* > *Edit* > *New*, paste the path to
+  `...\apache-maven-3.9.x\bin`, and click OK on every window.
 
-```bash
-./scripts/setup_forge.sh      # clones + builds Forge into vendor/ (5-15 min), then the bridge
-```
+Close and reopen your terminal after installing, then run the four "check"
+commands above. Each should print a version number.
 
-On **Windows**, run this in **Git Bash** (it comes with Git). In VS Code: open the
-terminal (Ctrl+`), click the arrow next to `+` and pick "Git Bash".
+No Python packages are needed.
 
-**Where files go.** The script installs nothing system-wide. Everything it
-downloads or builds stays in `vendor/` inside this folder (ignored by git, about 1.3 GB):
+## 2. Get the code (once)
 
-| Folder | What |
-|---|---|
-| `vendor/forge/` | Forge's source code and the built engine |
-| `vendor/m2/` | Libraries Maven downloads to build Forge (normally `~/.m2`) |
-| `vendor/forge-data/` | Forge's settings and cache, created on the first game (normally `%APPDATA%\Forge` or `~/.forge`) |
-
-Delete `vendor/` to undo it all. Java, Maven, git and Python you install yourself.
-
-## Play a game
+Open a terminal. In VS Code: menu **Terminal > New Terminal** (or `` Ctrl+` ``;
+on a Swedish keyboard `Ctrl+Ö`). Then click the small arrow next to `+` in the
+terminal panel and pick **Git Bash**. All commands below are run in Git Bash.
 
 ```bash
-python -m showdown.run_game                                   # 4 decks, all SimpleBot
-python -m showdown.run_game --bots simple forge random forge --seed 7
-python -m showdown.run_game --decks zidane kuja --quiet       # 2 players, result only
+git clone https://github.com/duqil/commander-ai-showdown.git
+cd commander-ai-showdown
 ```
 
-`forge` means Forge's own AI plays that seat, a good opponent to measure our bots against.
-
-## Decks
-
-Deck lists live in `decks/source/` (Moxfield export format). Convert them to
-Forge's format with:
+## 3. Build the rules engine (once)
 
 ```bash
-python -m showdown.decks.convert --all     # decks/source/*.txt -> decks/forge/*.dck
+./scripts/setup_forge.sh
 ```
 
-To add a deck: drop the export into `decks/source/`, run the command, and pass
-its name to `--decks`.
+This downloads and builds Forge. It takes **5 to 15 minutes** the first time.
+Everything it creates stays in the `vendor/` folder inside the project (about
+1.3 GB); nothing is installed anywhere else. Delete `vendor/` to undo it.
 
-## Tests
+It's done when it prints `>> Done.`
+
+## 4. Run a game
 
 ```bash
-python -m unittest discover -s tests -v    # no Java needed: uses a fake Forge
+python -m showdown.run_game
 ```
 
-## Layout
+(If `python` isn't found on Windows, use `py -m showdown.run_game`.)
 
-| Path | What |
-|---|---|
-| `forge-bridge/` | The Java side: a Forge player controller that asks Python |
-| `showdown/bridge/` | Python side of the connection and the game loop |
-| `showdown/bots/` | Bots. Start with `simple_bot.py` |
-| `showdown/decks/` | Deck converter (uses Scryfall for flavor-name cards) |
-| `decks/` | Deck lists, source and Forge format |
-| `scripts/` | Setup and build scripts |
+You'll see the game log scroll by and the winner at the end. Some variations:
+
+```bash
+python -m showdown.run_game --seed 7                       # set the random seed
+python -m showdown.run_game --bots simple forge simple forge  # Forge's AI plays seats 2 and 4
+python -m showdown.run_game --decks zidane kuja --quiet    # 2 players, result only
+```
+
+Decks: `zidane`, `anhelo`, `nelly`, `kuja`. Bots: `simple` (our bot), `forge`
+(Forge's own AI), `random`.
+
+## 5. Getting updates
+
+```bash
+git pull
+./scripts/setup_forge.sh      # only needed if Java files (forge-bridge/ or scripts/) changed
+```
+
+Running the setup again is always safe; it's much faster the second time.
+
+---
+
+## More
+
+- [docs/development.md](docs/development.md): how the code fits together,
+  adding decks, running tests, where files go.
+- [docs/bridge.md](docs/bridge.md): how Python and Forge talk to each other.
