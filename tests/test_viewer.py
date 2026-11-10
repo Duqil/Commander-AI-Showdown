@@ -1,0 +1,171 @@
+"""Tests for the browser viewer's Python side. No Java, no network needed.
+
+Run with:  python -m unittest discover -s tests -v
+"""
+
+from __future__ import annotations
+
+import json
+import tempfile
+import threading
+import unittest
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+from showdown.viewer.card_images import CardImages, file_name, load_deck_printings
+from showdown.viewer.events import EVENT_KINDS, TimelineBuilder, describe_choice, make_event
+from showdown.viewer.session import GameSession
+
+
+def state(turn=1, active="1-Zidane", life=40):
+    return {"turn": turn, "active_player": active, "phase": "MAIN1", "stack": [],
+            "players": [{"name": "1-Zidane", "life": life}, {"name": "2-Kuja", "life": 40}]}
+
+
+class TimelineBuilderTest(unittest.TestCase):
+    def setUp(self):
+        self.b = TimelineBuilder()
+
+    def test_game_start(self):
+        [ev] = self.b.feed({"type": "game_start", "seats": [{"seat": 0, "name": "1-Zidane", "controller": "python"}]})
+        self.assertEqual(ev["kind"], "game_start")
+        self.assertEqual(ev["data"]["seats"][0]["name"], "1-Zidane")
+
+    def test_log_lines_get_categories_and_the_last_one_gets_the_state(self):
+        events = self.b.feed({"type": "event", "log": ["x", "y"], "state": state(turn=3),
+                              "entries": [{"type": "LAND", "text": "played Mountain"},
+                                          {"type": "STACK_ADD", "text": "cast Bolt"}]})
+        self.assertEqual([e["category"] for e in events], ["LAND", "STACK_ADD"])
+        self.assertNotIn("state", events[0])
+        self.assertEqual(events[1]["state"]["turn"], 3)
+        self.assertEqual(events[1]["turn"], 3)
+
+    def test_old_bridge_without_entries(self):
+        [ev] = self.b.feed({"type": "event", "log": ["Turn 1"]})
+        self.assertEqual(ev["text"], "Turn 1")
+
+    def test_state_without_log_lines_still_becomes_an_event(self):
+        [ev] = self.b.feed({"type": "event", "log": [], "entries": [], "state": state()})
+        self.assertEqual(ev["category"], "STATE")
+        self.assertIn("state", ev)
+
+    def test_answer_becomes_bot_choice(self):
+        decision = {"kind": "mulligan", "player": "1-Zidane"}
+        [ev] = self.b.feed({"type": "answer", "decision": decision, "choice": True, "bot": "simple"})
+        self.assertEqual(ev["kind"], "bot_choice")
+        self.assertIn("keeps its hand", ev["text"])
+
+    def test_game_over(self):
+        [ev] = self.b.feed({"type": "game_over", "winner": "2-Kuja", "draw": False, "turns": 20, "players": []})
+        self.assertIn("2-Kuja wins", ev["text"])
+        self.assertEqual(ev["data"]["winner"], "2-Kuja")
+
+    def test_unknown_message_type_is_ignored(self):
+        self.assertEqual(self.b.feed({"type": "something_new"}), [])
+
+
+class DescribeChoiceTest(unittest.TestCase):
+    def test_attack(self):
+        decision = {"kind": "attack",
+                    "attackers": [{"id": 10, "name": "Bear"}, {"id": 11, "name": "Goblin"}],
+                    "defenders": [{"index": 0, "name": "2-Kuja"}, {"index": 1, "name": "3-Nelly"}]}
+        self.assertEqual(describe_choice(decision, {"10": 1, "11": 1}), "attacks with Bear, Goblin at 3-Nelly")
+        self.assertEqual(describe_choice(decision, {}), "decides not to attack")
+
+    def test_passing_is_not_shown(self):
+        self.assertIsNone(describe_choice({"kind": "choose_play"}, None))
+        self.assertIsNone(describe_choice({"kind": "choose_play"}, 0))
+
+
+class EventTest(unittest.TestCase):
+    def test_unknown_kind_is_rejected(self):
+        with self.assertRaises(ValueError):
+            make_event("no_such_kind", "hi")
+
+    def test_deal_kinds_are_reserved(self):
+        self.assertIn("deal_offer", EVENT_KINDS)
+        self.assertEqual(make_event("deal_offer", "x", deal="truce")["data"], {"deal": "truce"})
+
+
+class SessionTest(unittest.TestCase):
+    def test_save_and_load_round_trip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            import showdown.viewer.session as session_module
+            old = session_module.GAMES_DIR
+            session_module.GAMES_DIR = Path(tmp)
+            try:
+                s = GameSession(None, "test-game")
+                s.add_event(make_event("game_start", "go"))
+                s.add_event(make_event("log", "hello", state=state()))
+                path = s.save()
+                loaded = GameSession.load(path)
+            finally:
+                session_module.GAMES_DIR = old
+        self.assertEqual([e["seq"] for e in loaded.events], [0, 1])
+        self.assertEqual(loaded.events_since(1)[0]["text"], "hello")
+        self.assertEqual(loaded.status, "finished")
+
+
+class CardImagesTest(unittest.TestCase):
+    def test_file_names_are_safe(self):
+        name = file_name("Zidane, Tantalus Thief // ../evil")
+        self.assertTrue(name.endswith(".jpg"))
+        self.assertNotIn("/", name)
+        self.assertNotEqual(file_name("A"), file_name("token:A"))
+
+    def test_printings_come_from_deck_lists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "d.txt").write_text("1 Lightning Bolt (2X2) 117\n1 Fire // Ice (MH2) 290\n", encoding="utf-8")
+            printings = load_deck_printings(Path(tmp))
+        self.assertEqual(printings["Lightning Bolt"], ("2x2", "117"))
+        self.assertEqual(printings["Fire"], ("mh2", "290"))  # front face also works
+
+    def test_cached_image_is_served_without_network(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            images = CardImages(Path(tmp))
+            Path(tmp, file_name("Sol Ring")).write_bytes(b"jpeg!")
+            self.assertEqual(images.get("Sol Ring"), b"jpeg!")
+
+
+class ServerTest(unittest.TestCase):
+    """Start the real web server on a free port and ask it things."""
+
+    @classmethod
+    def setUpClass(cls):
+        from showdown.viewer.server import serve
+        cls.server = serve(port=0)  # port 0 = any free port
+        cls.port = cls.server.server_address[1]
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def get(self, path):
+        with urllib.request.urlopen(f"http://127.0.0.1:{self.port}{path}") as r:
+            return r.status, r.read()
+
+    def test_page_and_decks(self):
+        status, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn(b"Commander AI Showdown", body)
+        decks = json.loads(self.get("/api/decks")[1])
+        self.assertIn("zidane", decks["decks"])
+
+    def test_static_files_cannot_escape_the_folder(self):
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.get("/static/../server.py")
+        self.assertEqual(ctx.exception.code, 404)
+
+    def test_bad_new_game_is_refused(self):
+        req = urllib.request.Request(f"http://127.0.0.1:{self.port}/api/game/new", data=b'{"decks": ["zidane"]}',
+                                     method="POST")
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            urllib.request.urlopen(req)
+        self.assertEqual(ctx.exception.code, 400)
+
+
+if __name__ == "__main__":
+    unittest.main()

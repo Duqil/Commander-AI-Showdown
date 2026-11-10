@@ -122,6 +122,7 @@ public final class BridgeMain {
         Match match = new Match(rules, players, "Commander AI Showdown");
         Game game = match.createGame();
         game.setNoGUIUser();
+        game.subscribeToEvents(new SpectatorFeed(game, bridge, log)); // live feed for the viewer
         try {
             match.startGame(game); // runs the whole game on this thread
         } catch (RuntimeException e) {

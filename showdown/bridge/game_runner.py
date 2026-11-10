@@ -3,9 +3,13 @@
 This is the heart of the Python side. The loop is:
 
     for each message from Forge:
-        "event"     -> print the new log lines (later: send them to the viewer)
+        "event"     -> print the new log lines
         "decision"  -> ask the right bot, send the answer back
         "game_over" -> done, return the result
+
+Pass ``on_message`` to see every message as it arrives, including the bots'
+answers (as {"type": "answer", ...}). The browser viewer
+(showdown/viewer/) uses that to build its timeline.
 """
 
 from __future__ import annotations
@@ -50,10 +54,15 @@ def answer_decision(bot: Bot, decision: Decision):
     return None  # a kind this bot doesn't know: let Forge decide
 
 
+# The type of the on_message callback: it gets one message dict, returns nothing.
+MessageCallback = Callable[[dict], None]
+
+
 def play(
     conn: BridgeConnection,
     bots_by_seat: list[Bot | None],
     on_log: Callable[[str], None] | None = None,
+    on_message: MessageCallback | None = None,
 ) -> GameResult:
     """Drive a game over an already-open connection. Separate from run_game() so tests can use a fake Forge."""
     bots_by_name: dict[str, Bot] = {}
@@ -61,6 +70,8 @@ def play(
     log: list[str] = []
 
     for msg in conn.messages():
+        if on_message:
+            on_message(msg)
         kind = msg["type"]
         if kind == "game_start":
             for seat in msg["seats"]:
@@ -77,6 +88,10 @@ def play(
             choice = answer_decision(bot, msg) if bot else None
             conn.answer(msg["id"], choice)
             decisions += 1
+            if on_message:
+                # Tell the viewer what the bot decided (Forge never echoes it back).
+                on_message({"type": "answer", "decision": msg, "choice": choice,
+                            "bot": bot.name if bot else None})
         elif kind == "game_over":
             return GameResult(
                 winner=msg.get("winner"),
@@ -95,6 +110,7 @@ def run_game(
     on_log: Callable[[str], None] | None = None,
     forge_log: Path | None = None,
     timeout: float = 600,
+    on_message: MessageCallback | None = None,
 ) -> GameResult:
     """Play one full Commander game in Forge and return the result."""
     server = listen()
@@ -114,9 +130,14 @@ def run_game(
         sock.settimeout(timeout)  # no single message should take this long
         conn = BridgeConnection(sock)
         try:
-            return play(conn, [s.bot for s in seats], on_log)
+            return play(conn, [s.bot for s in seats], on_log, on_message)
         finally:
             conn.close()
+    except BaseException:
+        # Something went wrong, or the game was stopped on purpose (e.g. the
+        # viewer's Stop button): don't let Forge play on, end it right away.
+        process.kill()
+        raise
     finally:
         server.close()
         try:
