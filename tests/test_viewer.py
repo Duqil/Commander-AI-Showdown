@@ -147,6 +147,18 @@ class BotNameTest(unittest.TestCase):
             self.assertFalse(valid_bot(name), name)
 
 
+class BatchStopTest(unittest.TestCase):
+    def test_stop_now_aborts_running_games(self):
+        from showdown.viewer.batch_job import BatchJob
+        job = BatchJob(["a", "b"], ["simple", "simple"], games=3)  # not started: no Forge needed
+        job.stop()
+        self.assertTrue(job._stop.is_set())
+        self.assertFalse(job._abort.is_set())  # plain stop lets running games finish
+        job.stop(now=True)
+        self.assertTrue(job._abort.is_set())
+        self.assertEqual(job.status, "stopping")
+
+
 class ServerTest(unittest.TestCase):
     """Start the real web server on a free port and ask it things."""
 

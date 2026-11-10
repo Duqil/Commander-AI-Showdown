@@ -22,19 +22,23 @@ class BatchJob:
         self.decks, self.bots, self.games = decks, bots, games
         self.parallel, self.seed, self.save_games, self.learn = parallel, seed, save_games, learn
         self.records: list[GameRecord] = []
-        self.status = "running"  # running -> finished / stopped / error
+        self.status = "running"  # running (-> stopping) -> finished / stopped / error
         self.error: str | None = None
         self.started = time.time()
         self._stop = threading.Event()
+        self._abort = threading.Event()
         self._lock = threading.Lock()
         self._thread = threading.Thread(target=self._run, name="batch", daemon=True)
 
     def start(self) -> None:
         self._thread.start()
 
-    def stop(self) -> None:
-        """No new games start; the ones already running finish first."""
+    def stop(self, now: bool = False) -> None:
+        """No new games start. With now=True the running games end too (they don't count)."""
         self._stop.set()
+        if now:
+            self._abort.set()
+            self.status = "stopping"
 
     def _on_result(self, record: GameRecord) -> None:
         with self._lock:
@@ -44,7 +48,7 @@ class BatchJob:
         try:
             run_many(self.decks, self.bots, self.games, parallel=self.parallel, seed=self.seed,
                      save_games=self.save_games, learn=self.learn,
-                     on_result=self._on_result, stop=self._stop)
+                     on_result=self._on_result, stop=self._stop, abort=self._abort)
             self.status = "stopped" if self._stop.is_set() else "finished"
         except Exception as e:
             self.error = f"{type(e).__name__}: {e}"

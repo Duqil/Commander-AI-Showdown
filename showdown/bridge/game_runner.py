@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import socket
 import subprocess
+import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -52,6 +54,10 @@ def answer_decision(bot: Bot, decision: Decision):
     if kind == "attack":
         return bot.declare_attackers(decision)
     return None  # a kind this bot doesn't know: let Forge decide
+
+
+class GameAborted(Exception):
+    """The game was ended on purpose before it finished (see run_game's abort)."""
 
 
 # The type of the on_message callback: it gets one message dict, returns nothing.
@@ -113,8 +119,13 @@ def run_game(
     forge_log: Path | None = None,
     timeout: float = 600,
     on_message: MessageCallback | None = None,
+    abort: threading.Event | None = None,
 ) -> GameResult:
-    """Play one full Commander game in Forge and return the result."""
+    """Play one full Commander game in Forge and return the result.
+
+    Setting ``abort`` (from any thread) ends the game right away: Forge is
+    killed and GameAborted is raised. The viewer's "Stop now" button uses it.
+    """
     server = listen()
     port = server.getsockname()[1]
     process = start_forge(
@@ -123,16 +134,38 @@ def run_game(
         seed=seed,
         log_file=forge_log,
     )
+    game_done = threading.Event()
+    if abort is not None:
+        # A small helper thread that watches the abort flag while the game runs.
+        # Killing Forge closes its connection, which makes play() below stop.
+        def watch() -> None:
+            while not game_done.wait(0.5):
+                if abort.is_set():
+                    process.kill()
+                    return
+        threading.Thread(target=watch, name="abort-watch", daemon=True).start()
     try:
-        server.settimeout(120)  # Forge takes a while to load ~30,000 cards
-        try:
-            sock, _ = server.accept()
-        except socket.timeout:
-            raise TimeoutError("Forge didn't connect within 2 minutes (see the Forge log file)")
+        # Forge takes a while to load ~30,000 cards. Wait in 1-second steps so
+        # an abort doesn't have to wait for the whole 2 minutes.
+        server.settimeout(1)
+        deadline = time.monotonic() + 120
+        while True:
+            if abort is not None and abort.is_set():
+                raise GameAborted("stopped before the game began")
+            try:
+                sock, _ = server.accept()
+                break
+            except socket.timeout:
+                if time.monotonic() > deadline:
+                    raise TimeoutError("Forge didn't connect within 2 minutes (see the Forge log file)")
         sock.settimeout(timeout)  # no single message should take this long
         conn = BridgeConnection(sock)
         try:
             return play(conn, [s.bot for s in seats], on_log, on_message)
+        except Exception:
+            if abort is not None and abort.is_set():
+                raise GameAborted("stopped by the user")
+            raise
         finally:
             conn.close()
     except BaseException:
@@ -141,6 +174,7 @@ def run_game(
         process.kill()
         raise
     finally:
+        game_done.set()
         server.close()
         try:
             process.wait(timeout=10)

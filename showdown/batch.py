@@ -34,7 +34,7 @@ from typing import Callable
 
 from showdown.bots.boy_bot import BoyBot
 from showdown.boys import storage
-from showdown.bridge.game_runner import Seat, run_game
+from showdown.bridge.game_runner import GameAborted, Seat, run_game
 from showdown.run_game import DECK_DIR, REPO_ROOT, make_bot
 
 BASIC_BOTS = ["simple", "random", "forge"]
@@ -62,8 +62,12 @@ def bots_available() -> list[str]:
 
 
 def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
-             save_game: bool = False, learn: bool = True) -> GameRecord:
-    """Play one game and return its record. Boys learn when it ends (if learn=True)."""
+             save_game: bool = False, learn: bool = True,
+             abort: threading.Event | None = None) -> GameRecord | None:
+    """Play one game and return its record. Boys learn when it ends (if learn=True).
+
+    Returns None if the game was aborted: it doesn't count, and nobody learns from it.
+    """
     record = GameRecord(index, seed, list(decks), list(bots))
     seated = [make_bot(b, None if seed is None else seed + seat, learn=learn) for seat, b in enumerate(bots)]
     seats = [Seat(DECK_DIR / f"{d}.dck", bot) for d, bot in zip(decks, seated)]
@@ -86,7 +90,9 @@ def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
     start = time.monotonic()
     try:
         result = run_game(seats, seed=seed, on_message=on_message,
-                          forge_log=REPO_ROOT / f"forge-batch-{index % 8}.log")
+                          forge_log=REPO_ROOT / f"forge-batch-{index % 8}.log", abort=abort)
+    except GameAborted:
+        return None
     except Exception as e:  # one broken game shouldn't end the whole batch
         record.error = f"{type(e).__name__}: {e}"
         record.seconds = time.monotonic() - start
@@ -132,11 +138,13 @@ def run_many(
     learn: bool = True,
     on_result: Callable[[GameRecord], None] | None = None,
     stop: threading.Event | None = None,
+    abort: threading.Event | None = None,
 ) -> list[GameRecord]:
     """Play ``games`` games with the same decks and bots in the same seats.
 
     on_result is called (from a worker thread) after each game. Setting
     ``stop`` means no new games start; games already running finish.
+    Setting ``abort`` also ends the running games right away (they don't count).
     Game i uses seed + i when a seed is given, so a batch can be repeated.
     """
     if len(decks) != len(bots):
@@ -150,12 +158,15 @@ def run_many(
     records: list[GameRecord] = []
     records_lock = threading.Lock()
     stop = stop or threading.Event()
+    abort = abort or threading.Event()
 
     def worker(index: int) -> None:
-        if stop.is_set():
+        if stop.is_set() or abort.is_set():
             return
         record = play_one(index, decks, bots, None if seed is None else seed + index * 10,
-                          save_game=save_games, learn=learn)
+                          save_game=save_games, learn=learn, abort=abort)
+        if record is None:  # aborted
+            return
         with records_lock:
             records.append(record)
         if on_result:
@@ -167,8 +178,9 @@ def run_many(
         try:
             for future in futures:
                 future.result()  # waits, and re-raises any bug in worker()
-        except BaseException:   # e.g. Ctrl+C: don't start the games still waiting
+        except BaseException:   # e.g. Ctrl+C: end the running games, start no more
             stop.set()
+            abort.set()
             for future in futures:
                 future.cancel()
             raise

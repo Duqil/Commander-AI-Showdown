@@ -17,7 +17,7 @@ What the browser can ask for (an "API"):
     POST /api/batch/start           run many games without watching. Body: {"decks", "bots",
                                     "games": 20, "parallel": 1, "seed", "save_games", "learn"}
     GET  /api/batch                 progress and results of that batch
-    POST /api/batch/stop            start no more games (running ones finish)
+    POST /api/batch/stop            start no more games. Body {"now": true} also ends running ones
 
 The browser asks for new events about twice a second ("polling"). Simple, and
 plenty fast for a local app.
@@ -148,10 +148,10 @@ class Handler(BaseHTTPRequestHandler):
             decks, bots = body.get("decks", []), body.get("bots", [])
             if not 2 <= len(decks) <= 4 or len(bots) != len(decks) or not all(valid_bot(b) for b in bots):
                 return self.send_json({"error": "Pick 2 to 4 decks with a valid bot each"}, 400)
-            if STATE.batch and STATE.batch.status == "running":
+            if STATE.batch and STATE.batch.status in ("running", "stopping"):
                 return self.send_json({"error": "A batch is already running"}, 409)
             games = max(1, min(int(body.get("games") or 10), 10000))
-            parallel = max(1, min(int(body.get("parallel") or 1), 4))
+            parallel = max(1, min(int(body.get("parallel") or 1), 5))
             seed = body.get("seed")
             STATE.batch = BatchJob(decks, bots, games, parallel,
                                    seed=int(seed) if seed not in (None, "") else None,
@@ -160,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(STATE.batch.summary())
         if path == "/api/batch/stop":
             if STATE.batch:
-                STATE.batch.stop()
+                STATE.batch.stop(now=bool(body.get("now")))
             return self.send_json({"ok": True})
         if path == "/api/game/stop":
             if STATE.session:
