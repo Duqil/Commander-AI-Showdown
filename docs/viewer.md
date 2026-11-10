@@ -47,6 +47,20 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   and choices Forge doesn't log itself ("2-Anhelo chose Red for Thriving Moor").
   Phase and mana lines are hidden unless you tick "phases & mana".
 
+## Run many games (no viewing)
+
+Under **Run many games** in the main menu: pick how many games and how many
+at once (each needs about 2 GB of memory), then **Run games**. It uses the
+decks and bots chosen above, plays the games without showing them, and shows
+a progress bar, wins per seat and, for Boys, their average reward. "Boys learn"
+lets Boys train from these games; untick it to just test them. "Save games for
+replay" puts every game under **Saved games**, so you can watch the
+interesting ones.
+
+Pick **New Boy…** in a bot dropdown to name a new learning bot; it's created
+the first time it plays. The same runner works from the command line:
+`python -m showdown.batch --help`.
+
 ## Where files go
 
 | Folder | What |

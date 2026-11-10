@@ -100,15 +100,105 @@ async function showSetup() {
     deckSel.value = previous.decks[i] ?? (i >= 2 ? "" : decks[i % decks.length]);
     const botSel = el("select");
     for (const b of bots) botSel.append(new Option(botLabel(b), b));
-    botSel.value = previous.bots[i] ?? "simple";
+    botSel.append(new Option("New Boy…", NEW_BOY));
+    const wanted = previous.bots[i] ?? "simple";
+    if (![...botSel.options].some((o) => o.value === wanted)) botSel.append(new Option(botLabel(wanted), wanted));
+    botSel.value = wanted;
+    botSel.onchange = () => askNewBoy(botSel);
     row.append(label, deckSel, botSel);
     seats.append(row);
   }
   loadSavedList();
+  pollBatch(); // show a batch that is running (or finished) in the background
 }
 
 function botLabel(kind) {
+  if (kind.startsWith("boy:")) return `Boy: ${kind.slice(4)}`;
   return { simple: "SimpleBot (Python)", random: "RandomBot (Python)", forge: "Forge AI" }[kind] || kind;
+}
+
+// Picking "New Boy…" asks for a name. A Boy is created the first time it plays.
+const NEW_BOY = "__new_boy__";
+function askNewBoy(select) {
+  if (select.value !== NEW_BOY) return;
+  const name = (prompt("Name for the new Boy (letters, digits, - or _):") || "").trim();
+  if (!/^[A-Za-z0-9_-]{1,32}$/.test(name)) { select.value = "simple"; return; }
+  const value = `boy:${name}`;
+  for (const other of document.querySelectorAll(".seat-row select:last-child")) {
+    if (![...other.options].some((o) => o.value === value)) {
+      other.insertBefore(new Option(botLabel(value), value), other.querySelector(`option[value="${NEW_BOY}"]`));
+    }
+  }
+  select.value = value;
+}
+
+// ===========================================================================
+// Run many games (no viewing)
+// ===========================================================================
+function chosenSeats() {
+  const decks = [], bots = [];
+  for (const row of document.querySelectorAll(".seat-row")) {
+    const [deckSel, botSel] = row.querySelectorAll("select");
+    if (!deckSel.value) continue;
+    decks.push(deckSel.value);
+    bots.push(botSel.value);
+  }
+  return { decks, bots };
+}
+
+$("#batch-start").onclick = async () => {
+  try {
+    $("#setup-error").textContent = "";
+    await api("/api/batch/start", {
+      ...chosenSeats(),
+      games: Number($("#batch-games").value),
+      parallel: Number($("#batch-parallel").value),
+      learn: $("#batch-learn").checked,
+      save_games: $("#batch-save").checked,
+      seed: $("#seed").value,
+    });
+    pollBatch();
+  } catch (e) {
+    $("#setup-error").textContent = e.message;
+  }
+};
+
+let batchTimer = null;
+async function pollBatch() {
+  clearTimeout(batchTimer);
+  const b = await api("/api/batch");
+  if (b.status === "none") return;
+  renderBatch(b);
+  if (b.status === "running") batchTimer = setTimeout(pollBatch, 1500);
+}
+
+function renderBatch(b) {
+  const box = $("#batch");
+  box.classList.remove("hidden");
+  const pct = Math.round((100 * b.done) / b.games);
+  const finished = b.done - b.crashed;
+  const left = b.avg_seconds && b.status === "running"
+    ? ` · about ${Math.ceil(((b.games - b.done) * b.avg_seconds) / b.parallel / 60)} min left` : "";
+  const statusText = { running: "Running", finished: "Finished", stopped: "Stopped", error: "Error" }[b.status];
+  let html = `<b>${statusText}</b>: ${b.done} of ${b.games} games${left}
+    <div class="progress"><div style="width:${pct}%"></div></div>
+    <table><tr><th>Seat</th><th>Deck</th><th>Bot</th><th>Wins</th><th></th>${b.seats.some((s) => s.avg_reward !== null) ? "<th>Avg reward</th>" : ""}</tr>`;
+  for (const s of b.seats) {
+    const rate = finished ? s.wins / finished : 0;
+    html += `<tr><td><span class="dot" style="background:var(--seat-${s.seat})"></span> ${s.seat + 1}</td>
+      <td>${s.deck}</td><td>${botLabel(s.bot)}</td><td>${s.wins} (${Math.round(rate * 100)}%)</td>
+      <td><span class="bar" style="width:${Math.round(rate * 80)}px"></span></td>
+      ${s.avg_reward !== null ? `<td>${s.avg_reward}</td>` : b.seats.some((x) => x.avg_reward !== null) ? "<td></td>" : ""}</tr>`;
+  }
+  html += `</table><p class="muted small">Draws ${b.draws} · crashed ${b.crashed} · average ${b.avg_turns ?? "–"} turns,
+    ${b.avg_seconds ?? "–"} s per game${b.error ? ` · <span class="error">${b.error}</span>` : ""}</p>`;
+  box.innerHTML = html;
+  if (b.status === "running") {
+    const stop = el("button", "", "Stop after the running games");
+    stop.onclick = () => api("/api/batch/stop", {}).then(pollBatch);
+    box.append(stop);
+  }
+  if (b.status !== "running") loadSavedList(); // new saved games may be there
 }
 
 async function loadSavedList() {
@@ -127,13 +217,7 @@ async function loadSavedList() {
 }
 
 $("#start").onclick = async () => {
-  const decks = [], bots = [];
-  for (const row of document.querySelectorAll(".seat-row")) {
-    const [deckSel, botSel] = row.querySelectorAll("select");
-    if (!deckSel.value) continue;
-    decks.push(deckSel.value);
-    bots.push(botSel.value);
-  }
+  const { decks, bots } = chosenSeats();
   try {
     $("#setup-error").textContent = "";
     await api("/api/game/new", { decks, bots, seed: $("#seed").value });
