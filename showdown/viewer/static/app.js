@@ -153,7 +153,7 @@ function resetPlayback() {
   $("#log").innerHTML = "";
   $("#boards").innerHTML = "";
   $("#stack").textContent = "empty";
-  $("#turn-info").textContent = "Starting Forge (loading ~30,000 cards takes a little while)…";
+  $("#turn-info").textContent = "Loading rules…";
 }
 
 async function enterGame() {
