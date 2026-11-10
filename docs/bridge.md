@@ -40,7 +40,9 @@ Java → Python:
 
 ```json
 {"type": "game_start", "seats": [{"seat": 0, "name": "1-Zidane", "deck": "Zidane", "controller": "python"}, ...]}
-{"type": "event", "log": ["Turn: Turn 3 (1-Zidane)", "Land: 1-Zidane played Mountain (50)"]}
+{"type": "event", "log": ["Turn: Turn 3 (1-Zidane)", "Land: 1-Zidane played Mountain (50)"],
+ "entries": [{"type": "TURN", "text": "Turn 3 (1-Zidane)"}, {"type": "LAND", "text": "1-Zidane played Mountain (50)"}],
+ "state": {...}}
 {"type": "decision", "id": 12, "kind": "choose_play", "player": "1-Zidane",
  "state": {...}, "options": [{"index": 0, "card": {...}, "description": "...", "is_land": true, "is_spell": false}]}
 {"type": "game_over", "winner": "4-Kuja", "draw": false, "turns": 26, "players": [{"name": "...", "life": -1, "lost": true}]}
@@ -52,9 +54,17 @@ Python → Java (only in reply to a decision):
 {"id": 12, "choice": 0}
 ```
 
-`state` is the game from the deciding player's point of view: turn, phase
+Events are sent as the game happens (by `SpectatorFeed.java`, which listens
+to Forge's event bus), not only before a decision. Their `state` is a
+spectator snapshot with every hand in it, for the browser viewer, and is only
+included when the table changed. Never hand an event's `state` to a bot.
+
+A decision's `state` is the game from the deciding player's point of view: turn, phase
 (`MAIN1`, `COMBAT_DECLARE_ATTACKERS`, ...), whose turn it is, and for every
-player their life, hand size, battlefield, graveyard and command zone. Only
+player their life, poison, commander damage taken, hand size, battlefield,
+graveyard, exile and command zone, plus the `stack`. Cards also say whether
+they are tapped, a token, a commander, attacking or blocking, what they are
+attached to, their counters, and their `owner` vs `controller`. Only
 your own `hand` is included, so bots can't peek. `turns` counts each player's
 turn separately (4 players × 5 rounds = 20 turns).
 

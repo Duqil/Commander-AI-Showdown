@@ -246,21 +246,50 @@ public class PythonPlayerController extends PlayerControllerAi {
         }
     }
 
-    /** Keeps track of how much of the game log Python has already seen. */
+    /**
+     * Keeps track of how much of the game log Python has already seen, and
+     * sends Python an "event" message whenever something new happened.
+     *
+     * Each event carries the new log lines and, for the browser viewer, a
+     * spectator snapshot of the whole table. Identical snapshots are not
+     * sent twice, which keeps saved games small.
+     */
     public static final class LogCursor {
         private int sent = 0;
+        private String lastState = "";
 
+        /** Send new log lines (if any), plus the table state if it changed. */
         public synchronized void flush(Game game, BridgeConnection bridge) {
+            flush(game, bridge, false);
+        }
+
+        /**
+         * @param checkState also send an event when only the table changed
+         *                   (no new log lines), e.g. at the start of a phase
+         */
+        public synchronized void flush(Game game, BridgeConnection bridge, boolean checkState) {
             int size = game.getGameLog().size();
             if (size < sent) {
                 sent = size; // Forge undid something (AI rollback) and shortened the log
             }
-            if (size == sent) {
+            boolean newLines = size > sent;
+            if (!newLines && !checkState) {
                 return;
+            }
+            JsonObject state = StateSnapshot.spectator(game);
+            String stateText = state.toString();
+            boolean stateChanged = !stateText.equals(lastState);
+            if (!newLines && !stateChanged) {
+                return; // nothing new to tell
             }
             JsonObject event = new JsonObject();
             event.addProperty("type", "event");
-            event.add("log", StateSnapshot.logLines(game, sent));
+            event.add("log", StateSnapshot.logLines(game, sent));       // plain text, as before
+            event.add("entries", StateSnapshot.logEntries(game, sent)); // same lines with their category
+            if (stateChanged) {
+                event.add("state", state);
+                lastState = stateText;
+            }
             sent = size;
             bridge.send(event);
         }

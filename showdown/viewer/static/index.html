@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Commander AI Showdown</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- Screen 1: pick decks and bots -->
+<section id="setup" class="screen">
+  <div class="setup-box">
+    <h1>Commander AI Showdown</h1>
+    <p class="muted">Pick a deck and a bot for each seat, then watch.</p>
+    <div id="seats"></div>
+    <label class="seed">Seed <input id="seed" type="number" placeholder="random"></label>
+    <p class="muted small">The same seed and decks give the same shuffle, handy for comparing bots.</p>
+    <button id="start" class="primary">Start game</button>
+    <p id="setup-error" class="error"></p>
+
+    <h2>Saved games</h2>
+    <div id="saved" class="muted small">None yet. Finished games are saved to the games/ folder.</div>
+  </div>
+</section>
+
+<!-- Screen 2: the table -->
+<section id="game" class="screen hidden">
+  <header id="topbar">
+    <div id="turn-info">Waiting for Forge…</div>
+    <div id="controls">
+      <button id="btn-restart" title="Replay from the start (Home)">⏮</button>
+      <button id="btn-back" title="Step back (←)">◀︎</button>
+      <button id="btn-play" title="Play / pause (Space)" class="primary">⏸</button>
+      <button id="btn-step" title="Step forward (→)">▶︎</button>
+      <button id="btn-live" title="Jump to the latest moment (End)">⏭</button>
+      <span class="speed" id="speeds"></span>
+      <input id="scrub" type="range" min="0" max="0" value="0" title="Drag to move through the game">
+      <span id="progress" class="muted small"></span>
+    </div>
+    <div id="game-buttons">
+      <label class="small"><input type="checkbox" id="show-hands" checked> Hands</label>
+      <label class="small">Size <input type="range" id="card-size" min="48" max="120" value="72"></label>
+      <button id="btn-new" title="Play again with the same decks and bots">New game</button>
+      <button id="btn-stop" title="Stop the running game">Stop</button>
+      <button id="btn-setup">Decks…</button>
+    </div>
+  </header>
+
+  <main id="table">
+    <div id="boards"></div>
+    <aside id="side">
+      <div id="stack-box">
+        <h3>Stack</h3>
+        <div id="stack" class="muted small">empty</div>
+      </div>
+      <div id="log-box">
+        <h3>Log
+          <label class="small muted"><input type="checkbox" id="show-noisy"> phases &amp; mana</label>
+        </h3>
+        <div id="log"></div>
+      </div>
+      <div id="preview" class="hidden"><img alt=""><div class="preview-text"></div></div>
+    </aside>
+  </main>
+  <div id="banner" class="hidden"></div>
+</section>
+
+<!-- Pop-up list for graveyard / exile -->
+<div id="zone-popup" class="hidden"><div class="zone-head"><span></span><button>✕</button></div><div class="zone-cards"></div></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

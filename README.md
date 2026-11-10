@@ -56,6 +56,14 @@ python -m showdown.run_game --decks zidane kuja --quiet       # 2 players, resul
 
 `forge` means Forge's own AI plays that seat, a good opponent to measure our bots against.
 
+## Watch a game in the browser
+
+```bash
+python -m showdown.viewer
+```
+
+This opens http://127.0.0.1:8000, where you pick decks and bots, then watch with card art, a game log and play/pause/speed controls. Card images are cached in `vendor/card-images/` and finished games are saved in `games/`. Details: [docs/viewer.md](docs/viewer.md).
+
 ## Decks
 
 Deck lists live in `decks/source/` (Moxfield export format). Convert them to
@@ -81,6 +89,7 @@ python -m unittest discover -s tests -v    # no Java needed: uses a fake Forge
 | `forge-bridge/` | The Java side: a Forge player controller that asks Python |
 | `showdown/bridge/` | Python side of the connection and the game loop |
 | `showdown/bots/` | Bots. Start with `simple_bot.py` |
+| `showdown/viewer/` | The browser viewer (web server + page in `static/`) |
 | `showdown/decks/` | Deck converter (uses Scryfall for flavor-name cards) |
 | `decks/` | Deck lists, source and Forge format |
 | `scripts/` | Setup and build scripts |
