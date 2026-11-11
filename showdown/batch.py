@@ -66,7 +66,7 @@ def bots_available() -> list[str]:
 
 def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
              save_game: bool = False, learn: bool = True, explore: bool = True,
-             abort: threading.Event | None = None) -> GameRecord | None:
+             abort: threading.Event | None = None, deals: bool = False) -> GameRecord | None:
     """Play one game and return its record. Boys learn when it ends (if learn=True).
 
     Returns None if the game was aborted: it doesn't count, and nobody learns from it.
@@ -94,7 +94,7 @@ def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
     start = time.monotonic()
     try:
         result = run_game(seats, seed=seed, on_message=on_message,
-                          forge_log=REPO_ROOT / f"forge-batch-{index % 8}.log", abort=abort)
+                          forge_log=REPO_ROOT / f"forge-batch-{index % 8}.log", abort=abort, deals=deals)
     except GameAborted:
         return None
     except Exception as e:  # one broken game shouldn't end the whole batch
@@ -146,6 +146,7 @@ def run_many(
     on_result: Callable[[GameRecord], None] | None = None,
     stop: threading.Event | None = None,
     abort: threading.Event | None = None,
+    deals: bool = False,
 ) -> list[GameRecord]:
     """Play ``games`` games with the same decks and bots in the same seats.
 
@@ -172,7 +173,7 @@ def run_many(
         if stop.is_set() or abort.is_set():
             return
         record = play_one(index, decks, bots, None if seed is None else seed + index * 10,
-                          save_game=save_games, learn=learn, explore=explore, abort=abort)
+                          save_game=save_games, learn=learn, explore=explore, abort=abort, deals=deals)
         if record is None:  # aborted
             return
         with records_lock:
@@ -247,6 +248,7 @@ def main() -> None:
     parser.add_argument("--no-learn", action="store_true", help="Boys play but don't learn")
     parser.add_argument("--greedy", action="store_true",
                         help="Boys always take their best option, no exploring (use with --no-learn to test them)")
+    parser.add_argument("--deals", action="store_true", help="let bots make deals with each other")
     parser.add_argument("--report", action="store_true", help="only show the training history")
     args = parser.parse_args()
 
@@ -262,6 +264,7 @@ def main() -> None:
 
     records = run_many(args.decks, bots, args.games, parallel=args.parallel, seed=args.seed,
                        save_games=args.save_games, learn=not args.no_learn, explore=not args.greedy,
+                       deals=args.deals,
                        on_result=lambda r: print_record(r, args.games))
 
     print("\nWins per seat:")
