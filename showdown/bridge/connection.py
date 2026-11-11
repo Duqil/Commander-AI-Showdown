@@ -39,6 +39,14 @@ class BridgeConnection:
         self._writer.write(json.dumps({"id": decision_id, "choice": choice}) + "\n")
         self._writer.flush()  # send now, don't wait for the buffer to fill
 
+    def send(self, message: dict[str, Any]) -> None:
+        """Send Forge a message that isn't an answer (e.g. "next_game" or "quit")."""
+        self._writer.write(json.dumps(message) + "\n")
+        self._writer.flush()
+
+    def settimeout(self, seconds: float) -> None:
+        self._sock.settimeout(seconds)
+
     def close(self) -> None:
         for f in (self._reader, self._writer, self._sock):
             try:

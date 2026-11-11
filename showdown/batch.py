@@ -35,7 +35,7 @@ from typing import Callable
 
 from showdown.bots.boy_bot import BoyBot
 from showdown.boys import storage
-from showdown.bridge.game_runner import GameAborted, Seat, run_game
+from showdown.bridge.game_runner import Forge, GameAborted, Seat
 from showdown.run_game import DECK_DIR, REPO_ROOT, make_bot
 from showdown.stats import record_game
 
@@ -66,10 +66,12 @@ def bots_available() -> list[str]:
 
 def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
              save_game: bool = False, learn: bool = True, explore: bool = True,
-             abort: threading.Event | None = None, deals: bool = False) -> GameRecord | None:
+             abort: threading.Event | None = None, deals: bool = False,
+             forge: Forge | None = None) -> GameRecord | None:
     """Play one game and return its record. Boys learn when it ends (if learn=True).
 
     Returns None if the game was aborted: it doesn't count, and nobody learns from it.
+    ``forge``: an already running Forge to play in (saves loading it again).
     """
     record = GameRecord(index, seed, list(decks), list(bots))
     seated = [make_bot(b, None if seed is None else seed + seat, learn=learn, explore=explore)
@@ -93,8 +95,11 @@ def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
 
     start = time.monotonic()
     try:
-        result = run_game(seats, seed=seed, on_message=on_message,
-                          forge_log=REPO_ROOT / f"forge-batch-{index % 8}.log", abort=abort, deals=deals)
+        if forge is None:
+            with Forge(REPO_ROOT / f"forge-batch-{index % 8}.log") as one_off:
+                result = one_off.play(seats, seed=seed, on_message=on_message, abort=abort, deals=deals)
+        else:
+            result = forge.play(seats, seed=seed, on_message=on_message, abort=abort, deals=deals)
     except GameAborted:
         return None
     except Exception as e:  # one broken game shouldn't end the whole batch
@@ -169,11 +174,22 @@ def run_many(
     abort = abort or threading.Event()
     crashes_in_a_row = [0]  # a list so worker() can change it
 
+    # Each parallel slot (a thread in the pool) keeps its own Forge running
+    # between games, so the rules are loaded once per slot instead of once per
+    # game. threading.local() gives every thread its own "slot.forge".
+    slot = threading.local()
+    forges: list[Forge] = []
+
     def worker(index: int) -> None:
         if stop.is_set() or abort.is_set():
             return
+        if not hasattr(slot, "forge"):
+            slot.forge = Forge(REPO_ROOT / f"forge-batch-{len(forges)}.log")
+            with records_lock:
+                forges.append(slot.forge)
         record = play_one(index, decks, bots, None if seed is None else seed + index * 10,
-                          save_game=save_games, learn=learn, explore=explore, abort=abort, deals=deals)
+                          save_game=save_games, learn=learn, explore=explore, abort=abort, deals=deals,
+                          forge=slot.forge)
         if record is None:  # aborted
             return
         with records_lock:
@@ -186,17 +202,21 @@ def run_many(
             on_result(record)
 
     # "with" waits for all games to finish before going on.
-    with ThreadPoolExecutor(max_workers=max(1, parallel)) as pool:
-        futures = [pool.submit(worker, i) for i in range(games)]
-        try:
-            for future in futures:
-                future.result()  # waits, and re-raises any bug in worker()
-        except BaseException:   # e.g. Ctrl+C: end the running games, start no more
-            stop.set()
-            abort.set()
-            for future in futures:
-                future.cancel()
-            raise
+    try:
+        with ThreadPoolExecutor(max_workers=max(1, parallel)) as pool:
+            futures = [pool.submit(worker, i) for i in range(games)]
+            try:
+                for future in futures:
+                    future.result()  # waits, and re-raises any bug in worker()
+            except BaseException:   # e.g. Ctrl+C: end the running games, start no more
+                stop.set()
+                abort.set()
+                for future in futures:
+                    future.cancel()
+                raise
+    finally:
+        for forge in forges:  # all games are over: let each Forge quit
+            forge.close(kill=abort.is_set())
     return sorted(records, key=lambda r: r.index)
 
 

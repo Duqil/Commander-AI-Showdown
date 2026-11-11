@@ -118,6 +118,13 @@ reads a card's rules only when the game needs that card (instead of all
 `showdown/bridge/forge_process.py`. The first game after `build_bridge.sh`
 is a little slower while Java writes that file again.
 
+**Run many games** goes further: each parallel slot keeps its Forge running
+and asks it for the next game, so the rules load once per slot, and Java,
+which speeds up as it runs, stays warm. In a test with 5 games in a row this
+took 205 s instead of 235 s, with exactly the same results per seed. A slot
+starts a fresh Forge every 25 games, and after any game that crashed or was
+stopped (`Forge` in `showdown/bridge/game_runner.py`).
+
 ## Where files go
 
 | Folder | What |
