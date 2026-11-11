@@ -95,6 +95,16 @@ X), `counter_booster` and `booster_before_x` (Hardened Scales first, then a
 slightly smaller Tervigon that gets an extra counter). They start at weight 0,
 so a Boy has to discover them in play.
 
+**Graveyard tricks.** The bridge marks cards that work from the graveyard
+(`graveyard_use`: "landfall" for Bloodghast-style returners, "keyword" for
+flashback/escape/madness..., "trigger", "ability"), Forge's own
+`sac_me`/`discard_me` ratings, and keywords a permanent `grants` (Anhelo grants
+"Casualty"). Boy play features: `land_returns_creatures` (a land drop brings a
+returner back), `casualty_before_land` (cast the casualty spell first,
+sacrificing a returner, while the land drop is still unused) and its opposite
+`land_before_casualty`. Discarding a graveyard-useful card to hand size isn't
+penalised.
+
 ## Things to try (good Python exercises)
 
 - Change the weights in `threat.threat_score()` and see if training improves.

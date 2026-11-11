@@ -87,6 +87,82 @@ public final class StateSnapshot {
         return arr;
     }
 
+    /** Keywords that let a card be used from the graveyard. */
+    private static final java.util.Set<forge.game.keyword.Keyword> GRAVEYARD_KEYWORDS = java.util.EnumSet.of(
+            forge.game.keyword.Keyword.FLASHBACK, forge.game.keyword.Keyword.ESCAPE,
+            forge.game.keyword.Keyword.JUMP_START, forge.game.keyword.Keyword.MADNESS,
+            forge.game.keyword.Keyword.UNEARTH, forge.game.keyword.Keyword.DISTURB,
+            forge.game.keyword.Keyword.EMBALM, forge.game.keyword.Keyword.ETERNALIZE,
+            forge.game.keyword.Keyword.ENCORE, forge.game.keyword.Keyword.RETRACE,
+            forge.game.keyword.Keyword.SCAVENGE, forge.game.keyword.Keyword.DREDGE,
+            forge.game.keyword.Keyword.HARMONIZE);
+
+    /**
+     * Hints for graveyard decks (Anhelo, ...), read from Forge's card scripts:
+     *   graveyard_use  how the card works from the graveyard: "landfall" (comes back
+     *                  when you play a land, like Bloodghast), "trigger", "keyword"
+     *                  (flashback, escape, madness...) or "ability"
+     *   sac_me / discard_me   Forge's own "good to sacrifice / discard" rating (1-6)
+     *   grants         keywords this permanent gives other cards, e.g. ["Casualty"]
+     */
+    private static void addGraveyardHints(JsonObject cj, Card c) {
+        try {
+            String use = null;
+            for (forge.game.trigger.Trigger t : c.getTriggers()) {
+                String zones = t.hasParam("TriggerZones") ? t.getParam("TriggerZones") : "";
+                if (zones.contains("Graveyard")) {
+                    boolean landfall = "Battlefield".equals(t.getParam("Destination"))
+                            && t.hasParam("ValidCard") && t.getParam("ValidCard").startsWith("Land");
+                    use = landfall ? "landfall" : (use == null ? "trigger" : use);
+                }
+            }
+            if (use == null) {
+                for (forge.game.keyword.KeywordInterface k : c.getKeywords()) {
+                    if (GRAVEYARD_KEYWORDS.contains(k.getKeyword())) {
+                        use = "keyword";
+                        break;
+                    }
+                }
+            }
+            if (use == null) {
+                for (forge.game.spellability.SpellAbility sa : c.getSpellAbilities()) {
+                    if (sa.getRestrictions().getZone() == ZoneType.Graveyard) {
+                        use = "ability";
+                        break;
+                    }
+                }
+            }
+            if (use != null) {
+                cj.addProperty("graveyard_use", use);
+            }
+            for (String svar : new String[] {"SacMe", "DiscardMe"}) {
+                if (c.hasSVar(svar)) {
+                    String key = svar.equals("SacMe") ? "sac_me" : "discard_me";
+                    try {
+                        cj.addProperty(key, Integer.parseInt(c.getSVar(svar).trim()));
+                    } catch (NumberFormatException e) {
+                        cj.addProperty(key, 1);
+                    }
+                }
+            }
+            if (c.isInZone(ZoneType.Battlefield) || c.isInZone(ZoneType.Command)) {
+                JsonArray grants = new JsonArray();
+                for (forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
+                    if (st.hasParam("AddKeyword") && !"Self".equals(st.getParam("AffectedDefined"))) {
+                        for (String kw : st.getParam("AddKeyword").split(" & ")) {
+                            grants.add(kw.split(":")[0].trim()); // "Casualty:2" -> "Casualty"
+                        }
+                    }
+                }
+                if (!grants.isEmpty()) {
+                    cj.add("grants", grants);
+                }
+            }
+        } catch (RuntimeException e) {
+            // hints are optional; never break a snapshot over them
+        }
+    }
+
     public static JsonObject card(Card c) {
         JsonObject cj = new JsonObject();
         cj.addProperty("id", c.getId());
@@ -123,6 +199,7 @@ public final class StateSnapshot {
                 cj.addProperty("base_toughness", c.getBaseToughness());
             }
         }
+        addGraveyardHints(cj, c);
         if (c.isCommander()) {
             cj.addProperty("commander", true);
             if (c.getOwner() != null) {

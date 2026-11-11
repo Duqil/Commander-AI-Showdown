@@ -81,7 +81,12 @@ class BoyBot(Bot):
             effects[2] += max(0, old["library_size"] - new["library_size"])  # drawn (or searched)
         if turn_ended and "hand_size" in old and "hand_size" in new and old["hand_size"] > HAND_LIMIT:
             # Over the limit at our last decision, fewer cards now: discarded at cleanup.
-            effects[3] += max(0, min(old["hand_size"] - HAND_LIMIT, old["hand_size"] - new["hand_size"]))
+            discarded = max(0, min(old["hand_size"] - HAND_LIMIT, old["hand_size"] - new["hand_size"]))
+            # Cards that are useful in the graveyard (flashback, Bloodghast...) don't count.
+            seen = {c.get("id") for c in old.get("graveyard", [])}
+            useful = sum(1 for c in new.get("graveyard", [])
+                         if c.get("id") not in seen and (c.get("graveyard_use") or c.get("discard_me")))
+            effects[3] += max(0, discarded - useful)
 
     def _pick(self, kind: str, options: list[features.Features]) -> int:
         step = self.brain.choose(kind, options, self.rng, explore=self.explore)

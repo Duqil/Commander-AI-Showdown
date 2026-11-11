@@ -164,6 +164,42 @@ class SequencingTest(unittest.TestCase):
         self.assertNotIn("before_x_creature", feats[1])           # the X creature itself
 
 
+class GraveyardTest(unittest.TestCase):
+    def options(self):
+        land = {"index": 0, "card": {"name": "Swamp", "type": "Land", "cmc": 0}, "is_land": True, "is_spell": False}
+        bolt = {"index": 1, "card": {"name": "Bolt", "type": "Instant", "cmc": 1}, "is_land": False, "is_spell": True}
+        return [land, bolt]
+
+    def test_casualty_before_land_with_bloodghast(self):
+        state = table()
+        me = state["players"][0]
+        me["battlefield"] = [creature(5, 2, graveyard_use="landfall", name="Bloodghast"),
+                             {"id": 6, "name": "Anhelo", "type": "Creature", "power": 2, "grants": ["Casualty"]}]
+        land, bolt = features.play_options({"state": state, "options": self.options()})[:2]
+        self.assertEqual(bolt["casualty_before_land"], 1.0)
+        self.assertEqual(land["land_before_casualty"], 1.0)
+
+    def test_land_returns_bloodghast_from_graveyard(self):
+        state = table()
+        state["players"][0]["graveyard"] = [{"id": 5, "name": "Bloodghast", "graveyard_use": "landfall"}]
+        land = features.play_options({"state": state, "options": self.options()})[0]
+        self.assertAlmostEqual(land["land_returns_creatures"], 1 / 3)
+        self.assertNotIn("land_before_casualty", land)
+
+    def test_discarding_flashback_card_is_not_punished(self):
+        bot = BoyBot("tester", learn=False, seed=1)
+        mine = table()
+        mine["players"][0].update(hand_size=8, library_size=60, graveyard=[])
+        bot.choose_play({"state": mine, "options": []})
+        later = table(active="2-B")
+        later["turn"] = 6
+        later["players"][0].update(hand_size=7, library_size=60,
+                                   graveyard=[{"id": 9, "name": "Think Twice", "graveyard_use": "keyword"}])
+        bot.choose_play({"state": later, "options": []})
+        bot.game_over({"winner": "2-B", "players": later["players"]}, "1-A")
+        self.assertEqual(bot.result["discarded"], 0)
+
+
 class BrainTest(unittest.TestCase):
     def test_softmax_sums_to_one(self):
         probs = Brain("t").probabilities("play", [{"simple_prior": 1.0}, {}, {}])
