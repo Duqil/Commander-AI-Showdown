@@ -55,7 +55,7 @@ Deals, trust and grudges reset every game.
 
 | Bot | Deals |
 |---|---|
-| `simple` | Never breaks a deal. From round 2 on: if someone else leads, asks the next strongest to gang up on the leader; if it leads itself, offers peace to the strongest. Waits a round before asking the same player again. Accepts from players it trusts, unless they lead. |
+| `simple` | Never breaks a deal. From round 2 on: if someone else leads, asks the next strongest to gang up on the leader; if it leads itself, offers peace to the strongest. Accepts from players it trusts, unless they lead. |
 | `random` | Offers a random deal 30% of the time, accepts half, and breaks deals often since it attacks at random. |
 | `boy:<name>` | Learns what to offer, what to accept and when breaking pays. Starts out close to SimpleBot. |
 | `forge` | Forge's own AI can't make deals: offers to it are declined. |

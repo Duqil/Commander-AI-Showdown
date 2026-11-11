@@ -121,13 +121,6 @@ class SimpleBotDealTest(unittest.TestCase):
         view = {"state": state(turn=2), "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": []}}
         self.assertIsNone(SimpleBot().offer_deal(view))
 
-    def test_waits_a_round_before_asking_again(self):
-        bot = SimpleBot()
-        def view(turn):
-            return {"state": state(turn=turn), "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": []}}
-        self.assertIsNotNone(bot.offer_deal(view(5)))
-        self.assertIsNone(bot.offer_deal(view(7)))      # same player, same round: no
-        self.assertIsNotNone(bot.offer_deal(view(9)))   # a round later: ok
 
 
 if __name__ == "__main__":
