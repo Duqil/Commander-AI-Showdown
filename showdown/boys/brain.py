@@ -23,6 +23,9 @@ For every remembered choice, each weight is nudged by
 
     learning_rate * advantage * (feature of the picked option - average feature)
 
+Choices also get a bonus for damage and knockouts in their own turn
+(reward.py), so a good attack is rewarded right away.
+
 So after a better-than-usual game, whatever the picked options had more of
 than the alternatives gets a bit more weight, and after a worse game a bit
 less. Over many games the good habits win out. This is the simplest form of
@@ -55,6 +58,8 @@ class Step:
     options: list[Features]
     probs: list[float]
     picked: int
+    turn: int = 0
+    bonus: float = 0.0   # reward for what happened in this step's turn (see reward.py)
 
 
 @dataclass
@@ -63,6 +68,7 @@ class Brain:
     weights: dict[str, dict[str, float]] = field(
         default_factory=lambda: {k: dict(STARTING_WEIGHTS) for k in DECISION_KINDS})
     baseline: float = 0.0           # running average reward
+    bonus_baseline: float = 0.0     # running average turn bonus per choice
     games: int = 0                  # games learned from
     learning_rate: float = 0.1
     temperature: float = 1.0        # higher = more random, lower = greedier
@@ -104,6 +110,11 @@ class Brain:
             if self.games == 0:
                 self.baseline = reward
             advantage = max(-2.0, min(2.0, reward - self.baseline))
+            # Each choice also gets its own turn's bonus, compared with the usual bonus.
+            bonuses = [s.bonus for s in steps]
+            mean_bonus = sum(bonuses) / len(bonuses) if bonuses else 0.0
+            if self.bonus_baseline == 0.0:
+                self.bonus_baseline = mean_bonus  # first game with turn bonuses
             # Spread the update over the game, per kind of decision: a long game
             # (hundreds of priority choices) shouldn't count for more, and the
             # few attack choices shouldn't drown in all the priority choices.
@@ -113,7 +124,8 @@ class Brain:
             for step in steps:
                 if len(step.options) < 2:
                     continue  # no real choice, nothing to learn
-                rate = self.learning_rate * advantage / math.sqrt(per_kind[step.kind])
+                step_advantage = max(-2.0, min(2.0, advantage + step.bonus - self.bonus_baseline))
+                rate = self.learning_rate * step_advantage / math.sqrt(per_kind[step.kind])
                 w = self.weights.setdefault(step.kind, dict(STARTING_WEIGHTS))
                 names = set().union(*step.options)
                 for name in names:
@@ -123,6 +135,7 @@ class Brain:
                         w[name] = w.get(name, 0.0) + rate * gradient
             # Move the baseline 5% of the way towards this reward.
             self.baseline += 0.05 * (reward - self.baseline)
+            self.bonus_baseline += 0.05 * (mean_bonus - self.bonus_baseline)
             self.games += 1
             return advantage
 
@@ -134,6 +147,7 @@ class Brain:
                 "name": self.name,
                 "games": self.games,
                 "baseline": round(self.baseline, 4),
+                "bonus_baseline": round(self.bonus_baseline, 4),
                 "learning_rate": self.learning_rate,
                 "temperature": self.temperature,
                 # Sorted with the strongest opinions first, so the file is easy to read.
@@ -148,6 +162,7 @@ class Brain:
             name=data["name"],
             weights={k: dict(v) for k, v in data["weights"].items()},
             baseline=data.get("baseline", 0.0),
+            bonus_baseline=data.get("bonus_baseline", 0.0),
             games=data.get("games", 0),
             learning_rate=data.get("learning_rate", 0.1),
             temperature=data.get("temperature", 1.0),

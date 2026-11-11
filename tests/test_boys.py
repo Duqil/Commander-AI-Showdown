@@ -153,6 +153,20 @@ class BoyBotTest(unittest.TestCase):
         self.assertEqual(storage.load_brain("tester").games, 1)
         self.assertIn("boy:tester", __import__("showdown.batch", fromlist=["x"]).bots_available())
 
+    def test_turn_bonus_goes_to_that_turns_choices(self):
+        bot = BoyBot("tester", learn=False, seed=1)
+        before = table()                       # our turn 5, C at 4 life
+        bot.declare_attackers(attack_decision(before))
+        after = table(active="2-B")
+        after["turn"] = 6
+        after["players"][2]["life"] = 0
+        after["players"][2]["lost"] = True     # C knocked out during our turn
+        after["players"][3]["life"] = 20       # D took 5
+        bot.choose_play({"state": after, "options": []})
+        bot.game_over({"winner": "2-B", "players": after["players"]}, "1-A")
+        self.assertEqual(bot.result["damage"], 9)
+        self.assertEqual(bot.result["knockouts"], 1)
+
     def test_rejects_bad_names(self):
         with self.assertRaises(ValueError):
             storage.brain_path("../evil")
