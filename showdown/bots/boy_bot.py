@@ -27,6 +27,8 @@ from showdown.bots.base import Bot, Decision
 from showdown.boys import features
 from showdown.boys.brain import Step
 from showdown.boys.reward import game_reward, turn_bonus
+
+HAND_LIMIT = 7  # maximum hand size at the end of your turn
 from showdown.boys.storage import load_brain, save_brain
 
 
@@ -42,6 +44,7 @@ class BoyBot(Bot):
         self.last_state: dict | None = None  # the table as we last saw it
         self.result: dict | None = None      # filled in by game_over()
         # What we did to opponents on each of our turns: {turn: [damage, knockouts]}
+        # turn -> [damage, knockouts, cards drawn, cards discarded to hand size]
         self.turn_effects: dict[int, list[int]] = {}
 
     def _observe(self, state: dict) -> None:
@@ -49,21 +52,36 @@ class BoyBot(Bot):
 
         Life lost and players knocked out between two of our decisions are
         credited to the turn of the earlier decision, if that was our turn.
+        So are our own card changes: cards drawn (our library got smaller)
+        and cards thrown away to hand size at the end of the turn (we ended
+        with more than 7 and the hand shrank before our next decision).
         """
         prev = self.last_state
         self.last_state = state
         # .get(): during mulligans there is no active player or turn yet.
         if prev is None or prev.get("active_player") != prev.get("you"):
             return
-        before = {p["name"]: p for p in prev["players"] if p["name"] != prev["you"]}
-        effects = self.turn_effects.setdefault(prev.get("turn", 0), [0, 0])
+        me = prev["you"]
+        before = {p["name"]: p for p in prev["players"]}
+        effects = self.turn_effects.setdefault(prev.get("turn", 0), [0, 0, 0, 0])
         for p in state["players"]:
             old = before.get(p["name"])
             if old is None or old.get("lost"):
                 continue
+            if p["name"] == me:
+                self._observe_cards(old, p, effects, turn_ended=state.get("turn") != prev.get("turn"))
+                continue
             effects[0] += max(0, old.get("life", 0) - p.get("life", 0))
             if p.get("lost"):
                 effects[1] += 1
+
+    @staticmethod
+    def _observe_cards(old: dict, new: dict, effects: list[int], turn_ended: bool) -> None:
+        if "library_size" in old and "library_size" in new:
+            effects[2] += max(0, old["library_size"] - new["library_size"])  # drawn (or searched)
+        if turn_ended and "hand_size" in old and "hand_size" in new and old["hand_size"] > HAND_LIMIT:
+            # Over the limit at our last decision, fewer cards now: discarded at cleanup.
+            effects[3] += max(0, min(old["hand_size"] - HAND_LIMIT, old["hand_size"] - new["hand_size"]))
 
     def _pick(self, kind: str, options: list[features.Features]) -> int:
         step = self.brain.choose(kind, options, self.rng, explore=self.explore)
@@ -130,8 +148,8 @@ class BoyBot(Bot):
             final = {"players": players, "you": player}
             self._observe({**self.last_state, **final})
         for step in self.steps:
-            damage, knockouts = self.turn_effects.get(step.turn, (0, 0))
-            step.bonus = turn_bonus(damage, knockouts)
+            damage, knockouts, drawn, discarded = self.turn_effects.get(step.turn, (0, 0, 0, 0))
+            step.bonus = turn_bonus(damage, knockouts, drawn, discarded)
         damage = sum(e[0] for e in self.turn_effects.values())
         knockouts = sum(e[1] for e in self.turn_effects.values())
 
@@ -141,5 +159,7 @@ class BoyBot(Bot):
             save_brain(self.brain)
         self.result = {"won": won, "outlived": outlived, "reward": reward,
                        "advantage": advantage, "choices": len(self.steps),
-                       "damage": damage, "knockouts": knockouts}
+                       "damage": damage, "knockouts": knockouts,
+                       "drawn": sum(e[2] for e in self.turn_effects.values()),
+                       "discarded": sum(e[3] for e in self.turn_effects.values())}
         self.steps = []

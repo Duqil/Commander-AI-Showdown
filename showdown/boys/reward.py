@@ -13,6 +13,8 @@ to your opponents during it:
 
     each point of damage to opponents   +0.01
     each opponent knocked out           +0.3
+    each card you draw                  +0.01   (more cards = more options)
+    each card thrown away to hand size  -0.03   (ending a turn with 8+ cards)
 
 The turn bonus only goes to the choices made in that turn. So a good attack
 gets credit right away, instead of waiting to see whether the whole game was
@@ -40,6 +42,10 @@ DAMAGE = 0.01
 KNOCKOUT = 0.3
 
 
-def turn_bonus(damage: int, knockouts: int) -> float:
+CARD_DRAWN = 0.01
+DISCARDED = -0.03
+
+
+def turn_bonus(damage: int, knockouts: int, drawn: int = 0, discarded: int = 0) -> float:
     """Bonus for one of your own turns."""
-    return DAMAGE * damage + KNOCKOUT * knockouts
+    return DAMAGE * damage + KNOCKOUT * knockouts + CARD_DRAWN * drawn + DISCARDED * discarded
