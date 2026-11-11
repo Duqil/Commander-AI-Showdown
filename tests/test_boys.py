@@ -118,6 +118,23 @@ class FeatureTest(unittest.TestCase):
         self.assertEqual(feats[0]["land_ability"], 1.0)
         self.assertEqual(feats[1]["pass"], 1.0)
 
+    def test_simple_bot_uses_abilities(self):
+        from showdown.bots.simple_bot import SimpleBot
+        wilds = {"index": 0, "card": {"name": "Evolving Wilds", "type": "Land", "cmc": 0},
+                 "is_land": False, "is_spell": False, "is_ability": True, "forge_would_play": True}
+        bear = {"index": 1, "card": {"name": "Bear", "type": "Creature", "cmc": 2},
+                "is_land": False, "is_spell": True, "is_ability": False, "forge_would_play": True}
+        pump = {"index": 2, "card": {"name": "Shade", "type": "Creature", "cmc": 3},
+                "is_land": False, "is_spell": False, "is_ability": True, "forge_would_play": False}
+        bot = SimpleBot()
+        pick = lambda *opts: bot.choose_play({"state": table(), "options": list(opts)})
+        self.assertEqual(pick(bear, wilds), 0)         # fetch the land before casting
+        self.assertEqual(pick(pump), None)             # Forge's AI says not now
+        self.assertEqual(pick(dict(pump, forge_would_play=True), bear), 1)  # spells before other abilities
+        self.assertEqual(pick(dict(pump, forge_would_play=True)), 2)        # ...then the ability
+        feats = features.play_options({"state": table(), "options": [wilds]})
+        self.assertEqual(feats[0]["ability_forge_would_play"], 1.0)
+
 
 class BrainTest(unittest.TestCase):
     def test_softmax_sums_to_one(self):

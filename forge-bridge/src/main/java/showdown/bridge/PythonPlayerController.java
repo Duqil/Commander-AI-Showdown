@@ -154,6 +154,11 @@ public class PythonPlayerController extends PlayerControllerAi {
             o.addProperty("description", sa.toString());
             o.addProperty("is_land", sa.isLandAbility());
             o.addProperty("is_spell", sa.isSpell());
+            o.addProperty("is_ability", !sa.isSpell() && !sa.isLandAbility());
+            if (sa.getApi() != null) {
+                o.addProperty("api", sa.getApi().name()); // e.g. "ChangeZone" for Evolving Wilds
+            }
+            o.addProperty("forge_would_play", forgeWouldPlay(sa));
             options.add(o);
         }
         JsonObject extra = new JsonObject();
@@ -175,6 +180,26 @@ public class PythonPlayerController extends PlayerControllerAi {
         List<SpellAbility> chosen = new ArrayList<>();
         chosen.add(sa);
         return chosen; // Forge then calls playChosenSpellAbility(), which the AI handles
+    }
+
+    /**
+     * Would Forge's own AI make this play right now? A hint for Python: it
+     * knows things like "fetch a land with Evolving Wilds" or "don't pump a
+     * creature that isn't in combat". Land drops always count as yes.
+     */
+    private boolean forgeWouldPlay(SpellAbility sa) {
+        if (sa.isLandAbility()) {
+            return true;
+        }
+        try {
+            return getAi().canPlaySa(sa).willingToPlay();
+        } catch (RuntimeException e) {
+            return false; // a few cards throw here; call it a no
+        } finally {
+            for (SpellAbility a = sa; a != null; a = a.getSubAbility()) {
+                a.resetTargets(); // the check picks targets as a side effect; forget them
+            }
+        }
     }
 
     // ------------------------------------------------------------------

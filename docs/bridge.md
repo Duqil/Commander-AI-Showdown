@@ -45,9 +45,14 @@ Java → Python:
  "entries": [{"type": "TURN", "text": "Turn 3 (1-Zidane)"}, {"type": "LAND", "text": "1-Zidane played Mountain (50)"}],
  "state": {...}}
 {"type": "decision", "id": 12, "kind": "choose_play", "player": "1-Zidane",
- "state": {...}, "options": [{"index": 0, "card": {...}, "description": "...", "is_land": true, "is_spell": false}]}
+ "state": {...}, "options": [{"index": 0, "card": {...}, "description": "...", "is_land": true, "is_spell": false,
+              "is_ability": false, "forge_would_play": true}]}
 {"type": "game_over", "winner": "4-Kuja", "draw": false, "turns": 26, "players": [{"name": "...", "life": -1, "lost": true}]}
 ```
+
+`is_ability` marks activated abilities; `api` is Forge's effect type (e.g.
+`ChangeZone` for Evolving Wilds); `forge_would_play` says whether Forge's own
+AI would make that play right now, a hint the bots can use.
 
 Python → Java (only in reply to a decision):
 
