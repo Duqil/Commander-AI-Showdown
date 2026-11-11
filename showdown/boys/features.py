@@ -96,6 +96,7 @@ def play_options(decision: Decision) -> list[Features]:
     stack = state.get("stack_size", 0) > 0
     simple_pick = _simple.choose_play(decision)  # an option "index", or None for pass
     xc = x_context(decision["options"])
+    gy = graveyard_context(state, decision["options"])
 
     result = []
     for option in decision["options"]:
@@ -112,6 +113,7 @@ def play_options(decision: Decision) -> list[Features]:
             # How big the X would be (all mana in): bigger X = bigger Ravenous creature.
             "x_size": option.get("max_x", 0) / 7,
             **sequencing_features(option, card, is_spell, xc),
+            **graveyard_features(card, is_land, is_spell, gy),
             "creature_spell": _flag(is_spell and "Creature" in ctype),
             "instant_speed_spell": _flag(is_spell and ("Instant" in ctype or "Flash" in option.get("description", ""))),
             "spell_on_my_main": _flag(is_spell and my_turn and main and not stack),
@@ -153,6 +155,42 @@ def sequencing_features(option: dict, card: dict, is_spell: bool, xc: dict) -> F
         "kills_the_x": _flag(x_after < 1),               # no mana left for X at all
         "booster_before_x": _flag(booster and x_after >= 1),
     }
+
+
+def graveyard_context(state: dict, options: list[dict]) -> dict[str, Any]:
+    """What a graveyard deck cares about right now (hints come from the bridge).
+
+    Bloodghast comes back from the graveyard whenever we play a land, so the
+    good order is: first sacrifice it (e.g. to Anhelo's casualty), THEN play
+    the land. These numbers let a Boy learn that order.
+    """
+    me = threat.me(state)
+    graveyard = me.get("graveyard", [])
+    battlefield = me.get("battlefield", [])
+    grants = {g for c in battlefield + me.get("command", []) for g in c.get("grants", [])}
+    return {
+        "returners_in_graveyard": sum(1 for c in graveyard if c.get("graveyard_use") == "landfall"),
+        # Landfall returners on the battlefield that would be fine to sacrifice (power 2+ for casualty 2).
+        "returners_ready": sum(1 for c in battlefield if c.get("graveyard_use") == "landfall"
+                               and (c.get("power") or 0) >= 2),
+        "casualty": "Casualty" in grants,
+        "land_drop_left": any(o.get("is_land") for o in options),
+    }
+
+
+def graveyard_features(card: dict, is_land: bool, is_spell: bool, gy: dict) -> Features:
+    instant_or_sorcery = is_spell and any(t in card.get("type", "") for t in ("Instant", "Sorcery"))
+    # Sacrifice a returner to casualty now, while the land drop can still bring it back.
+    casualty_combo = gy["casualty"] and gy["returners_ready"] > 0 and gy["land_drop_left"]
+    result: Features = {}
+    if is_land and gy["returners_in_graveyard"]:
+        result["land_returns_creatures"] = min(gy["returners_in_graveyard"], 3) / 3
+    if casualty_combo:
+        if instant_or_sorcery:
+            result["casualty_before_land"] = 1.0   # spell first, then the land returns the creature
+        if is_land:
+            result["land_before_casualty"] = 1.0   # the land now wastes the comeback
+    return result
 
 
 # ----------------------------------------------------------------------------
