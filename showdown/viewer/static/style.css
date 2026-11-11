@@ -207,3 +207,8 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
 .rate-bar.above > div { background: var(--accent); }
 .rate-bar::after { content: ""; position: absolute; left: calc(var(--fair) * 100%); top: -3px; bottom: -3px;
                    width: 2px; background: var(--text, #fff); opacity: .6; }
+
+/* ---------- Saved games tab ---------- */
+#saved .saved-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; border-bottom: 1px solid var(--line); }
+.saved-when { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.saved-decks { text-transform: capitalize; }

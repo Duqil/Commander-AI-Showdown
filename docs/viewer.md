@@ -28,7 +28,7 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   line to jump there. Keyboard: Space, ← →, Home, End.
 * **New game** plays again with the same decks and bots (new shuffle).
   **Stop** ends a running game. **Main Menu** goes back to the setup screen,
-  where saved games can be watched again.
+  where the **Saved games** tab lists finished games to watch again.
 * **Board.** Each player has a coloured board. Its top line holds the name,
   the bot, cards in hand (✋), library (📚), graveyard (🪦, click to see it),
   exile (🌀), poison and commander damage taken, then the life total. Rows are:

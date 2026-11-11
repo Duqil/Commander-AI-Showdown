@@ -217,9 +217,16 @@ async function loadSavedList() {
   const box = $("#saved");
   if (!games.length) return;
   box.innerHTML = "";
-  for (const g of games.slice(0, 15)) {
+  box.classList.remove("muted");
+  box.append(el("p", "muted small", `${games.length} saved games, newest first. They're in the games/ folder.`));
+  for (const g of games) {
+    // An id looks like "2026-11-10_234210_zidane-anhelo-nelly-kuja_003" (the last part only for batch games).
+    const [date, time, decks, number] = g.id.split("_");
     const row = el("div", "saved-row");
-    row.append(el("span", "", g.id.replaceAll("_", " ")));
+    const when = time ? `${date} ${time.slice(0, 2)}:${time.slice(2, 4)}` : g.id;
+    row.append(el("span", "saved-when", when),
+               el("span", "saved-decks", (decks || "").replaceAll("-", " · ")),
+               el("span", "muted small", number ? `batch game ${Number(number) + 1}` : ""));
     const watch = el("button", "", "Watch");
     watch.onclick = async () => { await api("/api/saved/load", { id: g.id }); enterGame(); };
     row.append(watch);
@@ -826,6 +833,7 @@ for (const tab of document.querySelectorAll(".tabs button")) {
 function showTab(name) {
   for (const tab of document.querySelectorAll(".tabs button")) tab.classList.toggle("on", tab.dataset.tab === name);
   $("#tab-play").classList.toggle("hidden", name !== "play");
+  $("#tab-saved").classList.toggle("hidden", name !== "saved");
   $("#tab-stats").classList.toggle("hidden", name !== "stats");
   if (name === "stats") loadStats();
 }

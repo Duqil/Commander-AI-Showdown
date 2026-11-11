@@ -14,6 +14,7 @@
     <h1>Commander AI Showdown</h1>
     <nav class="tabs">
       <button data-tab="play" class="on">Play</button>
+      <button data-tab="saved">Saved games</button>
       <button data-tab="stats">Stats</button>
     </nav>
 
@@ -37,9 +38,11 @@
     </div>
     <button id="batch-start">Run games</button>
     <div id="batch" class="hidden"></div>
+    </div>
 
-    <h2>Saved games</h2>
-    <div id="saved" class="muted small">None yet. Finished games are saved to the games/ folder.</div>
+    <!-- Finished games, to watch again -->
+    <div id="tab-saved" class="hidden">
+      <div id="saved" class="muted small">None yet. Finished games are saved to the games/ folder.</div>
     </div>
 
     <!-- Win rates from every finished game (stats/results.csv) -->
