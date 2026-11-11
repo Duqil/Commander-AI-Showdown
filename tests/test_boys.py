@@ -167,6 +167,18 @@ class BoyBotTest(unittest.TestCase):
         self.assertEqual(bot.result["damage"], 9)
         self.assertEqual(bot.result["knockouts"], 1)
 
+    def test_mulligan_state_without_turn_info(self):
+        """Forge leaves out keys whose value is null, e.g. active_player during mulligans."""
+        bot = BoyBot("tester", learn=True, seed=1)
+        state = table()
+        del state["active_player"], state["turn"]
+        decision = {"state": state, "cards_to_bottom_if_kept": 0}
+        bot.keep_hand(decision)
+        bot.keep_hand(decision)
+        bot.choose_play({"state": table(), "options": []})
+        bot.game_over({"winner": "1-A", "players": table()["players"]}, "1-A")
+        self.assertTrue(bot.result["won"])
+
     def test_rejects_bad_names(self):
         with self.assertRaises(ValueError):
             storage.brain_path("../evil")

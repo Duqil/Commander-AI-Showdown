@@ -51,21 +51,22 @@ class BoyBot(Bot):
         """
         prev = self.last_state
         self.last_state = state
-        if prev is None or prev["active_player"] != prev["you"]:
+        # .get(): during mulligans there is no active player or turn yet.
+        if prev is None or prev.get("active_player") != prev.get("you"):
             return
         before = {p["name"]: p for p in prev["players"] if p["name"] != prev["you"]}
-        effects = self.turn_effects.setdefault(prev["turn"], [0, 0])
+        effects = self.turn_effects.setdefault(prev.get("turn", 0), [0, 0])
         for p in state["players"]:
             old = before.get(p["name"])
             if old is None or old.get("lost"):
                 continue
-            effects[0] += max(0, old["life"] - p["life"])
+            effects[0] += max(0, old.get("life", 0) - p.get("life", 0))
             if p.get("lost"):
                 effects[1] += 1
 
     def _pick(self, kind: str, options: list[features.Features]) -> int:
         step = self.brain.choose(kind, options, self.rng, explore=self.explore)
-        step.turn = self.last_state["turn"] if self.last_state else 0
+        step.turn = self.last_state.get("turn", 0) if self.last_state else 0
         self.steps.append(step)
         return step.picked
 
@@ -109,8 +110,7 @@ class BoyBot(Bot):
 
         # Damage dealt between our last decision and the end of the game counts too.
         if self.last_state is not None:
-            final = {"players": players, "you": player, "turn": self.last_state["turn"],
-                     "active_player": self.last_state["active_player"]}
+            final = {"players": players, "you": player}
             self._observe({**self.last_state, **final})
         for step in self.steps:
             damage, knockouts = self.turn_effects.get(step.turn, (0, 0))

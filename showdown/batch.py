@@ -39,6 +39,7 @@ from showdown.bridge.game_runner import Seat, run_game
 from showdown.run_game import DECK_DIR, REPO_ROOT, make_bot
 
 BASIC_BOTS = ["simple", "random", "forge"]
+MAX_CRASHES_IN_A_ROW = 5
 
 
 @dataclass
@@ -153,6 +154,7 @@ def run_many(
     records: list[GameRecord] = []
     records_lock = threading.Lock()
     stop = stop or threading.Event()
+    crashes_in_a_row = [0]  # a list so worker() can change it
 
     def worker(index: int) -> None:
         if stop.is_set():
@@ -161,6 +163,10 @@ def run_many(
                           save_game=save_games, learn=learn, explore=explore)
         with records_lock:
             records.append(record)
+            crashes_in_a_row[0] = crashes_in_a_row[0] + 1 if record.error else 0
+            if crashes_in_a_row[0] >= MAX_CRASHES_IN_A_ROW:
+                stop.set()  # something is broken; don't waste hours on more crashes
+                record.error += f" (stopping: {MAX_CRASHES_IN_A_ROW} crashes in a row)"
         if on_result:
             on_result(record)
 
