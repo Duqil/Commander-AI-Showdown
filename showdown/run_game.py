@@ -54,6 +54,7 @@ def main() -> None:
     parser.add_argument("--bots", nargs="+", default=None,
                         help="one per deck: simple, random, forge or boy:<name> (default: all simple)")
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--deals", action="store_true", help="let bots make deals with each other")
     parser.add_argument("--quiet", action="store_true", help="don't print the game log")
     parser.add_argument("--forge-log", type=Path, default=REPO_ROOT / "forge.log",
                         help="where Forge's own output goes")
@@ -67,7 +68,8 @@ def main() -> None:
     for deck, bot in zip(args.decks, bots):
         print(f"  {deck:<10} played by {bot}")
 
-    result = run_game(seats, seed=args.seed, on_log=None if args.quiet else print, forge_log=args.forge_log)
+    result = run_game(seats, seed=args.seed, on_log=None if args.quiet else print, forge_log=args.forge_log,
+                      deals=args.deals)
 
     winner_seat = int(result.winner.split("-", 1)[0]) - 1 if result.winner and not result.draw else None
     record_game(args.decks, bots, winner_seat, result.draw, result.turns, "terminal")
