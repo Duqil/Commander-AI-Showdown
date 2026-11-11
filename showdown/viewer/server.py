@@ -17,6 +17,7 @@ What the browser can ask for (an "API"):
     POST /api/batch/start           run many games without watching. Body: {"decks", "bots",
                                     "games": 20, "parallel": 1, "seed", "save_games", "learn"}
     GET  /api/batch                 progress and results of that batch
+    GET  /api/stats?source=batch    win rates per deck and bot (source is optional)
     POST /api/batch/stop            start no more games. Body {"now": true} also ends running ones
 
 The browser asks for new events about twice a second ("polling"). Simple, and
@@ -36,6 +37,7 @@ from showdown.boys.storage import VALID_NAME
 from showdown.run_game import DECK_DIR
 from showdown.viewer.batch_job import BatchJob
 from showdown.viewer.card_images import CardImages
+from showdown.viewer import stats_page
 from showdown.viewer.session import GAMES_DIR, GameConfig, GameSession, list_saved_games, new_game_id
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -112,6 +114,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"decks": decks, "bots": bots_available()})
         if path == "/api/batch":
             return self.send_json(STATE.batch.summary() if STATE.batch else {"status": "none"})
+        if path == "/api/stats":
+            return self.send_json(stats_page.summary(query.get("source", [None])[0]))
         if path == "/api/game":
             return self.send_json(STATE.session.summary() if STATE.session else {"status": "none"})
         if path == "/api/game/events":

@@ -191,3 +191,19 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
 @keyframes march { to { stroke-dashoffset: -19; } }
 .card.targeted, .card.targeting, .stack-item.targeting { box-shadow: 0 0 0 3px #e5534b, 0 0 14px #e5534b; }
 .life.targeted { color: #ff8c84; text-shadow: 0 0 12px #e5534b; }
+
+/* ---------- main menu tabs and the Stats screen ---------- */
+.tabs { display: flex; gap: 4px; margin: 4px 0 14px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 6px 14px; }
+.tabs button.on { border-bottom-color: var(--accent); color: var(--accent); }
+.stats-filter { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.stats-table { margin-top: 14px; }
+.stats-table h3 { margin: 0 0 4px; font-size: 14px; }
+.stats-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.stats-table td, .stats-table th { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--line); }
+.stats-table th { color: var(--muted); font-weight: 500; }
+.rate-bar { position: relative; width: 120px; height: 8px; background: var(--panel-2); border-radius: 4px; }
+.rate-bar > div { width: calc(var(--rate) * 100%); height: 100%; background: var(--muted); border-radius: 4px; }
+.rate-bar.above > div { background: var(--accent); }
+.rate-bar::after { content: ""; position: absolute; left: calc(var(--fair) * 100%); top: -3px; bottom: -3px;
+                   width: 2px; background: var(--text, #fff); opacity: .6; }

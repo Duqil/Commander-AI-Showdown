@@ -159,6 +159,25 @@ class BatchStopTest(unittest.TestCase):
         self.assertEqual(job.status, "stopping")
 
 
+class StatsPageTest(unittest.TestCase):
+    def test_groups_and_fair_share(self):
+        from unittest import mock
+        from showdown.viewer import stats_page
+        rows = []
+        for game, winner in (("g1", 0), ("g2", 0), ("g3", 1)):
+            for seat, (deck, bot) in enumerate([("zidane", "boy:kaiba"), ("kuja", "simple")]):
+                rows.append({"game_id": game, "deck": deck, "bot": bot, "won": int(seat == winner),
+                             "draw": 0, "turns": 20, "source": "batch" if game != "g3" else "viewer",
+                             "time": "2026-11-11 12:00:00"})
+        with mock.patch.object(stats_page.stats, "read_results", return_value=rows):
+            s = stats_page.summary()
+            self.assertEqual(s["games"], 3)
+            self.assertEqual(s["fair_share"], 0.5)  # 2 players in these games
+            kaiba = next(r for r in s["bots"] if r["name"] == "boy:kaiba")
+            self.assertEqual((kaiba["games"], kaiba["wins"]), (3, 2))
+            self.assertEqual(stats_page.summary("viewer")["games"], 1)
+
+
 class ServerTest(unittest.TestCase):
     """Start the real web server on a free port and ask it things."""
 

@@ -21,6 +21,7 @@ from pathlib import Path
 
 from showdown.bridge.game_runner import Seat, run_game
 from showdown.run_game import DECK_DIR, REPO_ROOT, make_bot
+from showdown.stats import record_game
 from showdown.viewer.events import Event, TimelineBuilder, make_event
 
 # Finished games are saved here (ignored by git), so you can watch them again.
@@ -111,9 +112,12 @@ class GameSession:
         seats = [Seat(DECK_DIR / f"{deck}.dck", make_bot(bot, config.seed))
                  for deck, bot in zip(config.decks, config.bots)]
         try:
-            run_game(seats, seed=config.seed, on_message=on_message,
-                     forge_log=REPO_ROOT / "forge.log")
+            result = run_game(seats, seed=config.seed, on_message=on_message,
+                              forge_log=REPO_ROOT / "forge.log")
             self.status = "finished"
+            # Count it for the Stats screen. Player names look like "2-Kuja": seat 2 (from 1).
+            winner = int(result.winner.split("-", 1)[0]) - 1 if result.winner and not result.draw else None
+            record_game(config.decks, config.bots, winner, result.draw, result.turns, "viewer", game_id=self.id)
         except GameStopped:
             self.add_event(make_event("error", "Game stopped.", turn=builder.turn))
             self.status = "stopped"

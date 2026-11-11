@@ -817,6 +817,53 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ===========================================================================
+// Main menu tabs: Play (decks, bots, batches, saved games) and Stats.
+// ===========================================================================
+for (const tab of document.querySelectorAll(".tabs button")) {
+  tab.onclick = () => showTab(tab.dataset.tab);
+}
+
+function showTab(name) {
+  for (const tab of document.querySelectorAll(".tabs button")) tab.classList.toggle("on", tab.dataset.tab === name);
+  $("#tab-play").classList.toggle("hidden", name !== "play");
+  $("#tab-stats").classList.toggle("hidden", name !== "stats");
+  if (name === "stats") loadStats();
+}
+
+$("#stats-source").onchange = loadStats;
+
+async function loadStats() {
+  const s = await api(`/api/stats?source=${$("#stats-source").value}`);
+  const body = $("#stats-body");
+  if (!s.games) {
+    body.innerHTML = "No finished games yet. Play a game or use <b>Run many games</b>, and the results show up here.";
+    return;
+  }
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  body.innerHTML = `<p>${s.games} games${s.draws ? ` (${s.draws} draws)` : ""}, ${s.avg_turns} turns on average, from ${s.first.slice(0, 16)} to ${s.last.slice(0, 16)}.
+    With 4 players an even match wins about ${pct(s.fair_share)}: the line on each bar.</p>`;
+  const table = (title, rows, label) => {
+    const wrap = el("div", "stats-table");
+    wrap.append(el("h3", "", title));
+    const t = el("table");
+    t.innerHTML = `<tr><th>${label}</th><th>Games</th><th>Wins</th><th>Win rate</th><th></th></tr>`;
+    for (const r of rows) {
+      const tr = el("tr");
+      const name = label === "Bot" ? botLabel(r.name) : r.name.replace(/ · (.*)$/, (m, bot) => ` · ${botLabel(bot)}`);
+      // A bar for the win rate, with a mark at the "fair share" (25% for 4 players).
+      tr.innerHTML = `<td>${name}</td><td>${r.games}</td><td>${r.wins}</td><td>${pct(r.win_rate)}</td>
+        <td><div class="rate-bar ${r.win_rate > s.fair_share ? "above" : ""}" style="--rate:${r.win_rate}; --fair:${s.fair_share}">
+          <div></div></div></td>`;
+      t.append(tr);
+    }
+    wrap.append(t);
+    return wrap;
+  };
+  body.append(table("Decks", s.decks, "Deck"), table("Bots", s.bots, "Bot"), table("Deck + bot", s.pairs, "Deck · bot"));
+  body.append(el("p", "muted small", "Few games say little: with under ~30 games a win rate can easily be off by 15 points. Numbers come from stats/results.csv in the repo folder."));
+}
+
+// ===========================================================================
 // Cast animation: a spell that is cast is shown big in the middle of its
 // caster's board for a moment, then it shrinks into the Stack box on the right
 // (where it waits to resolve). Playback waits for it. Faster at higher speeds,
