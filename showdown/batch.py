@@ -37,6 +37,7 @@ from showdown.bots.boy_bot import BoyBot
 from showdown.boys import storage
 from showdown.bridge.game_runner import GameAborted, Seat, run_game
 from showdown.run_game import DECK_DIR, REPO_ROOT, make_bot
+from showdown.stats import record_game
 
 BASIC_BOTS = ["simple", "random", "forge"]
 MAX_CRASHES_IN_A_ROW = 5
@@ -108,6 +109,8 @@ def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
         record.winner_seat = int(result.winner.split("-", 1)[0]) - 1
     if session is not None:
         record.saved_path = session.save()
+    record_game(decks, bots, record.winner_seat, record.draw, record.turns, "batch",
+                game_id=f"{time.strftime('%Y-%m-%d_%H%M%S')}_batch{index:03d}")
 
     history = []
     for seat, bot in enumerate(seated):

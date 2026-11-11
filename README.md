@@ -18,6 +18,7 @@ wherever it says `python`.
 | Play one game in the terminal | `python -m showdown.run_game` |
 | Train a Boy (learning bot) over many games | `python -m showdown.batch --bots boy:Kaiba simple simple simple --games 50 --parallel 2` |
 | See how your Boys have been doing | `python -m showdown.batch --report` |
+| Win rates per deck and per bot (every game you've played) | `python -m showdown.stats` |
 | Turn deck lists in `decks/source/` into Forge decks | `python -m showdown.decks.convert --all` |
 | Check every deck: 100 cards, every card name right | `python -m showdown.decks.convert --check` |
 | Run the tests | `python -m unittest discover -s tests` |

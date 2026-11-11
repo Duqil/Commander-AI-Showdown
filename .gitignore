@@ -9,3 +9,5 @@ games/
 forge-batch-*.log
 # Trained Boys (brains + training history) stay on your machine.
 /boys/
+# Your own win/loss record (python -m showdown.stats)
+/stats/
