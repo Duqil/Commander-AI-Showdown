@@ -60,6 +60,21 @@ def threat_score(player: Player) -> float:
     )
 
 
+def game_round(state: State) -> int:
+    """Which round we're in: round 1 is everyone's first turn.
+
+    Forge counts turns across all players, so with 4 players turns 1-4 are
+    round 1, turns 5-8 are round 2, and so on.
+    """
+    players = max(1, len(state.get("players", [])))
+    return (max(1, state.get("turn", 1)) - 1) // players + 1
+
+
+def total_board_power(state: State) -> int:
+    """Power of every creature on the table: how much fighting there is to deal about."""
+    return sum(board_power(p) for p in state.get("players", []))
+
+
 def opponents(state: State) -> list[Player]:
     """Opponents still in the game."""
     return [p for p in state["players"] if p["name"] != state["you"] and not p.get("lost")]

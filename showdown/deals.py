@@ -20,7 +20,8 @@ decide that themselves; this module only notices. When a deal is broken:
   * the victim's trust in the breaker drops a lot and everyone else's a
     little (word gets around), so the breaker's future offers get declined.
 Trust starts at 1.0 and can be won back: keeping a deal until it ends raises
-both partners' trust in each other, and actually attacking the agreed target
+both partners' trust in each other (only if it was tested: one of them could
+have attacked the other and held back), and actually attacking the agreed target
 in a gang-up raises the partner's trust in you. All of this lasts for one game.
 
 Every offer, answer and break becomes a "deal" message, which shows up in the
@@ -55,6 +56,7 @@ class Deal:
     against: str | None = None # gang_up: the player they both attack
     broken_by: str | None = None
     settled: bool = False      # we already handed out the "kept the deal" trust
+    tested: bool = False       # someone could have attacked their partner and didn't
 
     def partners(self) -> tuple[str, str]:
         return self.a, self.b
@@ -177,6 +179,8 @@ class DealBook:
         for deal in self.deals:
             if deal.broken_by is None and not deal.settled and turn > deal.expires_turn:
                 deal.settled = True
+                if not deal.tested:
+                    continue  # nobody was ever in a position to break it: no trust earned
                 self._gain_trust(deal.a, deal.b, KEPT_TRUST_GAIN)
                 self._gain_trust(deal.b, deal.a, KEPT_TRUST_GAIN)
                 messages.append(deal_message("kept", deal, turn))
@@ -190,15 +194,23 @@ class DealBook:
     # --- breaking deals ---------------------------------------------------------------
 
     def check_attack(self, attacker: str, decision: dict, choice: dict | None) -> list[dict]:
-        """Did this attack break a deal? Returns deal messages for each break."""
-        if not choice:
-            return []
+        """Did this attack break a deal? Returns deal messages for each break.
+
+        Also notes when a deal was really *tested*: the attacker had creatures
+        that could have hit their partner, and held back. Only tested deals
+        earn trust when they end; a peace deal while nobody has creatures
+        proves nothing.
+        """
         turn = decision["state"].get("turn", 0)
         defenders = {d["index"]: d["name"] for d in decision.get("defenders", [])}
-        attacked = {defenders.get(i) for i in choice.values()}
+        attacked = {defenders.get(i) for i in (choice or {}).values()}
+        could_hit = {defenders.get(i) for a in decision.get("attackers", [])
+                     if (a.get("power") or 0) > 0 for i in a.get("can_attack", [])}
         messages = []
         for deal in self.deals_of(attacker, turn):
             victim = deal.other(attacker)
+            if victim in could_hit and victim not in attacked:
+                deal.tested = True
             if deal.against in attacked and victim not in attacked:
                 self._gain_trust(victim, attacker, HELP_TRUST_GAIN)  # kept their word
             if victim in attacked:

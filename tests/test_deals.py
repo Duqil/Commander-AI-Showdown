@@ -34,7 +34,7 @@ def attack(player, target_index, turn=6):
     return {"kind": "attack", "player": player, "state": state(turn=turn, active=player, you=player),
             "defenders": [{"index": 0, "name": "1-A"}, {"index": 1, "name": "2-B"},
                           {"index": 2, "name": "3-C"}, {"index": 3, "name": "4-D"}],
-            "attackers": [{"id": 7}]}
+            "attackers": [{"id": 7, "power": 2, "can_attack": [0, 1, 2, 3]}]}
 
 
 class DealBookTest(unittest.TestCase):
@@ -80,6 +80,7 @@ class DealBookTest(unittest.TestCase):
     def test_kept_deal_restores_trust(self):
         self.book.trust["1-A"]["2-B"] = 0.5
         self.book.offer_phase(state(turn=5), {"1-A": Offerer({"type": "peace", "to": "2-B"}), "2-B": Accepter()})
+        self.book.check_attack("2-B", attack("2-B", 2), {"7": 2})  # B could hit A, hits C instead
         self.assertEqual(self.book.settle(13), [])               # still running
         msgs = self.book.settle(14)
         self.assertEqual([m["event"] for m in msgs], ["kept"])
@@ -88,6 +89,19 @@ class DealBookTest(unittest.TestCase):
         self.assertEqual(self.book.settle(15), [])               # only once
         kinds = [e["kind"] for e in TimelineBuilder().feed(msgs[0])]
         self.assertEqual(kinds, ["deal_kept"])
+
+    def test_untested_deal_earns_no_trust(self):
+        """Peace while nobody could attack anyone proves nothing."""
+        self.book.trust["1-A"]["2-B"] = 0.5
+        self.book.offer_phase(state(turn=5), {"1-A": Offerer({"type": "peace", "to": "2-B"}), "2-B": Accepter()})
+        no_creatures = attack("2-B", 0)
+        no_creatures["attackers"] = []
+        self.book.check_attack("2-B", no_creatures, None)
+        zero_power = attack("2-B", 0)
+        zero_power["attackers"] = [{"id": 7, "power": 0, "can_attack": [0, 2, 3]}]
+        self.book.check_attack("2-B", zero_power, {})
+        self.assertEqual(self.book.settle(14), [])
+        self.assertEqual(self.book.trust["1-A"]["2-B"], 0.5)
 
     def test_broken_deal_is_not_kept(self):
         self.book.offer_phase(state(turn=5), {"1-A": Offerer({"type": "peace", "to": "2-B"}), "2-B": Accepter()})
@@ -128,6 +142,25 @@ class SimpleBotDealTest(unittest.TestCase):
     def test_no_offers_in_the_first_round(self):
         view = {"state": state(turn=2), "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": []}}
         self.assertIsNone(SimpleBot().offer_deal(view))
+
+    def test_simplebot_waits_until_boards_matter(self):
+        def view(turn, leader_power):
+            s = state(turn=turn, lives=(40, 40, 40, 40))
+            s["players"][1]["battlefield"] = [{"type": "Creature", "power": leader_power, "toughness": 1}]
+            return {"state": s, "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": []}}
+        self.assertIsNone(SimpleBot().offer_deal(view(turn=6, leader_power=5)))    # round 2: too early
+        self.assertIsNone(SimpleBot().offer_deal(view(turn=10, leader_power=1)))   # round 3, but a 1/1 board
+        self.assertIsNotNone(SimpleBot().offer_deal(view(turn=10, leader_power=5)))
+
+    def test_boys_see_game_stage_and_board_size(self):
+        from showdown.boys import features
+        s = state(turn=1)
+        early = features.offer_whether_options({"state": s, "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": []}})[1]
+        self.assertEqual((early["offer_game_stage"], early["offer_board_size"]), (0.0, 0.0))
+        s = state(turn=41)   # round 11
+        s["players"][1]["battlefield"] = [{"type": "Creature", "power": 10, "toughness": 10}]
+        late = features.offer_whether_options({"state": s, "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": []}})[1]
+        self.assertEqual((late["offer_game_stage"], late["offer_board_size"]), (1.0, 0.5))
 
 
 

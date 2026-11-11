@@ -382,7 +382,13 @@ def offer_whether_options(view: Decision) -> list[Features]:
         "make_offer": 1.0,
         "simple_prior": _flag(simple is not None),
         "offer_while_in_deal": _flag(bool(view["deals"]["active"])),
-        "offer_in_first_round": _flag(state.get("turn", 0) <= len(state["players"])),
+        "offer_in_first_round": _flag(threat.game_round(state) == 1),
+        # How far into the game (0 at the start, 1 by round 10) and how much
+        # fighting there is (0 with an empty board, 1 at 20+ power on the
+        # table). A Boy can learn that deals early, or over an empty board,
+        # don't pay off, instead of us banning them.
+        "offer_game_stage": min(threat.game_round(state) - 1, 10) / 10,
+        "offer_board_size": min(threat.total_board_power(state), 20) / 20,
         "offer_when_leading": _flag(i_lead),
         "offer_in_danger": min(threat.danger_to_me(state), 2.0) / 2,
         "offer_vs_runaway_leader": _flag(runaway),
