@@ -78,6 +78,12 @@ class FeatureTest(unittest.TestCase):
         # SimpleBot attacks the lowest life player, so its prior points at C.
         self.assertEqual(feats[2]["simple_prior"], 1.0)
 
+    def test_zero_power_creatures_stay_home(self):
+        decision = attack_decision()
+        ctx = features.attack_context(decision)
+        feats, targets = features.attack_options({**creature(5, 0, 1), "can_attack": [0, 1, 2]}, decision, ctx)
+        self.assertEqual(targets, [None])
+
     def test_play_options_add_pass(self):
         decision = {"state": table(), "options": [
             {"index": 0, "card": {"name": "Evolving Wilds", "type": "Land", "cmc": 0},
@@ -186,3 +192,20 @@ class BoyBotTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StatsTest(unittest.TestCase):
+    def test_win_rates(self):
+        from showdown import stats
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(stats, "STATS_DIR", Path(tmp)), \
+                mock.patch.object(stats, "RESULTS_FILE", Path(tmp) / "results.csv"):
+            stats.record_game(["kuja", "garnet"], ["boy:Kaiba", "simple"], 0, False, 30, "batch", "g1")
+            stats.record_game(["kuja", "garnet"], ["boy:Kaiba", "simple"], 1, False, 31, "batch", "g2")
+            stats.record_game(["kuja", "garnet"], ["simple", "simple"], 1, False, 32, "batch", "g3")
+            decks = {r["deck"]: r for r in stats.win_rates("deck")}
+            bots = {r["bot"]: r for r in stats.win_rates("bot")}
+        self.assertEqual(decks["garnet"]["wins"], 2)
+        self.assertAlmostEqual(decks["kuja"]["win_rate"], 1 / 3)
+        self.assertEqual(bots["simple"]["games"], 4)
+        self.assertEqual(bots["boy:Kaiba"]["win_rate"], 0.5)

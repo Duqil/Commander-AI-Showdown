@@ -141,6 +141,11 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
     }]
     targets: list[int | None] = [None]
 
+    # A creature with no power deals no damage, so attacking only risks it.
+    # Leave it home without asking the brain (a hand-written rule, or "mask").
+    if power == 0:
+        return feats, targets
+
     defenders = {d["index"]: d for d in decision["defenders"]}
     for index in attacker.get("can_attack", []):
         d = defenders.get(index)
@@ -150,6 +155,7 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
         f: Features = {
             "attack": 1.0,
             "attack_power": power / 10,
+            "attack_small": _flag(power <= 1),      # 0/1 tokens and the like rarely do much
             "attack_is_commander": _flag(attacker.get("commander", False)),
             "attack_planeswalker": _flag(target is None),
             "simple_prior": _flag(simple_target == index),
