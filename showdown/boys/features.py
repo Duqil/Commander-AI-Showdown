@@ -56,6 +56,9 @@ def mulligan_options(decision: Decision) -> list[Features]:
     }
     mulligan = {
         "mulligan": 1.0,
+        # Cards we'd have to put back if we mulligan again and then keep. Starts
+        # with a negative weight, so going deeper gets less and less tempting.
+        "mulligan_deeper": (to_bottom + 1) / 3,
         "simple_prior": _flag(not simple_keeps),
     }
     return [keep, mulligan]

@@ -14,7 +14,7 @@ from unittest import mock
 from showdown.bots.boy_bot import BoyBot
 from showdown.boys import features, storage, threat
 from showdown.boys.brain import Brain
-from showdown.boys.reward import game_reward
+from showdown.boys.reward import game_reward, turn_bonus
 
 
 def creature(cid, power, toughness=None, tapped=False, **extra):
@@ -170,6 +170,18 @@ class BrainTest(unittest.TestCase):
         self.assertAlmostEqual(sum(probs), 1.0)
         self.assertGreater(probs[0], probs[1])
 
+    def test_mulligan_eagerness_stops(self):
+        """Joey's real weights made him mulligan forever; deeper mulligans must lose."""
+        brain = Brain("joey")
+        brain.weights["mulligan"] = {"simple_prior": 1.34, "mulligan": 0.82, "keep": -0.82,
+                                     "keep_good_lands": -0.70, "keep_land_distance": -0.25}
+        hand = [{"name": "Forest", "type": "Land"}] * 3 + [{"name": "Bear", "type": "Creature"}] * 4
+        state = table(); state["players"][0]["hand"] = hand
+        def keeps(to_bottom):
+            opts = features.mulligan_options({"state": state, "cards_to_bottom_if_kept": to_bottom})
+            return brain.choose("mulligan", opts, random.Random(0), explore=False).picked == 0
+        self.assertTrue(keeps(2))   # two mulligans deep: keep
+
     def test_learns_to_prefer_rewarded_feature(self):
         """Option with feature "good" pays off, the other doesn't. The weight should grow."""
         brain = Brain("t")
@@ -251,6 +263,20 @@ class BoyBotTest(unittest.TestCase):
         bot.game_over({"winner": "2-B", "players": after["players"]}, "1-A")
         self.assertEqual(bot.result["damage"], 9)
         self.assertEqual(bot.result["knockouts"], 1)
+
+    def test_cards_drawn_and_discarded(self):
+        bot = BoyBot("tester", learn=False, seed=1)
+        mine = table()
+        mine["players"][0].update(hand_size=9, library_size=60)   # our turn, 9 cards in hand
+        bot.choose_play({"state": mine, "options": []})
+        later = table(active="2-B")
+        later["turn"] = 6
+        later["players"][0].update(hand_size=7, library_size=58)  # drew 2, then discarded 2 at cleanup
+        bot.choose_play({"state": later, "options": []})
+        bot.game_over({"winner": "2-B", "players": later["players"]}, "1-A")
+        self.assertEqual(bot.result["drawn"], 2)
+        self.assertEqual(bot.result["discarded"], 2)
+        self.assertAlmostEqual(turn_bonus(0, 0, drawn=2, discarded=2), 0.02 - 0.06)
 
     def test_mulligan_state_without_turn_info(self):
         """Forge leaves out keys whose value is null, e.g. active_player during mulligans."""

@@ -55,7 +55,8 @@ Features = dict[str, float]
 #     (about 1 in 20 against staying home), but stays possible: with a combat
 #     trick in hand it can be right, and a Boy can learn that.
 DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_suggested": 2.0,
-                   "attack_breaks_deal": -1.0, "attack_grudge": 1.0}
+                   "attack_breaks_deal": -1.0, "attack_grudge": 1.0,
+                   "mulligan_deeper": -2.0}
 
 DECISION_KINDS = ("mulligan", "play", "attack", "target", "offer", "answer")
 
