@@ -34,6 +34,18 @@ def is_ability(option: dict) -> bool:
     return option.get("is_ability", not option["is_land"] and not option["is_spell"])
 
 
+def spell_size(option: dict) -> int:
+    """How much mana a spell would use. For X spells (Tervigon: {X}{2}{G}{G})
+    the card's mana value counts X as 0, so add the biggest X we can pay."""
+    return option["card"]["cmc"] + option.get("max_x", 0)
+
+
+def risky_x_spell(option: dict) -> bool:
+    """A non-creature X spell that Forge's AI wouldn't cast right now at any X."""
+    return "max_x" in option and "Creature" not in option["card"].get("type", "") \
+        and not option.get("forge_would_play", True)
+
+
 class SimpleBot(Bot):
     name = "simple"
 
@@ -64,10 +76,12 @@ class SimpleBot(Bot):
         if land_abilities:
             return land_abilities[0]["index"]
 
-        spells = [o for o in options if o["is_spell"]]
+        # X spells that aren't creatures (Starstorm: X damage to every creature)
+        # only when Forge's AI sees a good X; otherwise they'd hurt us.
+        spells = [o for o in options if o["is_spell"] and not risky_x_spell(o)]
         if spells:
-            # max(..., key=...) picks the option with the highest mana value.
-            best = max(spells, key=lambda o: o["card"]["cmc"])
+            # max(..., key=...) picks the option with the biggest mana value.
+            best = max(spells, key=spell_size)
             return best["index"]
         # Nothing left to cast: use other abilities with the mana that's left.
         if abilities:
