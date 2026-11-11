@@ -1,6 +1,6 @@
 """Where the Boys live on disk: one JSON file per brain, plus a history file.
 
-    boys/alice.json     Alice's brain (open it to see what she has learned)
+    boys/Kaiba.json     Kaiba's brain (open it to see what he has learned)
     boys/history.csv    one row per Boy per training game, for charts
 
 The boys/ folder is ignored by git, so your trained Boys stay on your machine.
@@ -52,12 +52,13 @@ def load_brain(name: str) -> Brain:
 
 def save_brain(brain: Brain) -> Path:
     path = brain_path(brain.name)
-    BOYS_DIR.mkdir(exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    # Write to a temporary file first, then swap it in, so a crash mid-write
-    # never leaves a half-written brain behind.
-    tmp.write_text(json.dumps(brain.to_dict(), indent=2), encoding="utf-8")
-    tmp.replace(path)
+    with _lock:  # two games ending at once must not write the same file together
+        BOYS_DIR.mkdir(exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        # Write to a temporary file first, then swap it in, so a crash mid-write
+        # never leaves a half-written brain behind.
+        tmp.write_text(json.dumps(brain.to_dict(), indent=2), encoding="utf-8")
+        tmp.replace(path)
     return path
 
 

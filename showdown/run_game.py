@@ -7,7 +7,7 @@ Examples:
     python -m showdown.run_game --bots simple forge random forge --seed 7
         Mix Python bots with Forge's own AI ("forge").
 
-    python -m showdown.run_game --bots boy:alice simple simple simple
+    python -m showdown.run_game --bots boy:Kaiba simple simple simple
         Watch a Boy play (it doesn't learn here; use showdown.batch to train).
 
     python -m showdown.run_game --decks zidane kuja --quiet
@@ -29,13 +29,14 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DECK_DIR = REPO_ROOT / "decks" / "forge"
 
 
-def make_bot(kind: str, seed: int | None, learn: bool = False) -> Bot | None:
+def make_bot(kind: str, seed: int | None, learn: bool = False, explore: bool = True) -> Bot | None:
     """Make a bot from its name: "simple", "random", "forge" or "boy:<name>".
 
     A Boy only learns from the game when ``learn`` is True (training does that).
+    With ``explore`` False it always takes its best-scoring option (no dice rolls).
     """
     if kind.startswith("boy:"):
-        return BoyBot(kind.removeprefix("boy:"), learn=learn, seed=seed)
+        return BoyBot(kind.removeprefix("boy:"), learn=learn, explore=explore, seed=seed)
     if kind == "forge":
         return None  # Forge's built-in AI
     if kind == "simple":

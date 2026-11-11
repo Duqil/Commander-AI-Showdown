@@ -153,6 +153,32 @@ class BoyBotTest(unittest.TestCase):
         self.assertEqual(storage.load_brain("tester").games, 1)
         self.assertIn("boy:tester", __import__("showdown.batch", fromlist=["x"]).bots_available())
 
+    def test_turn_bonus_goes_to_that_turns_choices(self):
+        bot = BoyBot("tester", learn=False, seed=1)
+        before = table()                       # our turn 5, C at 4 life
+        bot.declare_attackers(attack_decision(before))
+        after = table(active="2-B")
+        after["turn"] = 6
+        after["players"][2]["life"] = 0
+        after["players"][2]["lost"] = True     # C knocked out during our turn
+        after["players"][3]["life"] = 20       # D took 5
+        bot.choose_play({"state": after, "options": []})
+        bot.game_over({"winner": "2-B", "players": after["players"]}, "1-A")
+        self.assertEqual(bot.result["damage"], 9)
+        self.assertEqual(bot.result["knockouts"], 1)
+
+    def test_mulligan_state_without_turn_info(self):
+        """Forge leaves out keys whose value is null, e.g. active_player during mulligans."""
+        bot = BoyBot("tester", learn=True, seed=1)
+        state = table()
+        del state["active_player"], state["turn"]
+        decision = {"state": state, "cards_to_bottom_if_kept": 0}
+        bot.keep_hand(decision)
+        bot.keep_hand(decision)
+        bot.choose_play({"state": table(), "options": []})
+        bot.game_over({"winner": "1-A", "players": table()["players"]}, "1-A")
+        self.assertTrue(bot.result["won"])
+
     def test_rejects_bad_names(self):
         with self.assertRaises(ValueError):
             storage.brain_path("../evil")

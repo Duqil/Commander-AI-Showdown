@@ -6,6 +6,25 @@ bots make the decisions.
 
 **Status:** full games run in Forge; watch them in your browser or the terminal.
 
+## Cheat sheet
+
+Once everything is installed (sections 1 to 3), these are the commands you'll
+use. Run them in Git Bash from the project folder. On Windows, `py` works
+wherever it says `python`.
+
+| What you want | Command |
+|---|---|
+| Watch games in the browser (pick decks and bots, saved games, training runs) | `python -m showdown.viewer` |
+| Play one game in the terminal | `python -m showdown.run_game` |
+| Train a Boy (learning bot) over many games | `python -m showdown.batch --bots boy:Kaiba simple simple simple --games 50 --parallel 2` |
+| See how your Boys have been doing | `python -m showdown.batch --report` |
+| Turn deck lists in `decks/source/` into Forge decks | `python -m showdown.decks.convert --all` |
+| Check every deck: 100 cards, every card name right | `python -m showdown.decks.convert --check` |
+| Run the tests | `python -m unittest discover -s tests` |
+| Rebuild after Java changes | `./scripts/setup_forge.sh` |
+
+Every command takes `--help` to list its options.
+
 ---
 
 ## 1. Install these (once)
@@ -91,8 +110,8 @@ Decks: `zidane`, `anhelo`, `nelly`, `kuja`. Bots: `simple` (our bot), `forge`
 ## 6. Train The Boys (learning bots)
 
 ```bash
-python -m showdown.batch --bots boy:alice simple simple simple --games 50 --parallel 2
-python -m showdown.batch --report        # how Alice has been doing
+python -m showdown.batch --bots boy:Kaiba simple simple simple --games 50 --parallel 2
+python -m showdown.batch --report        # how Kaiba has been doing
 ```
 
 `boy:<any name>` is a bot that learns from every game it plays; its brain is

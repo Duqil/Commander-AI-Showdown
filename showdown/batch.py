@@ -1,14 +1,15 @@
 """Play many games in a row without watching, e.g. to train The Boys.
 
 Examples:
-    python -m showdown.batch --bots boy:alice simple simple simple --games 20
-        Alice plays 20 games against three SimpleBots and learns after each.
+    python -m showdown.batch --bots boy:Kaiba simple simple simple --games 20
+        Kaiba plays 20 games against three SimpleBots and learns after each.
 
-    python -m showdown.batch --bots boy:alice boy:bob boy:carol boy:dave --games 100 --parallel 2
+    python -m showdown.batch --bots boy:Kaiba boy:bob boy:carol boy:dave --games 100 --parallel 2
         Four Boys learn against each other, two games at a time.
 
-    python -m showdown.batch --bots boy:alice forge forge forge --games 10 --no-learn
-        Test Alice against Forge's AI without changing her brain.
+    python -m showdown.batch --bots boy:Kaiba forge forge forge --games 10 --no-learn --greedy
+        Test Kaiba against Forge's AI without changing his brain, always
+        playing his best-scoring move (no exploring).
 
     python -m showdown.batch --report
         Show how each Boy has been doing over time (from boys/history.csv).
@@ -38,6 +39,7 @@ from showdown.bridge.game_runner import GameAborted, Seat, run_game
 from showdown.run_game import DECK_DIR, REPO_ROOT, make_bot
 
 BASIC_BOTS = ["simple", "random", "forge"]
+MAX_CRASHES_IN_A_ROW = 5
 
 
 @dataclass
@@ -62,14 +64,15 @@ def bots_available() -> list[str]:
 
 
 def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
-             save_game: bool = False, learn: bool = True,
+             save_game: bool = False, learn: bool = True, explore: bool = True,
              abort: threading.Event | None = None) -> GameRecord | None:
     """Play one game and return its record. Boys learn when it ends (if learn=True).
 
     Returns None if the game was aborted: it doesn't count, and nobody learns from it.
     """
     record = GameRecord(index, seed, list(decks), list(bots))
-    seated = [make_bot(b, None if seed is None else seed + seat, learn=learn) for seat, b in enumerate(bots)]
+    seated = [make_bot(b, None if seed is None else seed + seat, learn=learn, explore=explore)
+              for seat, b in enumerate(bots)]
     seats = [Seat(DECK_DIR / f"{d}.dck", bot) for d, bot in zip(decks, seated)]
 
     on_message = None
@@ -136,6 +139,7 @@ def run_many(
     seed: int | None = None,
     save_games: bool = False,
     learn: bool = True,
+    explore: bool = True,
     on_result: Callable[[GameRecord], None] | None = None,
     stop: threading.Event | None = None,
     abort: threading.Event | None = None,
@@ -159,16 +163,21 @@ def run_many(
     records_lock = threading.Lock()
     stop = stop or threading.Event()
     abort = abort or threading.Event()
+    crashes_in_a_row = [0]  # a list so worker() can change it
 
     def worker(index: int) -> None:
         if stop.is_set() or abort.is_set():
             return
         record = play_one(index, decks, bots, None if seed is None else seed + index * 10,
-                          save_game=save_games, learn=learn, abort=abort)
+                          save_game=save_games, learn=learn, explore=explore, abort=abort)
         if record is None:  # aborted
             return
         with records_lock:
             records.append(record)
+            crashes_in_a_row[0] = crashes_in_a_row[0] + 1 if record.error else 0
+            if crashes_in_a_row[0] >= MAX_CRASHES_IN_A_ROW:
+                stop.set()  # something is broken; don't waste hours on more crashes
+                record.error += f" (stopping: {MAX_CRASHES_IN_A_ROW} crashes in a row)"
         if on_result:
             on_result(record)
 
@@ -233,6 +242,8 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--save-games", action="store_true", help="save each game for the viewer (games/)")
     parser.add_argument("--no-learn", action="store_true", help="Boys play but don't learn")
+    parser.add_argument("--greedy", action="store_true",
+                        help="Boys always take their best option, no exploring (use with --no-learn to test them)")
     parser.add_argument("--report", action="store_true", help="only show the training history")
     args = parser.parse_args()
 
@@ -247,7 +258,7 @@ def main() -> None:
     print(f"Playing {args.games} games, {args.parallel} at a time. Ctrl+C stops.\n", flush=True)
 
     records = run_many(args.decks, bots, args.games, parallel=args.parallel, seed=args.seed,
-                       save_games=args.save_games, learn=not args.no_learn,
+                       save_games=args.save_games, learn=not args.no_learn, explore=not args.greedy,
                        on_result=lambda r: print_record(r, args.games))
 
     print("\nWins per seat:")

@@ -7,18 +7,18 @@ went. Over many games it should drift towards whatever actually works.
 ## Quick start
 
 ```bash
-# Train Alice in seat 1 against three SimpleBots, 2 games at a time
-python -m showdown.batch --bots boy:alice simple simple simple --games 50 --parallel 2
+# Train Kaiba in seat 1 against three SimpleBots, 2 games at a time
+python -m showdown.batch --bots boy:Kaiba simple simple simple --games 50 --parallel 2
 
-# How is she doing? Win rate and average reward per block of 20 games
+# How is he doing? Win rate and average reward per block of 20 games
 python -m showdown.batch --report
 
-# Watch her play in the terminal (she doesn't learn from watched games)
-python -m showdown.run_game --bots boy:alice simple simple simple
+# Watch him play in the terminal (he doesn't learn from watched games)
+python -m showdown.run_game --bots boy:Kaiba simple simple simple
 ```
 
-A new name creates a new Boy. Her brain is saved in `boys/alice.json` after
-every game; delete that file to start her over. `boys/history.csv` has one
+A new name creates a new Boy. Its brain is saved in `boys/Kaiba.json` after
+every game; delete that file to start it over. `boys/history.csv` has one
 row per Boy per training game. The `boys/` folder is ignored by git.
 
 A game takes about 45 seconds, and each one runs its own Forge using about
@@ -66,7 +66,7 @@ starting instinct improves with it.
 
 ## Reading a brain
 
-Open `boys/alice.json`. Weights are listed strongest first for each kind of
+Open `boys/Kaiba.json`. Weights are listed strongest first for each kind of
 decision. A positive weight means "I like options that have this", negative
 means "I avoid them". For example, after training you might see:
 
@@ -86,7 +86,7 @@ means "I avoid them". For example, after training you might see:
 - Change the reward in `reward.py`, e.g. a bonus for knocking a player out.
 - Add a feature in `features.py`. The brain picks it up automatically: a new
   name simply starts at weight 0.
-- Train four Boys against each other: `--bots boy:alice boy:bob boy:carol boy:dave`.
+- Train four Boys against each other: `--bots boy:Kaiba boy:bob boy:carol boy:dave`.
 
 ## Next: deals
 
