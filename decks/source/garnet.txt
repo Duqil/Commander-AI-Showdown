@@ -1,0 +1,78 @@
+1 Garnet, Princess of Alexandria (FIN) 487
+1 Armadillo Cloak (PLST) EMA-195
+1 Avacyn's Pilgrim (ISD) 170
+1 Bastion Protector (MIC) 80
+1 Blossoming Sands (KTK) 231
+1 Boseiju Reaches Skyward / Branch of Boseiju (NEO) 177
+1 Brushland (M3C) 324
+1 Canopy Vista (C20) 261
+1 Clash of the Eikons (FIN) 341
+1 Command Tower (DRC) 59
+1 Conclave Mentor (M21) 216
+1 Cosmic Rebirth (MAT) 28
+1 Crystal Fragments / Summon: Alexander (FIN) 357
+1 Day of Judgment (M11) 12
+1 Dion, Bahamut's Dominant / Bahamut, Warden of Light (FIN) 376
+1 Elspeth Conquers Death (THB) 13
+1 Esper Origins / Summon: Esper Maduin (FIN) 370
+1 Fall of the First Civilization (ACR) 4
+1 Fall of the Impostor (KHM) 208
+12 Forest (J25) 95
+1 Fortified Village (FIC) 396
+1 History of Benalia (DOM) 21
+1 Ishgard, the Holy See / Faith & Grief (FIN) 310
+1 Jukai Naturalist (NEO) 510
+1 Karametra, God of Harvests (C20) 218
+1 Knight of Autumn (GRN) 183
+1 Knight of the Reliquary (CON) 113
+1 Kraven's Last Hunt (SPM) 105
+1 Mesa Enchantress (SLD) 282
+1 Michiko's Reign of Truth / Portrait of Michiko (NEO) 29
+1 Nesting Grounds (FIC) 408
+1 Open the Vaults (M10) 21
+1 Paradise Chocobo (FIC) 483 *F*
+12 Plains (J25) 81
+1 Restoration Magic (FIN) 30
+1 Rhys, the Evermore (ECL) 354
+1 Sanctum Weaver (MH2) 462
+1 Satsuki, the Living Lore (NEO) 399
+1 Satyr Enchanter (PLST) M19-223
+1 Scholar of New Horizons (FIC) 252
+1 Search for the Frozen Esper (FCA) 47
+1 Selesnya Signet (C13) 257
+1 Selvala, Explorer Returned (SLD) 1914
+1 Setessan Champion (THB) 331
+1 Shalai, Voice of Plenty (SLD) 244
+1 Sterling Grove (INV) 278
+1 Strength of the Harvest / Haven of the Harvest (MH3) 258
+1 Summon: Bahamut (FIN) 356
+1 Summon: Choco/Mog (FIN) 358
+1 Summon: Fat Chocobo (FIN) 371
+1 Summon: Fenrir (FIN) 372
+1 Summon: Good King Mog XII (FIC) 194
+1 Summon: Ixion (FIC) 195
+1 Summon: Knights of Round (FIN) 359
+1 Summon: Magus Sisters (FIC) 200
+1 Summon: Primal Garuda (FIN) 360
+1 Summon: Titan (FIN) 373
+1 Summon: Yojimbo (FIC) 196
+1 Summoner's Grimoire (FIN) 205
+1 Summoning Materia (FIC) 124
+1 Sungrass Prairie (FIC) 428
+1 Sunpetal Grove (PIP) 297
+1 Swiftfoot Boots (PW22) 4 *F*
+1 Swords to Plowshares (FIC) 256
+1 Sythis, Harvest's Hand (SLD) 1963 *F*
+1 Tale of Tinúviel (LTR) 34
+1 Talisman of Unity (MKC) 244
+1 Temple of Plenty (THB) 248
+1 Terramorphic Expanse (CMR) 357
+1 The First Iroan Games (THB) 170
+1 The Princess Takes Flight (WOE) 23
+1 The Restoration of Eiganjo / Architect of Restoration (NEO) 34
+1 Vigorbloom Charm (FRA) 160
+1 Vorinclex / The Grand Evolution (MOM) 213
+1 Weaver of Harmony (NEO) 395
+1 Windswept Heath (KTK) 248
+1 Yenna, Redtooth Regent (WOE) 365
+1 Yuna, Hope of Spira (FIN) 404

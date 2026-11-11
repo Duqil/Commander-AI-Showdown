@@ -83,12 +83,48 @@ def scryfall_name(set_code: str, number: str, cache: dict[str, str]) -> str:
     return cache[key]
 
 
+CARDS_FOLDER = REPO_ROOT / "vendor" / "forge" / "forge-gui" / "res" / "cardsfolder"
+_forge_names: set[str] | None = None
+
+
+def forge_card_names() -> set[str]:
+    """Every card name Forge knows (empty if Forge isn't set up yet).
+
+    Each card is a small text file in Forge's cardsfolder whose first line
+    is "Name:<card name>". Reading ~35,000 files takes a few seconds, so we
+    do it once and keep the result.
+    """
+    global _forge_names
+    if _forge_names is None:
+        _forge_names = set()
+        for f in CARDS_FOLDER.rglob("*.txt"):
+            with open(f, encoding="utf-8", errors="ignore") as fh:
+                first = fh.readline()
+            if first.startswith("Name:"):
+                _forge_names.add(first[5:].strip())
+    return _forge_names
+
+
 def forge_name(line: DeckLine, cache: dict[str, str]) -> str:
     # Double-faced cards are written "Front / Back"; Forge wants just the front.
     name = line.name.split(" / ")[0]
-    if line.set_code == "fca":  # flavor-name printings: ask Scryfall for the real name
+    known = forge_card_names()
+    # Flavor-name printings (all of set FCA, and some others such as
+    # "Paradise Chocobo" = Birds of Paradise) carry a name Forge doesn't know.
+    # Ask Scryfall for the real name by set + collector number.
+    if line.set_code == "fca" or (known and name not in known):
         name = scryfall_name(line.set_code, line.number, cache).split(" // ")[0]
     return name
+
+
+def unknown_cards(target: Path) -> list[str]:
+    """Cards in a converted .dck file that Forge doesn't have."""
+    known = forge_card_names()
+    if not known:
+        return []
+    names = [l.split(" ", 1)[1] for l in target.read_text(encoding="utf-8").splitlines()
+             if l[:1].isdigit() and " " in l]
+    return [n for n in names if n not in known]
 
 
 def convert(source: Path, target: Path, deck_name: str | None = None) -> int:
@@ -126,6 +162,8 @@ def main() -> None:
         total = convert(source, target)
         note = "" if total == 100 else "  <-- a Commander deck should have 100 cards"
         print(f"{source.name} -> {target}  ({total} cards){note}")
+        for name in unknown_cards(target):
+            print(f"    Forge doesn't know '{name}' (not implemented yet, or a typo)")
 
 
 if __name__ == "__main__":
