@@ -326,6 +326,8 @@ def target_options(decision: Decision) -> list[Features]:
     players = {p["name"]: p for p in state["players"]}
     harmful = is_harmful(decision)
     suggested = set(decision.get("suggested", []))
+    # Candidates are fresh card copies; the damage counts live on the state's battlefield cards.
+    recent = {c.get("id"): c.get("recent_damage", 0) for p in state["players"] for c in p.get("battlefield", [])}
 
     result = []
     for cand in decision["candidates"]:
@@ -343,6 +345,10 @@ def target_options(decision: Decision) -> list[Features]:
             "target_creature": _flag("Creature" in ctype),
             "target_power": max(0, cand.get("power", 0)) / 10,
             "target_cmc": cand.get("cmc", 0) / 7,
+            # Removal on an opponent's card that dealt damage to players last
+            # round (1.0 at 5+ damage). A 0/1 that pings everyone has no power
+            # and costs nothing, but it is a real threat.
+            "hurt_damage_dealer": min(recent.get(cand.get("id"), 0), 5) / 5 if harmful and not mine else 0.0,
             "target_commander": _flag(cand.get("commander", False)),
             "target_of_leader": _flag(owner == leader),
         }

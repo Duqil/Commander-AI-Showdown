@@ -65,6 +65,15 @@ is weak right now, and who could be killed with the power we have. The Boys
 learn how much each of those should matter, for example "focus the leader",
 "ignore a player with nothing on board", or "finish off the player at 4 life".
 
+**Damage engines.** Power alone misses decks like Kuja, whose 0/1 Wizard
+tokens ping every opponent each time he casts a spell. So `showdown/damage.py`
+reads Forge's log and writes the last round's damage into the state:
+`recent_damage_to` on each player and `recent_damage` on each card. The threat
+score uses creature power *or* damage actually dealt, whichever is bigger, and
+the Boys' targeting has `hurt_damage_dealer` (starting weight 2.0): removal on
+a card that dealt 5+ damage last round counts as much as Forge's suggestion.
+This works for any deck: pingers, drains, burn.
+
 **Learning on top of SimpleBot.** Every option has a `simple_prior` feature
 that is 1 for SimpleBot's choice, and every brain starts with weight 2.0 on
 it. So a new Boy picks SimpleBot's move about two times in three and

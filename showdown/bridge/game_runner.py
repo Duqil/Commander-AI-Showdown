@@ -25,6 +25,7 @@ from typing import Callable
 from showdown.bots.base import Bot, Decision
 from showdown.bridge.connection import BridgeConnection, listen
 from showdown.bridge.forge_process import start_forge
+from showdown.damage import DamageTracker
 from showdown.deals import DealBook
 
 
@@ -82,6 +83,7 @@ def play(
     decisions = 0
     log: list[str] = []
     book: DealBook | None = None
+    damage = DamageTracker()  # who hit whom lately (bots see it in the state)
 
     def deal_messages(messages: list[dict]) -> None:
         # Deals aren't in Forge's log, so we add them to ours (and the viewer's).
@@ -105,11 +107,14 @@ def play(
                 book = DealBook([seat["name"] for seat in msg["seats"]])
         elif kind == "event":
             for line in msg.get("log", []):
+                damage.see_log(line)
                 log.append(line)
                 if on_log:
                     on_log(line)
         elif kind == "decision":
             bot = bots_by_name.get(msg["player"])
+            if "state" in msg:
+                damage.annotate(msg["state"])
             if book is not None and "state" in msg:
                 deal_messages(book.offer_phase(msg["state"], bots_by_name))  # start of a new turn?
                 msg["deals"] = book.view_for(msg["player"], msg["state"])
