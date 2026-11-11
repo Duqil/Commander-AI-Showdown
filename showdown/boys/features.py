@@ -91,6 +91,9 @@ def play_options(decision: Decision) -> list[Features]:
             # Abilities of lands, e.g. Evolving Wilds: "sacrifice: search for a land".
             "land_ability": _flag(is_ability and "Land" in ctype),
             "ability_on_my_turn": _flag(is_ability and my_turn),
+            # Forge's own AI would make this play now (a hint, learned like any feature).
+            "forge_would_play": _flag(option.get("forge_would_play", False)),
+            "ability_forge_would_play": _flag(is_ability and option.get("forge_would_play", False)),
             "respond_to_stack": _flag(stack),
             "simple_prior": _flag(simple_pick == option["index"]),
         })

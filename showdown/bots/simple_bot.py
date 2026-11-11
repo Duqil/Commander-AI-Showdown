@@ -29,6 +29,11 @@ from showdown.boys import threat
 MAIN_PHASES = {"MAIN1", "MAIN2"}
 
 
+def is_ability(option: dict) -> bool:
+    """An activated ability, like Evolving Wilds' "sacrifice: search for a land"."""
+    return option.get("is_ability", not option["is_land"] and not option["is_spell"])
+
+
 class SimpleBot(Bot):
     name = "simple"
 
@@ -50,12 +55,24 @@ class SimpleBot(Bot):
         if lands:
             return lands[0]["index"]
 
+        # Abilities (not spells, not land drops) that Forge's own AI would use
+        # right now. "forge_would_play" is Forge's hint: it knows when an
+        # ability is worth it, which a simple bot can't work out itself.
+        abilities = [o for o in options if is_ability(o) and o.get("forge_would_play")]
+        # Abilities of lands first, e.g. Evolving Wilds fetching a land: more mana for spells later.
+        land_abilities = [o for o in abilities if "Land" in o["card"].get("type", "")]
+        if land_abilities:
+            return land_abilities[0]["index"]
+
         spells = [o for o in options if o["is_spell"]]
-        if not spells:
-            return None
-        # max(..., key=...) picks the option with the highest mana value.
-        best = max(spells, key=lambda o: o["card"]["cmc"])
-        return best["index"]
+        if spells:
+            # max(..., key=...) picks the option with the highest mana value.
+            best = max(spells, key=lambda o: o["card"]["cmc"])
+            return best["index"]
+        # Nothing left to cast: use other abilities with the mana that's left.
+        if abilities:
+            return abilities[0]["index"]
+        return None
 
     def declare_attackers(self, decision: Decision) -> dict[str, int]:
         players = {p["name"]: p for p in decision["state"]["players"]}

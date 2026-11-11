@@ -38,7 +38,10 @@ class Bot:
         """You have priority. Return the "index" of an option, or None to pass.
 
         decision["options"] is a list like:
-            {"index": 0, "card": {...}, "description": "...", "is_land": true, "is_spell": false}
+            {"index": 0, "card": {...}, "description": "...", "is_land": true, "is_spell": false,
+             "is_ability": false, "api": "ChangeZone", "forge_would_play": true}
+        is_ability marks activated abilities (Evolving Wilds, Treasure, ...).
+        forge_would_play is a hint: would Forge's own AI make this play now?
         Only legal options are listed; the bridge already checked timing and mana.
         """
         return None
