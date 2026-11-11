@@ -102,6 +102,9 @@ and lets the ones being played finish (they count). **Stop now** ends
 everything straight away; unfinished games are thrown away and nobody learns
 from them. On the command line, Ctrl+C stops right away too.
 
+When a batch ends you get confetti and a small summary card, and the
+browser tab title starts with "✓ Games done" until you look at it.
+
 Pick **New Boy…** in a bot dropdown to name a new learning bot (spaces are
 fine, like "Nicol Bolas"); it's created the first time it plays. The same runner works from the command line:
 `python -m showdown.batch --help`.

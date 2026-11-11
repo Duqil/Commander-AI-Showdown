@@ -179,12 +179,62 @@ $("#batch-start").onclick = async () => {
 };
 
 let batchTimer = null;
+let batchWasRunning = false; // so we celebrate only a batch we saw running, not one finished long ago
 async function pollBatch() {
   clearTimeout(batchTimer);
   const b = await api("/api/batch");
   if (b.status === "none") return;
   renderBatch(b);
-  if (b.status === "running" || b.status === "stopping") batchTimer = setTimeout(pollBatch, 1500);
+  const running = b.status === "running" || b.status === "stopping";
+  if (running) batchTimer = setTimeout(pollBatch, 1500);
+  else if (batchWasRunning) celebrateBatch(b);
+  batchWasRunning = running;
+}
+
+// A batch just ended: confetti, a summary card, and "✓" in the tab title in
+// case you're looking at another tab.
+function celebrateBatch(b) {
+  const finished = b.done - b.crashed;
+  const best = [...b.seats].sort((x, y) => y.wins - x.wins)[0];
+  const minutes = Math.max(1, Math.round((b.elapsed || 0) / 60));
+  const card = el("div", "batch-done");
+  card.innerHTML = `<div class="batch-done-icon">🎉</div>
+    <b>${b.status === "finished" ? "All games done!" : "Batch stopped"}</b>
+    <div>${finished} of ${b.games} games in about ${minutes} min${b.crashed ? ` · ${b.crashed} crashed` : ""}</div>
+    ${best && finished ? `<div>Most wins: <b>${best.deck}</b> · ${botLabel(best.bot)} · ${best.wins} of ${finished}</div>` : ""}
+    <button>Nice</button>`;
+  card.querySelector("button").onclick = () => card.remove();
+  document.body.append(card);
+  if (b.status === "finished") confetti();
+  const title = document.title;
+  document.title = "✓ Games done · " + title;
+  // Put the title back once you come back to this tab (or right away if you're on it).
+  const restore = () => { if (!document.hidden) { document.title = title; document.removeEventListener("visibilitychange", restore); } };
+  document.addEventListener("visibilitychange", restore);
+  setTimeout(restore, 4000);
+}
+
+// Party popper: 140 little coloured pieces burst up from the bottom corners and
+// fall down. Each piece is a <div> with a CSS animation (see .confetti in
+// style.css). Its path comes from CSS variables we set per piece.
+function confetti() {
+  const colors = ["#e5534b", "#f2cc60", "#57ab5a", "#539bf5", "#b083f0", "#f69d50"];
+  const layer = el("div", "confetti-layer");
+  for (let i = 0; i < 140; i++) {
+    const piece = el("div", "confetti");
+    const fromLeft = i % 2 === 0;
+    piece.style.left = fromLeft ? "0" : "100%";
+    piece.style.background = colors[i % colors.length];
+    // --dx: how far sideways it flies (towards the middle), --up: how high it goes.
+    piece.style.setProperty("--dx", `${(fromLeft ? 1 : -1) * (15 + Math.random() * 45)}vw`);
+    piece.style.setProperty("--up", `${45 + Math.random() * 45}vh`);
+    piece.style.setProperty("--spin", `${(Math.random() * 4 - 2) * 360}deg`);
+    piece.style.animationDelay = `${Math.random() * 0.3}s`;
+    piece.style.animationDuration = `${2.2 + Math.random() * 1.5}s`;
+    layer.append(piece);
+  }
+  document.body.append(layer);
+  setTimeout(() => layer.remove(), 4500);
 }
 
 function renderBatch(b) {
