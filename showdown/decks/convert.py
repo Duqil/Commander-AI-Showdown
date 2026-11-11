@@ -25,6 +25,7 @@ Scryfall answers are cached in decks/scryfall_names.json so we only ask once.
 Usage:
     python -m showdown.decks.convert decks/source/zidane.txt decks/forge/zidane.dck
     python -m showdown.decks.convert --all        # every file in decks/source/
+    python -m showdown.decks.convert --check      # check every deck's names and card count
 """
 
 from __future__ import annotations
@@ -83,12 +84,48 @@ def scryfall_name(set_code: str, number: str, cache: dict[str, str]) -> str:
     return cache[key]
 
 
+CARDS_FOLDER = REPO_ROOT / "vendor" / "forge" / "forge-gui" / "res" / "cardsfolder"
+_forge_names: set[str] | None = None
+
+
+def forge_card_names() -> set[str]:
+    """Every card name Forge knows (empty if Forge isn't set up yet).
+
+    Each card is a small text file in Forge's cardsfolder whose first line
+    is "Name:<card name>". Reading ~35,000 files takes a few seconds, so we
+    do it once and keep the result.
+    """
+    global _forge_names
+    if _forge_names is None:
+        _forge_names = set()
+        for f in CARDS_FOLDER.rglob("*.txt"):
+            with open(f, encoding="utf-8", errors="ignore") as fh:
+                first = fh.readline()
+            if first.startswith("Name:"):
+                _forge_names.add(first[5:].strip())
+    return _forge_names
+
+
 def forge_name(line: DeckLine, cache: dict[str, str]) -> str:
     # Double-faced cards are written "Front / Back"; Forge wants just the front.
     name = line.name.split(" / ")[0]
-    if line.set_code == "fca":  # flavor-name printings: ask Scryfall for the real name
+    known = forge_card_names()
+    # Flavor-name printings (all of set FCA, and some others such as
+    # "Paradise Chocobo" = Birds of Paradise) carry a name Forge doesn't know.
+    # Ask Scryfall for the real name by set + collector number.
+    if line.set_code == "fca" or (known and name not in known):
         name = scryfall_name(line.set_code, line.number, cache).split(" // ")[0]
     return name
+
+
+def unknown_cards(target: Path) -> list[str]:
+    """Cards in a converted .dck file that Forge doesn't have."""
+    known = forge_card_names()
+    if not known:
+        return []
+    names = [l.split(" ", 1)[1] for l in target.read_text(encoding="utf-8").splitlines()
+             if l[:1].isdigit() and " " in l]
+    return [n for n in names if n not in known]
 
 
 def convert(source: Path, target: Path, deck_name: str | None = None) -> int:
@@ -108,12 +145,43 @@ def convert(source: Path, target: Path, deck_name: str | None = None) -> int:
     return sum(l.count for l in lines)
 
 
+def check(source: Path) -> list[str]:
+    """Problems with a deck list: wrong card count, names that don't match the
+    printing's real name on Scryfall, or cards Forge doesn't have."""
+    cache = load_cache()
+    lines = [p for p in (parse_line(l) for l in source.read_text(encoding="utf-8").splitlines()) if p]
+    problems = []
+    total = sum(l.count for l in lines)
+    if total != 100:
+        problems.append(f"{total} cards (a Commander deck has 100)")
+    known = forge_card_names()
+    for l in lines:
+        ours = forge_name(l, cache)
+        real = scryfall_name(l.set_code, l.number, cache).split(" // ")[0]
+        if ours != real:
+            problems.append(f"{l.name}: converted to '{ours}' but the printing is '{real}'")
+        if known and ours not in known:
+            problems.append(f"Forge doesn't have '{ours}'")
+    CACHE_FILE.write_text(json.dumps(cache, indent=1, sort_keys=True) + "\n")
+    return problems
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("source", nargs="?", type=Path)
     parser.add_argument("target", nargs="?", type=Path)
     parser.add_argument("--all", action="store_true", help="convert every deck in decks/source/")
+    parser.add_argument("--check", action="store_true",
+                        help="check every deck in decks/source/ against Scryfall and Forge (slow the first time)")
     args = parser.parse_args()
+
+    if args.check:
+        for source in sorted((REPO_ROOT / "decks" / "source").glob("*.txt")):
+            problems = check(source)
+            print(f"{source.stem}: {'OK' if not problems else ''}")
+            for problem in problems:
+                print(f"    {problem}")
+        return
 
     if args.all:
         jobs = [(p, REPO_ROOT / "decks" / "forge" / f"{p.stem}.dck") for p in sorted((REPO_ROOT / "decks" / "source").glob("*.txt"))]
@@ -126,6 +194,8 @@ def main() -> None:
         total = convert(source, target)
         note = "" if total == 100 else "  <-- a Commander deck should have 100 cards"
         print(f"{source.name} -> {target}  ({total} cards){note}")
+        for name in unknown_cards(target):
+            print(f"    Forge doesn't know '{name}' (not implemented yet, or a typo)")
 
 
 if __name__ == "__main__":

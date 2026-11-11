@@ -6,6 +6,25 @@ bots make the decisions.
 
 **Status:** full games run in Forge; watch them in your browser or the terminal.
 
+## Cheat sheet
+
+Once everything is installed (sections 1 to 3), these are the commands you'll
+use. Run them in Git Bash from the project folder. On Windows, `py` works
+wherever it says `python`.
+
+| What you want | Command |
+|---|---|
+| Watch games in the browser (pick decks and bots, saved games, training runs) | `python -m showdown.viewer` |
+| Play one game in the terminal | `python -m showdown.run_game` |
+| Train a Boy (learning bot) over many games | `python -m showdown.batch --bots boy:Kaiba simple simple simple --games 50 --parallel 2` |
+| See how your Boys have been doing | `python -m showdown.batch --report` |
+| Turn deck lists in `decks/source/` into Forge decks | `python -m showdown.decks.convert --all` |
+| Check every deck: 100 cards, every card name right | `python -m showdown.decks.convert --check` |
+| Run the tests | `python -m unittest discover -s tests` |
+| Rebuild after Java changes | `./scripts/setup_forge.sh` |
+
+Every command takes `--help` to list its options.
+
 ---
 
 ## 1. Install these (once)
@@ -86,9 +105,20 @@ python -m showdown.run_game --decks zidane kuja --quiet    # 2 players, result o
 ```
 
 Decks: `zidane`, `anhelo`, `nelly`, `kuja`. Bots: `simple` (our bot), `forge`
-(Forge's own AI), `random`.
+(Forge's own AI), `random`, and `boy:<name>` (a learning bot, see section 6).
 
-## 6. Getting updates
+## 6. Train The Boys (learning bots)
+
+```bash
+python -m showdown.batch --bots boy:Kaiba simple simple simple --games 50 --parallel 2
+python -m showdown.batch --report        # how Kaiba has been doing
+```
+
+`boy:<any name>` is a bot that learns from every game it plays; its brain is
+saved in `boys/`. `showdown.batch` plays many games without watching (about
+45 seconds each). More in [docs/boys.md](docs/boys.md).
+
+## 7. Getting updates
 
 ```bash
 git pull
@@ -102,6 +132,7 @@ Running the setup again is always safe; it's much faster the second time.
 ## More
 
 - [docs/viewer.md](docs/viewer.md): everything about the browser viewer.
+- [docs/boys.md](docs/boys.md): The Boys, how they learn and how to train them.
 - [docs/development.md](docs/development.md): how the code fits together,
   adding decks, running tests, where files go.
 - [docs/bridge.md](docs/bridge.md): how Python and Forge talk to each other.

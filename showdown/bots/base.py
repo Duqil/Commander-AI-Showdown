@@ -52,6 +52,14 @@ class Bot:
         """
         return None
 
+    def game_over(self, result: dict, player: str) -> None:
+        """Called once when the game ends. ``player`` is this bot's player name.
+
+        result["winner"] is the winning player's name (None for a draw), and
+        result["players"] lists everyone with "life" and "lost". Bots that
+        learn (The Boys) use this to see how they did. Others can ignore it.
+        """
+
     # --- helpers that many bots need -------------------------------------
 
     @staticmethod
