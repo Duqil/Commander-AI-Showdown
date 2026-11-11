@@ -166,6 +166,13 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
             "attack_planeswalker": _flag(target is None),
             "simple_prior": _flag(simple_target == index),
         }
+        deals = decision.get("deals", {})
+        if d["name"] in deals.get("protected", []):
+            f["attack_breaks_deal"] = 1.0     # we have a deal with them: attacking breaks it
+        if d["name"] in deals.get("gang_targets", []):
+            f["attack_gang_target"] = 1.0     # we promised to attack them
+        if d["name"] in deals.get("grudges", []):
+            f["attack_grudge"] = 1.0          # they broke a deal with us: revenge
         if target is not None:
             blockers = threat.untapped_blockers(target)
             # A blocker that would kill this creature and survive the hit.
@@ -257,3 +264,72 @@ def target_options(decision: Decision) -> list[Features]:
             f["target_owner_threat_rank"] = threat.threat_rank(state, owner)
         result.append(f)
     return result
+
+
+# ----------------------------------------------------------------------------
+# Deals: what to offer at the start of our turn, and whether to accept
+# ----------------------------------------------------------------------------
+
+def offer_options(view: Decision) -> tuple[list[Features], list[dict | None]]:
+    """Options for offering a deal. Returns (features, offer per option); None = no offer."""
+    state = view["state"]
+    trust = view["deals"]["trust"]
+    opponents = threat.opponents(state)
+    leader = threat.leader(state)
+    me = threat.me(state)
+    i_lead = bool(opponents) and threat.threat_score(me) > max(threat.threat_score(p) for p in opponents)
+    danger = min(threat.danger_to_me(state), 2.0) / 2
+    simple = _simple.offer_deal(view)
+    protected = set(view["deals"]["protected"])
+
+    feats: list[Features] = [{"no_offer": 1.0, "simple_prior": _flag(simple is None)}]
+    offers: list[dict | None] = [None]
+    for to in opponents:
+        if to["name"] in protected:
+            continue  # already have a deal with them
+        base = {
+            "to_is_leader": _flag(to["name"] == leader),
+            "to_threat_rank": threat.threat_rank(state, to["name"]),
+            "to_trust": trust.get(to["name"], 1.0),
+            "to_grudge": _flag(to["name"] in view["deals"].get("grudges", [])),
+            "i_am_leader": _flag(i_lead),
+            "my_danger": danger,
+        }
+        offer = {"type": "peace", "to": to["name"]}
+        feats.append({"offer_peace": 1.0, **{f"peace_{k}": v for k, v in base.items()},
+                      "simple_prior": _flag(simple == offer)})
+        offers.append(offer)
+        for against in opponents:
+            if against["name"] == to["name"]:
+                continue
+            offer = {"type": "gang_up", "to": to["name"], "against": against["name"]}
+            feats.append({"offer_gang_up": 1.0, **{f"gang_{k}": v for k, v in base.items()},
+                          "gang_against_is_leader": _flag(against["name"] == leader),
+                          "gang_against_threat_rank": threat.threat_rank(state, against["name"]),
+                          "simple_prior": _flag(simple == offer)})
+            offers.append(offer)
+    return feats, offers
+
+
+def answer_options(view: Decision) -> list[Features]:
+    """Two options: accept (index 0) or decline (index 1)."""
+    state = view["state"]
+    offer = view["offer"]
+    offerer = offer["a"]
+    leader = threat.leader(state)
+    simple_accepts = _simple.answer_deal(view)
+    kind = offer["kind"]
+    accept = {
+        "accept": 1.0,
+        f"accept_{kind}": 1.0,
+        "accept_from_leader": _flag(offerer == leader),
+        "accept_offerer_trust": view["deals"]["trust"].get(offerer, 1.0),
+        "accept_from_grudge": _flag(offerer in view["deals"].get("grudges", [])),
+        "accept_danger": min(threat.danger_to_me(state), 2.0) / 2,
+        "simple_prior": _flag(simple_accepts),
+    }
+    if kind == "gang_up":
+        accept["accept_against_leader"] = _flag(offer.get("against") == leader)
+        # Attacking someone we already have a deal with would break that deal.
+        accept["accept_against_partner"] = _flag(offer.get("against") in view["deals"]["protected"])
+    return [accept, {"decline": 1.0, "simple_prior": _flag(not simple_accepts)}]

@@ -19,6 +19,7 @@ wherever it says `python`.
 | Train a Boy (learning bot) over many games | `python -m showdown.batch --bots boy:Kaiba simple simple simple --games 50 --parallel 2` |
 | See how your Boys have been doing | `python -m showdown.batch --report` |
 | Win rates per deck and per bot (every game you've played) | `python -m showdown.stats` |
+| Let bots make deals (peace, gang up on the leader) | add `--deals` to `run_game` or `batch` ([docs/deals.md](docs/deals.md)) |
 | Turn deck lists in `decks/source/` into Forge decks | `python -m showdown.decks.convert --all` |
 | Check every deck: 100 cards, every card name right | `python -m showdown.decks.convert --check` |
 | Run the tests | `python -m unittest discover -s tests` |
@@ -134,6 +135,7 @@ Running the setup again is always safe; it's much faster the second time.
 
 - [docs/viewer.md](docs/viewer.md): everything about the browser viewer.
 - [docs/boys.md](docs/boys.md): The Boys, how they learn and how to train them.
+- [docs/deals.md](docs/deals.md): deals between bots, trust and revenge.
 - [docs/development.md](docs/development.md): how the code fits together,
   adding decks, running tests, where files go.
 - [docs/bridge.md](docs/bridge.md): how Python and Forge talk to each other.

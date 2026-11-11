@@ -29,3 +29,18 @@ class RandomBot(Bot):
             if creature["can_attack"] and self.rng.random() < 0.5:
                 attacks[str(creature["id"])] = self.rng.choice(creature["can_attack"])
         return attacks
+
+    # Deals: random too. It offers a random deal now and then, accepts half of
+    # what it's offered, and since it attacks at random it breaks deals often.
+    def offer_deal(self, view: Decision) -> dict | None:
+        state = view["state"]
+        others = [p["name"] for p in state["players"] if p["name"] != state["you"] and not p.get("lost")]
+        if len(others) < 2 or self.rng.random() > 0.3:
+            return None
+        to, against = self.rng.sample(others, 2)
+        if self.rng.random() < 0.5:
+            return {"type": "peace", "to": to}
+        return {"type": "gang_up", "to": to, "against": against}
+
+    def answer_deal(self, view: Decision) -> bool:
+        return self.rng.random() < 0.5

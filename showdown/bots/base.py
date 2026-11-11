@@ -64,6 +64,22 @@ class Bot:
         """
         return None
 
+    # --- deals (only when the game is played with deals on) -------------------
+
+    def offer_deal(self, view: Decision) -> dict | None:
+        """Start of your turn: offer one deal, or None.
+
+        Return {"type": "peace", "to": "<player>"} or
+               {"type": "gang_up", "to": "<player>", "against": "<player>"}.
+        view["state"] is the table (no hidden cards), view["deals"] your deals and
+        trust (see showdown/deals.py). Every decision also carries "deals" then.
+        """
+        return None
+
+    def answer_deal(self, view: Decision) -> bool:
+        """Someone offers you view["offer"]. Return True to accept."""
+        return False
+
     def game_over(self, result: dict, player: str) -> None:
         """Called once when the game ends. ``player`` is this bot's player name.
 
