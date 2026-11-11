@@ -43,6 +43,18 @@ class Bot:
         """
         return None
 
+    def choose_targets(self, decision: Decision) -> list[int] | None:
+        """Targets for the play you just chose. Return candidate indexes, or None to
+        keep what Forge's AI suggested.
+
+        decision["candidates"]: legal targets, each a card dict or a player
+            ({"name", "life", "is_player": true}), with an "index".
+        decision["suggested"]: the indexes Forge's AI would pick.
+        decision["min"], decision["max"]: how many targets to pick.
+        decision["description"]: the ability's text, e.g. "deals 3 damage to any target".
+        """
+        return None
+
     def declare_attackers(self, decision: Decision) -> dict[str, int] | None:
         """Combat. Return {card id (as text): defender index}. {} means no attack.
 

@@ -17,6 +17,7 @@ a time, starting with the ones that matter most.
 |---|---|---|---|
 | `mulligan` | Opening hand | `true` keep / `false` mulligan | Forge AI decides |
 | `choose_play` | You have priority and at least one legal play | option `index` | pass priority |
+| `choose_targets` | Right after you chose a play that targets, once per targeting part | list of candidate `index`es | keep Forge AI's `suggested` targets |
 | `attack` | Your declare-attackers step, if anything can attack | `{"<card id>": defender index}` | Forge AI attacks |
 
 Still answered by Forge's AI: targets and X values of a chosen play, mana

@@ -44,11 +44,17 @@ from dataclasses import dataclass, field
 
 Features = dict[str, float]
 
-# Starting weights. The Boys begin by trusting SimpleBot's choice, so their
-# first games look like SimpleBot with some random variation.
-STARTING_WEIGHTS = {"simple_prior": 2.0}
+# Starting opinions about single features, used until a brain has learned its
+# own weight for them. Everything else starts at 0.
+#   * simple_prior / forge_suggested: a new Boy trusts SimpleBot's choice (and
+#     Forge's suggested target), so its first games look like SimpleBot with
+#     some random variation.
+#   * attack_zero_power: attacking with a 0-power creature starts very unlikely
+#     (about 1 in 20 against staying home), but stays possible: with a combat
+#     trick in hand it can be right, and a Boy can learn that.
+DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_suggested": 2.0}
 
-DECISION_KINDS = ("mulligan", "play", "attack")
+DECISION_KINDS = ("mulligan", "play", "attack", "target")
 
 
 @dataclass
@@ -66,7 +72,7 @@ class Step:
 class Brain:
     name: str
     weights: dict[str, dict[str, float]] = field(
-        default_factory=lambda: {k: dict(STARTING_WEIGHTS) for k in DECISION_KINDS})
+        default_factory=lambda: {k: {} for k in DECISION_KINDS})
     baseline: float = 0.0           # running average reward
     bonus_baseline: float = 0.0     # running average turn bonus per choice
     games: int = 0                  # games learned from
@@ -79,9 +85,9 @@ class Brain:
     # --- choosing -------------------------------------------------------------
 
     def score(self, kind: str, features: Features) -> float:
-        w = self.weights.setdefault(kind, dict(STARTING_WEIGHTS))
-        # .get(name, 0.0): a feature the brain has never seen starts at weight 0.
-        return sum(w.get(name, 0.0) * value for name, value in features.items())
+        w = self.weights.setdefault(kind, {})
+        # A feature the brain has never seen starts at its default weight (usually 0).
+        return sum(w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) * value for name, value in features.items())
 
     def probabilities(self, kind: str, options: list[Features]) -> list[float]:
         with self._lock:
@@ -126,13 +132,13 @@ class Brain:
                     continue  # no real choice, nothing to learn
                 step_advantage = max(-2.0, min(2.0, advantage + step.bonus - self.bonus_baseline))
                 rate = self.learning_rate * step_advantage / math.sqrt(per_kind[step.kind])
-                w = self.weights.setdefault(step.kind, dict(STARTING_WEIGHTS))
+                w = self.weights.setdefault(step.kind, {})
                 names = set().union(*step.options)
                 for name in names:
                     average = sum(p * f.get(name, 0.0) for p, f in zip(step.probs, step.options))
                     gradient = step.options[step.picked].get(name, 0.0) - average
                     if gradient:
-                        w[name] = w.get(name, 0.0) + rate * gradient
+                        w[name] = w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) + rate * gradient
             # Move the baseline 5% of the way towards this reward.
             self.baseline += 0.05 * (reward - self.baseline)
             self.bonus_baseline += 0.05 * (mean_bonus - self.bonus_baseline)

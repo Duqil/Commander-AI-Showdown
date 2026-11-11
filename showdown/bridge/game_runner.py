@@ -51,6 +51,8 @@ def answer_decision(bot: Bot, decision: Decision):
         return bot.keep_hand(decision)
     if kind == "choose_play":
         return bot.choose_play(decision)
+    if kind == "choose_targets":
+        return bot.choose_targets(decision)
     if kind == "attack":
         return bot.declare_attackers(decision)
     return None  # a kind this bot doesn't know: let Forge decide
