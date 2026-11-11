@@ -27,9 +27,12 @@ normal PC. So 100 games is roughly half an hour.
 
 ## What a Boy decides
 
-The same three things as SimpleBot: mulligans, what to play (or pass) when it
-has priority, and where each creature attacks. Blocks and targets are still
-Forge's AI for every bot. Moving them to Python is a later step.
+Mulligans, what to play (or pass) when it has priority, the target of the
+play it chose (when it has one target), and where each creature attacks.
+For targets, Forge's AI suggests one first; a new Boy mostly follows that
+suggestion (`forge_suggested`) and learns when to pick something else.
+Blocks, triggered abilities' targets and other in-card choices are still
+Forge's AI for every bot.
 
 ## How it works
 

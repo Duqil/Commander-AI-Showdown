@@ -11,8 +11,9 @@ When the game ends, it works out a reward (showdown/boys/reward.py) and the
 brain learns from every remembered choice. Then the brain is saved, so the
 next game starts a little smarter.
 
-So far a Boy decides mulligans, what to play (or pass), and attacks. Blocks
-and targets are still Forge's AI, like for the other bots.
+So far a Boy decides mulligans, what to play (or pass), the target of the
+play it chose (when there is one target), and attacks. Blocks and other
+choices are still Forge's AI, like for the other bots.
 
 Use it with:  python -m showdown.run_game --bots boy:Kaiba simple simple simple
 Train it with: python -m showdown.batch --bots boy:Kaiba simple simple simple --games 20
@@ -82,6 +83,13 @@ class BoyBot(Bot):
         options = decision["options"]
         # The extra last option is "pass".
         return None if picked == len(options) else options[picked]["index"]
+
+    def choose_targets(self, decision: Decision) -> list[int] | None:
+        self._observe(decision["state"])
+        if decision.get("max", 1) != 1 or not decision["candidates"]:
+            return None  # several targets at once: leave it to Forge's AI for now
+        picked = self._pick("target", features.target_options(decision))
+        return [decision["candidates"][picked]["index"]]
 
     def declare_attackers(self, decision: Decision) -> dict[str, int]:
         self._observe(decision["state"])

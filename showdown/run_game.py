@@ -24,6 +24,7 @@ from showdown.bots.boy_bot import BoyBot
 from showdown.bots.random_bot import RandomBot
 from showdown.bots.simple_bot import SimpleBot
 from showdown.bridge.game_runner import Seat, run_game
+from showdown.stats import record_game
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DECK_DIR = REPO_ROOT / "decks" / "forge"
@@ -67,6 +68,9 @@ def main() -> None:
         print(f"  {deck:<10} played by {bot}")
 
     result = run_game(seats, seed=args.seed, on_log=None if args.quiet else print, forge_log=args.forge_log)
+
+    winner_seat = int(result.winner.split("-", 1)[0]) - 1 if result.winner and not result.draw else None
+    record_game(args.decks, bots, winner_seat, result.draw, result.turns, "terminal")
 
     print()
     print("Winner:", "draw" if result.draw else result.winner, f"after {result.turns} turns")
