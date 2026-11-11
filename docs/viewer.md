@@ -54,6 +54,14 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   with targets is on the stack, a red arrow points from it to each target
   (a card, or a player's life total). The arrow for the item that resolves
   next is bright, older ones are faint.
+* **Deals.** Tick **Bots make deals** in the main menu (for watched games and
+  Run many games) and bots can offer each other peace or to gang up on
+  someone (see docs/deals.md). Every offer, answer and broken deal plays out
+  on the table: an arrow between the two boards with what was said (purple
+  offer, green accept, grey decline, red for a broken deal, which also gets a
+  big banner). Chips in the board headers show the deals that are on:
+  🤝 peace, ⚔ who you're ganging up on, 🎯 who is ganging up on you, and
+  💢 grudges against someone who broke a deal with you. Hover a chip for details.
 * **Log.** Forge's game log plus what the Python bots decided (in blue),
   and choices Forge doesn't log itself ("2-Anhelo chose Red for Thriving Moor").
   Phase and mana lines are hidden unless you tick "phases & mana".

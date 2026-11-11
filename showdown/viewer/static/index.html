@@ -22,6 +22,19 @@
     <p class="muted">Pick a deck and a bot for each seat, then watch.</p>
     <div id="seats"></div>
     <label class="seed">Seed <input id="seed" type="number" placeholder="random"></label>
+    <label class="seed" title="Bots can offer each other deals: peace, or ganging up on someone. Breaking one makes enemies.">
+      <input type="checkbox" id="deals"> Bots make deals</label>
+    <details class="deals-help muted small">
+      <summary>How each bot handles deals</summary>
+      <!-- Easy to edit: how strict bots are about deals may change after testing (showdown/deals.py). -->
+      <ul>
+        <li><b>SimpleBot</b> offers deals from round 2 and never breaks one. It refuses players it holds a grudge against or trusts little, and attacks grudge targets first.</li>
+        <li><b>RandomBot</b> offers and accepts at random, and often breaks deals.</li>
+        <li><b>Boys</b> learn when to offer, accept and break deals.</li>
+        <li><b>Forge AI</b> declines every offer and never offers.</li>
+      </ul>
+      <p>Breaking a deal costs trust with everyone for the rest of the game. See docs/deals.md.</p>
+    </details>
     <p class="muted small">The same seed and decks give the same shuffle, handy for comparing bots.</p>
     <button id="start" class="primary">Start game</button>
     <p id="setup-error" class="error"></p>

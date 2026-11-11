@@ -79,7 +79,10 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .log-line.bot_choice { color: #9ecbff; font-style: italic; }
 .log-line.game_over { color: var(--good); font-weight: 700; font-size: 14px; }
 .log-line.error { color: var(--danger); }
-.log-line.deal { color: #f0b5ff; font-weight: 600; }
+.log-line.deal { color: #e0b8ff; font-weight: 600; }
+.log-line.deal.accept { color: #8fd694; }
+.log-line.deal.decline { color: var(--muted); }
+.log-line.deal.break { color: #ff8c84; }
 .log-line.cat-DAMAGE, .log-line.cat-LIFE { color: #ffb4a9; }
 .log-line.cat-LIFE.gain { color: #8fd694; }
 .log-line.cat-COMBAT { color: #ffd479; }
@@ -216,3 +219,21 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
 #saved .saved-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; border-bottom: 1px solid var(--line); }
 .saved-when { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .saved-decks { text-transform: capitalize; }
+
+/* ---------- deals ---------- */
+.deal-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.deal-chip { font-size: 11px; padding: 0 6px; border-radius: 10px; border: 1px solid; white-space: nowrap; }
+.deal-chip.peace { color: #8fd694; border-color: #3d7a42; }
+.deal-chip.gang { color: #e0b8ff; border-color: #7a4fa8; }
+.deal-chip.hunted { color: #ffd479; border-color: #8a6d2a; }
+.deal-chip.grudge { color: #ff8c84; border-color: #a83f39; }
+.deal-layer { position: fixed; inset: 0; pointer-events: none; z-index: 45; }
+.deal-layer svg { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+.deal-label { position: fixed; transform: translate(-50%, -50%); max-width: 420px; text-align: center; font-weight: 700;
+              background: rgba(20, 24, 31, .96); border: 2px solid; padding: 6px 14px; border-radius: 10px; }
+.board.deal-glow { box-shadow: 0 0 0 3px var(--deal) inset, 0 0 24px var(--deal); }
+#banner.break { border-color: var(--danger); color: #ff8c84; box-shadow: 0 0 40px rgba(229, 83, 75, .6); }
+.deals-help { margin: 2px 0 10px; }
+.deals-help summary { cursor: pointer; }
+.deals-help ul { margin: 6px 0; padding-left: 18px; }
+.deals-help p { margin: 4px 0; }

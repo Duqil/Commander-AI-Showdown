@@ -37,6 +37,7 @@ class GameConfig:
     decks: list[str]          # deck file names in decks/forge/, without ".dck"
     bots: list[str]           # one per deck: "simple", "random" or "forge"
     seed: int | None = None
+    deals: bool = False       # bots may make deals with each other (showdown/deals.py)
 
     def label(self) -> str:
         return " vs ".join(f"{d} ({b})" for d, b in zip(self.decks, self.bots))
@@ -112,7 +113,7 @@ class GameSession:
         seats = [Seat(DECK_DIR / f"{deck}.dck", make_bot(bot, config.seed))
                  for deck, bot in zip(config.decks, config.bots)]
         try:
-            result = run_game(seats, seed=config.seed, on_message=on_message,
+            result = run_game(seats, seed=config.seed, on_message=on_message, deals=config.deals,
                               forge_log=REPO_ROOT / "forge.log")
             self.status = "finished"
             # Count it for the Stats screen. Player names look like "2-Kuja": seat 2 (from 1).

@@ -24,10 +24,11 @@ const EVENT_STYLES = {
   bot_choice:   { cls: "bot_choice", delay: 500 },
   game_over:    { cls: "game_over", banner: true, delay: 0 },
   error:        { cls: "error", banner: true, delay: 0 },
-  deal_offer:   { cls: "deal", banner: true, delay: 1500 },
-  deal_accept:  { cls: "deal", banner: true, delay: 1500 },
-  deal_decline: { cls: "deal", delay: 1000 },
-  deal_break:   { cls: "deal", banner: true, delay: 2000 },
+  deal_offer:   { cls: "deal", delay: 400 },   // deals also get an arrow between the boards (playDealMoment)
+  deal_accept:  { cls: "deal accept", delay: 400 },
+  deal_decline: { cls: "deal decline", delay: 400 },
+  deal_break:   { cls: "deal break", banner: true, delay: 600 },
+  deal_kept:    { cls: "deal accept", delay: 300 },   // a deal ran its full length unbroken: a quiet line only
 };
 // Forge log categories that get their own pacing.
 const CATEGORY_DELAY = { TURN: 1000, PHASE: 120, MANA: 40, STATE: 150, COMBAT: 700, DAMAGE: 600 };
@@ -47,6 +48,7 @@ const PHASE_NAMES = {
 const app = {
   events: [],        // the timeline downloaded so far
   stateSeqs: [],     // positions of events that carry a "state", in order
+  dealSeqs: [],      // positions of deal events (offers, accepts, breaks), in order
   status: "none",    // the game's status on the server
   config: null,      // decks/bots of the current game
   seats: [],         // from the game_start event
@@ -159,6 +161,7 @@ $("#batch-start").onclick = async () => {
       learn: $("#batch-learn").checked,
       save_games: $("#batch-save").checked,
       seed: $("#seed").value,
+      deals: $("#deals").checked,
     });
     pollBatch();
   } catch (e) {
@@ -238,7 +241,7 @@ $("#start").onclick = async () => {
   const { decks, bots } = chosenSeats();
   try {
     $("#setup-error").textContent = "";
-    await api("/api/game/new", { decks, bots, seed: $("#seed").value });
+    await api("/api/game/new", { decks, bots, seed: $("#seed").value, deals: $("#deals").checked });
     enterGame();
   } catch (e) {
     $("#setup-error").textContent = e.message;
@@ -249,7 +252,7 @@ $("#start").onclick = async () => {
 // Game screen: downloading the timeline
 // ===========================================================================
 function resetPlayback() {
-  Object.assign(app, { events: [], stateSeqs: [], seats: [], pos: 0, shownStateSeq: -1,
+  Object.assign(app, { events: [], stateSeqs: [], dealSeqs: [], seats: [], pos: 0, shownStateSeq: -1,
                        lastLife: {}, playing: false, shownStack: [], holdUntil: 0 }); // a new game opens paused: press ▶ to start
   cancelCastAnimation();
   app.knownCards.clear();
@@ -302,6 +305,7 @@ function addEvent(ev) {
   if (ev.seq !== app.events.length) return; // already have it (or a gap: next poll fixes it)
   app.events.push(ev);
   if (ev.state) app.stateSeqs.push(ev.seq);
+  if (ev.kind.startsWith("deal_")) app.dealSeqs.push(ev.seq);
   if (ev.kind === "game_start") app.seats = ev.data.seats;
 }
 
@@ -349,7 +353,8 @@ function stepForward() {
   app.pos++;
   appendLogLine(ev);
   const style = EVENT_STYLES[ev.kind];
-  if (style?.banner && app.speed !== Infinity) showBanner(ev.text);
+  if (style?.banner && app.speed !== Infinity) showBanner(ev.text, 2500, ev.kind === "deal_break" ? "break" : "");
+  if (ev.kind in DEAL_COLORS) playDealMoment(ev);
   if (ev.kind === "game_over") { app.playing = false; updateButtons(); showBanner(ev.text, 6000); }
   app.stepping = true; // render() may animate what changed, since we moved one step forward
   render();
@@ -359,6 +364,8 @@ function stepForward() {
 /** Jump the playhead to any position (scrubbing, step back, replay). */
 function goTo(pos) {
   cancelCastAnimation();
+  app.dealLayer?.remove();
+  document.querySelectorAll(".deal-glow").forEach((b) => b.classList.remove("deal-glow"));
   app.pos = Math.max(0, Math.min(pos, app.events.length));
   rebuildLog();
   render();
@@ -411,6 +418,8 @@ function render() {
       if (app.followLog) $("#log").scrollTop = $("#log").scrollHeight; // the stack may have resized it
     }
   }
+  // Deal chips change with deal events too, which carry no table snapshot.
+  if (app.dealSeqs.length && app.shownStateSeq >= 0) drawDealChips(app.events[app.shownStateSeq].state.turn);
   const last = app.events[app.pos - 1];
   if (last?.kind === "game_over") $("#turn-info").textContent = last.text;
 }
@@ -715,9 +724,10 @@ function showZone(title, cards) {
 $("#zone-popup button").onclick = () => $("#zone-popup").classList.add("hidden");
 
 let bannerTimer = null;
-function showBanner(text, ms = 1600) {
+function showBanner(text, ms = 1600, cls = "") {
   const b = $("#banner");
   b.textContent = text;
+  b.className = cls;
   b.classList.remove("hidden");
   clearTimeout(bannerTimer);
   bannerTimer = setTimeout(() => b.classList.add("hidden"), Math.max(400, ms / Math.min(app.speed, 4)));
@@ -820,7 +830,7 @@ $("#btn-setup").onclick = () => { setPlaying(false); cancelCastAnimation(); app.
 $("#btn-stop").onclick = () => api("/api/game/stop", {});
 $("#btn-new").onclick = async () => {
   if (!app.config) return showSetup();
-  await api("/api/game/new", { decks: app.config.decks, bots: app.config.bots, seed: null });
+  await api("/api/game/new", { decks: app.config.decks, bots: app.config.bots, seed: null, deals: !!app.config.deals });
   enterGame();
 };
 $("#show-noisy").onchange = rebuildLog;
@@ -948,6 +958,120 @@ async function loadStats() {
   };
   body.append(table("Decks", s.decks, "Deck"), table("Bots", s.bots, "Bot"), table("Deck + bot", s.pairs, "Deck · bot"));
   body.append(el("p", "muted small", "Few games say little: with under ~30 games a win rate can easily be off by 15 points. Numbers come from stats/results.csv in the repo folder."));
+}
+
+// ===========================================================================
+// Deals between bots (showdown/deals.py). Two things show them:
+//   * chips in each board's header for deals that are on right now, and for
+//     grudges (someone broke a deal with this player),
+//   * a moment on the table when a deal is offered, accepted, declined or
+//     broken: an arrow between the two boards with what was said. Playback
+//     waits for it, like the cast animation.
+// ===========================================================================
+const DEAL_COLORS = { deal_offer: "#c38bff", deal_accept: "#57ab5a", deal_decline: "#8a94a6", deal_break: "#e5534b" };
+
+/** Deals that are on and grudges, as of the playhead. Reads only the deal events. */
+function dealsNow(turn) {
+  const deals = new Map(), grudges = [];
+  for (const seq of app.dealSeqs) {
+    if (seq >= app.pos) break;
+    const ev = app.events[seq], deal = ev.data?.deal;
+    if (!deal) continue;
+    if (ev.kind === "deal_accept") deals.set(deal.id, deal);
+    if (ev.kind === "deal_kept") deals.delete(deal.id);
+    if (ev.kind === "deal_break") {
+      deals.delete(deal.id);
+      const victim = deal.a === ev.player ? deal.b : deal.a;
+      grudges.push({ victim, breaker: ev.player });
+    }
+  }
+  return { deals: [...deals.values()].filter((d) => turn <= d.expires_turn), grudges };
+}
+
+function shortName(player) { return player.replace(/^\d+-/, ""); }
+
+function drawDealChips(turn) {
+  document.querySelectorAll("#boards .deal-chips").forEach((n) => n.remove());
+  if (!app.dealSeqs.length) return;
+  const { deals, grudges } = dealsNow(turn);
+  const chipsFor = new Map();
+  const add = (player, cls, text, title) => {
+    if (!chipsFor.has(player)) chipsFor.set(player, []);
+    const chip = el("span", `deal-chip ${cls}`, text);
+    chip.title = title;
+    chipsFor.get(player).push(chip);
+  };
+  // One chip per kind and target: two gang-ups on Zidane become "⚔ Zidane (with Nelly, Kuja)".
+  const groups = new Map();
+  for (const d of deals) {
+    for (const [me, them] of [[d.a, d.b], [d.b, d.a]]) {
+      const key = `${me}|${d.kind}|${d.against ?? ""}`;
+      if (!groups.has(key)) groups.set(key, { me, kind: d.kind, against: d.against, partners: [], until: 0 });
+      const g = groups.get(key);
+      g.partners.push(them);
+      g.until = Math.max(g.until, d.expires_turn);
+    }
+  }
+  for (const g of groups.values()) {
+    const names = g.partners.map(shortName).join(", ");
+    if (g.kind === "gang_up") {
+      add(g.me, "gang", `⚔ ${shortName(g.against)} (with ${names})`,
+          `Ganging up on ${g.against} with ${g.partners.join(" and ")}, until turn ${g.until}`);
+    } else {
+      add(g.me, "peace", `🤝 ${names}`, `Peace with ${g.partners.join(" and ")}, until turn ${g.until}`);
+    }
+  }
+  // The player being ganged up on sees who is after them.
+  const hunted = new Map();
+  for (const d of deals.filter((d) => d.kind === "gang_up")) {
+    if (!hunted.has(d.against)) hunted.set(d.against, new Set());
+    hunted.get(d.against).add(d.a).add(d.b);
+  }
+  for (const [target, hunters] of hunted) {
+    add(target, "hunted", `🎯 ${[...hunters].map(shortName).join(" + ")}`, `${[...hunters].join(" and ")} agreed to gang up on ${target}`);
+  }
+  for (const g of grudges) add(g.victim, "grudge", `💢 ${shortName(g.breaker)}`, `${g.breaker} broke a deal with ${g.victim}: revenge!`);
+  for (const [player, chips] of chipsFor) {
+    const head = $(`#boards [data-player="${CSS.escape(player)}"] .board-head`);
+    if (!head) continue;
+    const box = el("span", "deal-chips");
+    box.append(...chips);
+    head.insertBefore(box, head.querySelector(".command-row"));
+  }
+}
+
+function playDealMoment(ev) {
+  const deal = ev.data?.deal;
+  if (!deal || app.speed === Infinity) return;
+  // Who "speaks": the offerer offers, the other one answers, the breaker breaks.
+  const from = ev.kind === "deal_offer" ? deal.a : ev.kind === "deal_break" ? ev.player : deal.b;
+  const to = from === deal.a ? deal.b : deal.a;
+  const a = $(`#boards [data-player="${CSS.escape(from)}"]`), b = $(`#boards [data-player="${CSS.escape(to)}"]`);
+  if (!a || !b) return;
+  app.dealLayer?.remove();
+  const total = (ev.kind === "deal_break" ? 2600 : 1800) / app.speed;
+  app.holdUntil = Math.max(app.holdUntil, performance.now() + total);
+  const color = DEAL_COLORS[ev.kind];
+  const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+  const [x1, y1] = [ra.left + ra.width / 2, ra.top + ra.height / 2], [x2, y2] = [rb.left + rb.width / 2, rb.top + rb.height / 2];
+  const layer = el("div", "deal-layer");
+  const svg = document.createElementNS(SVG_NS, "svg");
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  svg.innerHTML = `<path d="M${x1},${y1} Q${mx + (y2 - y1) * .15},${my - (x2 - x1) * .15} ${x2},${y2}"
+    stroke="${color}" stroke-width="6" fill="none" stroke-linecap="round" stroke-dasharray="${ev.kind === "deal_break" ? "4 10" : "14 8"}"
+    style="filter: drop-shadow(0 0 6px ${color})"/>`;
+  const label = el("div", "deal-label", cleanText(ev.text));
+  label.style.borderColor = color;
+  Object.assign(label.style, { left: `${mx}px`, top: `${my}px` });
+  layer.append(svg, label);
+  document.body.append(layer);
+  app.dealLayer = layer;
+  for (const board of [a, b]) board.style.setProperty("--deal", color), board.classList.add("deal-glow");
+  layer.animate([{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .85 }, { opacity: 0 }], { duration: total, fill: "forwards" });
+  setTimeout(() => {
+    for (const board of [a, b]) board.classList.remove("deal-glow");
+    if (app.dealLayer === layer) { layer.remove(); app.dealLayer = null; }
+  }, total);
 }
 
 // ===========================================================================
