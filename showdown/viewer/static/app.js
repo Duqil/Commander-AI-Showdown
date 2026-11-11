@@ -28,6 +28,7 @@ const EVENT_STYLES = {
   deal_accept:  { cls: "deal accept", delay: 400 },
   deal_decline: { cls: "deal decline", delay: 400 },
   deal_break:   { cls: "deal break", banner: true, delay: 600 },
+  deal_kept:    { cls: "deal accept", delay: 300 },   // a deal ran its full length unbroken: a quiet line only
 };
 // Forge log categories that get their own pacing.
 const CATEGORY_DELAY = { TURN: 1000, PHASE: 120, MANA: 40, STATE: 150, COMBAT: 700, DAMAGE: 600 };
@@ -353,7 +354,7 @@ function stepForward() {
   appendLogLine(ev);
   const style = EVENT_STYLES[ev.kind];
   if (style?.banner && app.speed !== Infinity) showBanner(ev.text, 2500, ev.kind === "deal_break" ? "break" : "");
-  if (ev.kind.startsWith("deal_")) playDealMoment(ev);
+  if (ev.kind in DEAL_COLORS) playDealMoment(ev);
   if (ev.kind === "game_over") { app.playing = false; updateButtons(); showBanner(ev.text, 6000); }
   app.stepping = true; // render() may animate what changed, since we moved one step forward
   render();
@@ -977,6 +978,7 @@ function dealsNow(turn) {
     const ev = app.events[seq], deal = ev.data?.deal;
     if (!deal) continue;
     if (ev.kind === "deal_accept") deals.set(deal.id, deal);
+    if (ev.kind === "deal_kept") deals.delete(deal.id);
     if (ev.kind === "deal_break") {
       deals.delete(deal.id);
       const victim = deal.a === ev.player ? deal.b : deal.a;
