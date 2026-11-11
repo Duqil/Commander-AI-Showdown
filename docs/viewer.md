@@ -55,6 +55,16 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   and choices Forge doesn't log itself ("2-Anhelo chose Red for Thriving Moor").
   Phase and mana lines are hidden unless you tick "phases & mana".
 
+## Stats
+
+The **Stats** tab in the main menu shows win rates per deck, per bot and per
+deck + bot, from every finished game: watched games, **Run many games** and
+`python -m showdown.run_game`. Pick where the games came from in the dropdown.
+The line on each bar is a fair share (25% with 4 players), so a bar past the
+line wins more than an even match would. The numbers live in
+`stats/results.csv` in the repo folder (not shared through git); delete that
+file to start counting again.
+
 ## Run many games (no viewing)
 
 Under **Run many games** in the main menu: pick how many games and how many

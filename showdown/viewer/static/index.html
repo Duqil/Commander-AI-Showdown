@@ -12,6 +12,12 @@
 <section id="setup" class="screen">
   <div class="setup-box">
     <h1>Commander AI Showdown</h1>
+    <nav class="tabs">
+      <button data-tab="play" class="on">Play</button>
+      <button data-tab="stats">Stats</button>
+    </nav>
+
+    <div id="tab-play">
     <p class="muted">Pick a deck and a bot for each seat, then watch.</p>
     <div id="seats"></div>
     <label class="seed">Seed <input id="seed" type="number" placeholder="random"></label>
@@ -34,6 +40,21 @@
 
     <h2>Saved games</h2>
     <div id="saved" class="muted small">None yet. Finished games are saved to the games/ folder.</div>
+    </div>
+
+    <!-- Win rates from every finished game (stats/results.csv) -->
+    <div id="tab-stats" class="hidden">
+      <div class="stats-filter">
+        <span class="muted small">Games from</span>
+        <select id="stats-source">
+          <option value="">everywhere</option>
+          <option value="batch">Run many games</option>
+          <option value="viewer">watched games</option>
+          <option value="terminal">the command line</option>
+        </select>
+      </div>
+      <div id="stats-body" class="muted small">Loading…</div>
+    </div>
   </div>
 </section>
 
