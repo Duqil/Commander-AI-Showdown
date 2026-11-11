@@ -128,7 +128,12 @@ class BoyBot(Bot):
     # --- deals -------------------------------------------------------------------------
 
     def offer_deal(self, view: Decision) -> dict | None:
+        # Two steps: first "offer anything this turn?", then "which deal?".
+        if self._pick("offer_whether", features.offer_whether_options(view)) == 0:
+            return None
         feats, offers = features.offer_options(view)
+        if not offers:
+            return None  # we already have deals with everyone
         return offers[self._pick("offer", feats)]
 
     def answer_deal(self, view: Decision) -> bool:

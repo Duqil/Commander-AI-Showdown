@@ -326,6 +326,8 @@ def target_options(decision: Decision) -> list[Features]:
     players = {p["name"]: p for p in state["players"]}
     harmful = is_harmful(decision)
     suggested = set(decision.get("suggested", []))
+    # Candidates are fresh card copies; the damage counts live on the state's battlefield cards.
+    recent = {c.get("id"): c.get("recent_damage", 0) for p in state["players"] for c in p.get("battlefield", [])}
 
     result = []
     for cand in decision["candidates"]:
@@ -343,6 +345,10 @@ def target_options(decision: Decision) -> list[Features]:
             "target_creature": _flag("Creature" in ctype),
             "target_power": max(0, cand.get("power", 0)) / 10,
             "target_cmc": cand.get("cmc", 0) / 7,
+            # Removal on an opponent's card that dealt damage to players last
+            # round (1.0 at 5+ damage). A 0/1 that pings everyone has no power
+            # and costs nothing, but it is a real threat.
+            "hurt_damage_dealer": min(recent.get(cand.get("id"), 0), 5) / 5 if harmful and not mine else 0.0,
             "target_commander": _flag(cand.get("commander", False)),
             "target_of_leader": _flag(owner == leader),
         }
@@ -360,8 +366,44 @@ def target_options(decision: Decision) -> list[Features]:
 # Deals: what to offer at the start of our turn, and whether to accept
 # ----------------------------------------------------------------------------
 
-def offer_options(view: Decision) -> tuple[list[Features], list[dict | None]]:
-    """Options for offering a deal. Returns (features, offer per option); None = no offer."""
+def offer_whether_options(view: Decision) -> list[Features]:
+    """Step 1 of offering: offer a deal this turn at all? [no, yes].
+
+    Deciding "whether" separately from "which" matters: with one "no offer"
+    option next to up to nine possible offers, a brain that knows nothing
+    would offer 9 times out of 10, every single turn. As two separate choices,
+    a fresh Boy starts at 50/50 (then follows SimpleBot via simple_prior)
+    and learns when offering pays off.
+    """
+    state = view["state"]
+    opponents = threat.opponents(state)
+    me = threat.me(state)
+    i_lead = bool(opponents) and threat.threat_score(me) > max(threat.threat_score(p) for p in opponents)
+    simple = _simple.offer_deal(view)
+    leader = max(opponents, key=threat.threat_score) if opponents else None
+    others = [threat.threat_score(p) for p in opponents if p is not leader] + [threat.threat_score(me)]
+    runaway = bool(leader) and threat.threat_score(leader) > 1.5 * max(others)  # one player far ahead
+    no = {"no_offer": 1.0, "simple_prior": _flag(simple is None)}
+    yes = {
+        "make_offer": 1.0,
+        "simple_prior": _flag(simple is not None),
+        "offer_while_in_deal": _flag(bool(view["deals"]["active"])),
+        "offer_in_first_round": _flag(threat.game_round(state) == 1),
+        # How far into the game (0 at the start, 1 by round 10) and how much
+        # fighting there is (0 with an empty board, 1 at 20+ power on the
+        # table). A Boy can learn that deals early, or over an empty board,
+        # don't pay off, instead of us banning them.
+        "offer_game_stage": min(threat.game_round(state) - 1, 10) / 10,
+        "offer_board_size": min(threat.total_board_power(state), 20) / 20,
+        "offer_when_leading": _flag(i_lead),
+        "offer_in_danger": min(threat.danger_to_me(state), 2.0) / 2,
+        "offer_vs_runaway_leader": _flag(runaway),
+    }
+    return [no, yes]
+
+
+def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
+    """Step 2 of offering: which deal, to whom. Returns (features, offer per option)."""
     state = view["state"]
     trust = view["deals"]["trust"]
     opponents = threat.opponents(state)
@@ -372,8 +414,8 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict | None]]:
     simple = _simple.offer_deal(view)
     protected = set(view["deals"]["protected"])
 
-    feats: list[Features] = [{"no_offer": 1.0, "simple_prior": _flag(simple is None)}]
-    offers: list[dict | None] = [None]
+    feats: list[Features] = []
+    offers: list[dict] = []
     for to in opponents:
         if to["name"] in protected:
             continue  # already have a deal with them

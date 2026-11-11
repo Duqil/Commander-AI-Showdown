@@ -43,7 +43,10 @@ because Python decides attacks. A broken deal is a big event:
 Trust (0 to 1) can recover during a game:
 
 - **Kept deal:** when a deal runs its full length unbroken, both partners'
-  trust in each other goes up by 0.1 (logged as "kept their deal").
+  trust in each other goes up by 0.1 (logged as "kept their deal"). Only
+  if the deal was *tested*: at some point one partner had a creature with
+  power that could have attacked the other, and didn't. Peace in round 2
+  with empty boards proves nothing, so it earns nothing.
 - **Helping:** attacking the agreed gang-up target raises your partner's
   trust in you by 0.05.
 
@@ -55,7 +58,7 @@ Deals, trust and grudges reset every game.
 
 | Bot | Deals |
 |---|---|
-| `simple` | Never breaks a deal. From round 2 on: if someone else leads, asks the next strongest to gang up on the leader; if it leads itself, offers peace to the strongest. Accepts from players it trusts, unless they lead. |
+| `simple` | Never breaks a deal. Only offers from round 3 on, and only once the strongest opponent has at least 3 power on the board. Then: if someone else leads, asks the next strongest to gang up on the leader; if it leads itself, offers peace to the strongest. Accepts from players it trusts, unless they lead. |
 | `random` | Offers a random deal 30% of the time, accepts half, and breaks deals often since it attacks at random. |
-| `boy:<name>` | Learns what to offer, what to accept and when breaking pays. Starts out close to SimpleBot. |
+| `boy:<name>` | Learns whether to offer this turn (`offer_whether`), then which deal (`offer`), what to accept and when breaking pays. Starts out close to SimpleBot. Also sees how far into the game it is and how much power is on the table, so it can learn that early deals don't pay. |
 | `forge` | Forge's own AI can't make deals: offers to it are declined. |

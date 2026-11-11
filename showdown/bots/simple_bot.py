@@ -25,8 +25,11 @@ from __future__ import annotations
 
 from showdown.bots.base import Bot, Decision
 from showdown.boys import threat
+from showdown.boys.threat import game_round
 
 MAIN_PHASES = {"MAIN1", "MAIN2"}
+EARLIEST_DEAL_ROUND = 3     # no deals in rounds 1-2
+MEANINGFUL_BOARD_POWER = 3  # the leader needs at least this much power before a deal means anything
 
 
 def is_ability(option: dict) -> bool:
@@ -116,15 +119,23 @@ class SimpleBot(Bot):
     # --- deals ----------------------------------------------------------------
 
     def offer_deal(self, view: Decision) -> dict | None:
+        """Offer at most one deal, and only once boards matter.
+
+        Peace in round 2, with no creatures out, costs nobody anything. Worse,
+        a pointless deal teaches the Boys (who play against SimpleBot) that
+        deals are just something you spam early.
+        """
         state = view["state"]
         you = state["you"]
         opponents = threat.opponents(state)
         if len(opponents) < 2 or view["deals"]["active"]:
             return None  # one deal at a time is plenty for a simple bot
-        if state.get("turn", 0) <= len(state["players"]):
-            return None  # first round: nobody knows who's ahead yet
+        if game_round(state) < EARLIEST_DEAL_ROUND:
+            return None  # early game: nobody knows who's ahead yet, and peace is free
         ranked = sorted(opponents, key=threat.threat_score, reverse=True)
         leader = ranked[0]
+        if threat.board_power(leader) < MEANINGFUL_BOARD_POWER:
+            return None  # the strongest opponent can barely hit anyone: a deal would mean nothing
         if threat.threat_score(threat.me(state)) > threat.threat_score(leader):
             return {"type": "peace", "to": leader["name"]}  # we're ahead: keep the strongest off us
         return {"type": "gang_up", "to": ranked[1]["name"], "against": leader["name"]}
