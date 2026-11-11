@@ -52,6 +52,7 @@ Forge's format with:
 
 ```bash
 python -m showdown.decks.convert --all     # decks/source/*.txt -> decks/forge/*.dck
+python -m showdown.decks.convert --check   # 100 cards each, every name matches Scryfall and Forge
 ```
 
 To add a deck: drop the export into `decks/source/`, run the command, and pass

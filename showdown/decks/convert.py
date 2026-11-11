@@ -25,6 +25,7 @@ Scryfall answers are cached in decks/scryfall_names.json so we only ask once.
 Usage:
     python -m showdown.decks.convert decks/source/zidane.txt decks/forge/zidane.dck
     python -m showdown.decks.convert --all        # every file in decks/source/
+    python -m showdown.decks.convert --check      # check every deck's names and card count
 """
 
 from __future__ import annotations
@@ -144,12 +145,43 @@ def convert(source: Path, target: Path, deck_name: str | None = None) -> int:
     return sum(l.count for l in lines)
 
 
+def check(source: Path) -> list[str]:
+    """Problems with a deck list: wrong card count, names that don't match the
+    printing's real name on Scryfall, or cards Forge doesn't have."""
+    cache = load_cache()
+    lines = [p for p in (parse_line(l) for l in source.read_text(encoding="utf-8").splitlines()) if p]
+    problems = []
+    total = sum(l.count for l in lines)
+    if total != 100:
+        problems.append(f"{total} cards (a Commander deck has 100)")
+    known = forge_card_names()
+    for l in lines:
+        ours = forge_name(l, cache)
+        real = scryfall_name(l.set_code, l.number, cache).split(" // ")[0]
+        if ours != real:
+            problems.append(f"{l.name}: converted to '{ours}' but the printing is '{real}'")
+        if known and ours not in known:
+            problems.append(f"Forge doesn't have '{ours}'")
+    CACHE_FILE.write_text(json.dumps(cache, indent=1, sort_keys=True) + "\n")
+    return problems
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("source", nargs="?", type=Path)
     parser.add_argument("target", nargs="?", type=Path)
     parser.add_argument("--all", action="store_true", help="convert every deck in decks/source/")
+    parser.add_argument("--check", action="store_true",
+                        help="check every deck in decks/source/ against Scryfall and Forge (slow the first time)")
     args = parser.parse_args()
+
+    if args.check:
+        for source in sorted((REPO_ROOT / "decks" / "source").glob("*.txt")):
+            problems = check(source)
+            print(f"{source.stem}: {'OK' if not problems else ''}")
+            for problem in problems:
+                print(f"    {problem}")
+        return
 
     if args.all:
         jobs = [(p, REPO_ROOT / "decks" / "forge" / f"{p.stem}.dck") for p in sorted((REPO_ROOT / "decks" / "source").glob("*.txt"))]
