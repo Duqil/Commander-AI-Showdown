@@ -10,15 +10,15 @@ went. Over many games it should drift towards whatever actually works.
 # Train Kaiba in seat 1 against three SimpleBots, 2 games at a time
 python -m showdown.batch --bots boy:Kaiba simple simple simple --games 50 --parallel 2
 
-# How is she doing? Win rate and average reward per block of 20 games
+# How is he doing? Win rate and average reward per block of 20 games
 python -m showdown.batch --report
 
-# Watch her play in the terminal (she doesn't learn from watched games)
+# Watch him play in the terminal (he doesn't learn from watched games)
 python -m showdown.run_game --bots boy:Kaiba simple simple simple
 ```
 
-A new name creates a new Boy. Her brain is saved in `boys/Kaiba.json` after
-every game; delete that file to start her over. `boys/history.csv` has one
+A new name creates a new Boy. Its brain is saved in `boys/Kaiba.json` after
+every game; delete that file to start it over. `boys/history.csv` has one
 row per Boy per training game. The `boys/` folder is ignored by git.
 
 A game takes about 45 seconds, and each one runs its own Forge using about

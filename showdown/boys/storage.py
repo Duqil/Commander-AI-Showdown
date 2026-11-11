@@ -1,6 +1,6 @@
 """Where the Boys live on disk: one JSON file per brain, plus a history file.
 
-    boys/Kaiba.json     Kaiba's brain (open it to see what she has learned)
+    boys/Kaiba.json     Kaiba's brain (open it to see what he has learned)
     boys/history.csv    one row per Boy per training game, for charts
 
 The boys/ folder is ignored by git, so your trained Boys stay on your machine.

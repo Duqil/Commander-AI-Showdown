@@ -7,8 +7,9 @@ Examples:
     python -m showdown.batch --bots boy:Kaiba boy:bob boy:carol boy:dave --games 100 --parallel 2
         Four Boys learn against each other, two games at a time.
 
-    python -m showdown.batch --bots boy:Kaiba forge forge forge --games 10 --no-learn
-        Test Kaiba against Forge's AI without changing her brain.
+    python -m showdown.batch --bots boy:Kaiba forge forge forge --games 10 --no-learn --greedy
+        Test Kaiba against Forge's AI without changing his brain, always
+        playing his best-scoring move (no exploring).
 
     python -m showdown.batch --report
         Show how each Boy has been doing over time (from boys/history.csv).
@@ -62,10 +63,11 @@ def bots_available() -> list[str]:
 
 
 def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
-             save_game: bool = False, learn: bool = True) -> GameRecord:
+             save_game: bool = False, learn: bool = True, explore: bool = True) -> GameRecord:
     """Play one game and return its record. Boys learn when it ends (if learn=True)."""
     record = GameRecord(index, seed, list(decks), list(bots))
-    seated = [make_bot(b, None if seed is None else seed + seat, learn=learn) for seat, b in enumerate(bots)]
+    seated = [make_bot(b, None if seed is None else seed + seat, learn=learn, explore=explore)
+              for seat, b in enumerate(bots)]
     seats = [Seat(DECK_DIR / f"{d}.dck", bot) for d, bot in zip(decks, seated)]
 
     on_message = None
@@ -130,6 +132,7 @@ def run_many(
     seed: int | None = None,
     save_games: bool = False,
     learn: bool = True,
+    explore: bool = True,
     on_result: Callable[[GameRecord], None] | None = None,
     stop: threading.Event | None = None,
 ) -> list[GameRecord]:
@@ -155,7 +158,7 @@ def run_many(
         if stop.is_set():
             return
         record = play_one(index, decks, bots, None if seed is None else seed + index * 10,
-                          save_game=save_games, learn=learn)
+                          save_game=save_games, learn=learn, explore=explore)
         with records_lock:
             records.append(record)
         if on_result:
@@ -221,6 +224,8 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--save-games", action="store_true", help="save each game for the viewer (games/)")
     parser.add_argument("--no-learn", action="store_true", help="Boys play but don't learn")
+    parser.add_argument("--greedy", action="store_true",
+                        help="Boys always take their best option, no exploring (use with --no-learn to test them)")
     parser.add_argument("--report", action="store_true", help="only show the training history")
     args = parser.parse_args()
 
@@ -235,7 +240,7 @@ def main() -> None:
     print(f"Playing {args.games} games, {args.parallel} at a time. Ctrl+C stops.\n", flush=True)
 
     records = run_many(args.decks, bots, args.games, parallel=args.parallel, seed=args.seed,
-                       save_games=args.save_games, learn=not args.no_learn,
+                       save_games=args.save_games, learn=not args.no_learn, explore=not args.greedy,
                        on_result=lambda r: print_record(r, args.games))
 
     print("\nWins per seat:")
