@@ -32,7 +32,7 @@ const EVENT_STYLES = {
 // Forge log categories that get their own pacing.
 const CATEGORY_DELAY = { TURN: 1000, PHASE: 120, MANA: 40, STATE: 150, COMBAT: 700, DAMAGE: 600 };
 const NOISY = new Set(["PHASE", "MANA", "STATE"]); // hidden from the log unless the box is ticked
-const SPEEDS = [0.5, 1, 2, 4, 10, Infinity];      // Infinity = "Max": jump straight to the latest event
+const SPEEDS = [0.5, 0.75, 1, 2, 4, Infinity];    // Infinity = "Max": jump straight to the latest event
 const PHASE_NAMES = {
   UNTAP: "Untap", UPKEEP: "Upkeep", DRAW: "Draw", MAIN1: "Main 1",
   COMBAT_BEGIN: "Beginning of combat", COMBAT_DECLARE_ATTACKERS: "Declare attackers",
@@ -401,6 +401,7 @@ function render() {
         : "Opening hands (mulligans)";
       drawBoards(state);
       drawStack(state);
+      if (app.fitSize) scheduleFit();
       const before = new Set(app.shownStack.map((item) => item.id));
       app.shownStack = state.stack || [];
       // A spell that just went on the stack: show it big (only when playing forward).
@@ -510,7 +511,10 @@ function updateBoard(board, p, state) {
   stats.append(gy, ex);
   if (p.poison) stats.append(el("span", "warn", `☠ ${p.poison} poison`));
   for (const d of p.commander_damage || []) {
-    stats.append(el("span", d.damage >= 15 ? "warn" : "", `⚔ ${d.damage} from ${d.commander}`));
+    // Short, so the header stays on one line: "⚔ 4 Nelly". Hover for the full name.
+    const span = el("span", d.damage >= 15 ? "warn" : "", `⚔ ${d.damage} ${d.commander.split(/[ ,]/)[0]}`);
+    span.title = `${d.damage} commander damage from ${d.commander} (21 kills)`;
+    stats.append(span);
   }
   if (p.lost) stats.append(el("span", "warn", "OUT"));
 
@@ -578,7 +582,15 @@ function fillRow(board, zone, cards, player) {
 }
 
 function imageUrl(card) {
-  return `/api/card-image?name=${encodeURIComponent(card.name)}${card.token ? "&token=1" : ""}`;
+  const params = new URLSearchParams({ name: card.name });
+  if (card.token) {
+    params.set("token", "1");
+    // Many tokens share a name: these pick the right picture (e.g. which "Knight").
+    if (card.colors !== undefined) params.set("colors", card.colors);
+    if (card.base_power !== undefined) params.set("pt", `${card.base_power}/${card.base_toughness}`);
+    if (card.oracle !== undefined) params.set("oracle", card.oracle);
+  }
+  return `/api/card-image?${params}`;
 }
 
 function makeCard(card) {
@@ -659,7 +671,7 @@ function drawStack(state) {
   if (!state.stack?.length) { box.textContent = "empty"; return; }
   box.innerHTML = "";
   for (const item of state.stack) { // top of the stack first
-    const div = el("div", "stack-item", item.description);
+    const div = el("div", "stack-item", cleanText(item.description));
     div.style.borderLeftColor = `var(--seat-${seatIndex(item.controller)})`;
     if (item.card) {
       div.addEventListener("mouseenter", () => showPreview(item.card));
@@ -720,13 +732,21 @@ function isShownInLog(ev) {
   return !NOISY.has(ev.category) || $("#show-noisy").checked;
 }
 
+/** Forge adds an internal card number after names, "Garnet (403)": drop it, it means nothing to us. */
+function cleanText(text) {
+  return text.replace(/ \(\d+\)/g, "");
+}
+
 function makeLogLine(ev) {
   const style = EVENT_STYLES[ev.kind] || {};
   const line = el("div", `log-line ${style.cls || ""} cat-${ev.category}`);
   if (ev.category === "TURN") line.classList.add("turn");
   if (ev.player && ev.kind !== "log") line.style.borderLeftColor = `var(--seat-${seatIndex(ev.player)})`;
   if (ev.kind === "log" && ev.category !== "TURN") line.append(el("span", "cat", ev.category.toLowerCase().replace("_", " ")));
-  line.append(document.createTextNode(ev.text));
+  line.append(document.createTextNode(cleanText(ev.text)));
+  // Forge logs life changes as "Life: 2-Anhelo 33 > 36": green when it went up.
+  const life = ev.category === "LIFE" && /(\d+)\s*>\s*(\d+)/.exec(ev.text);
+  if (life && Number(life[2]) > Number(life[1])) line.classList.add("gain");
   line.dataset.seq = ev.seq;
   line.onclick = () => { setPlaying(false); goTo(ev.seq + 1); };
   return line;
@@ -805,10 +825,69 @@ $("#btn-new").onclick = async () => {
 };
 $("#show-noisy").onchange = rebuildLog;
 $("#show-hands").onchange = () => { app.shownStateSeq = -2; render(); };
-$("#card-size").oninput = (e) => {
-  document.documentElement.style.setProperty("--card-size", `${e.target.value}px`);
-  drawTargetArrows(); // cards moved
+// ---------------------------------------------------------------------------
+// Card size: steps of 8 px with the value shown, or "Fit", which keeps picking
+// the biggest size where no board needs scrolling (cards come and go, so it
+// re-checks whenever the table changes). Your choice is remembered.
+// ---------------------------------------------------------------------------
+const SIZE_MIN = 48, SIZE_MAX = 160, SIZE_STEP = 8;
+
+function setCardSize(px) {
+  app.cardSize = Math.max(SIZE_MIN, Math.min(SIZE_MAX, px));
+  document.documentElement.style.setProperty("--card-size", `${app.cardSize}px`);
+  $("#size-value").textContent = app.cardSize;
+}
+
+function boardsOverflow() {
+  return [...document.querySelectorAll("#boards .board")].some(
+    (b) => b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1);
+}
+
+/** The biggest size where nothing overflows (each try re-measures the boards). */
+function fitCardSize() {
+  if ($("#game").classList.contains("hidden") || !document.querySelector("#boards .board")) return;
+  const before = app.cardSize;
+  let size = SIZE_MAX;
+  setCardSize(size);
+  while (size > SIZE_MIN && boardsOverflow()) setCardSize((size -= SIZE_STEP));
+  if (app.cardSize !== before) drawTargetArrows();
+}
+
+let fitFrame = 0;
+function scheduleFit() { // at most once per screen refresh, even when many events play at once
+  cancelAnimationFrame(fitFrame);
+  fitFrame = requestAnimationFrame(fitCardSize);
+}
+
+function saveSize() {
+  try { localStorage.setItem("cardSize", JSON.stringify({ size: app.cardSize, fit: app.fitSize })); } catch {}
+}
+
+function changeSize(delta) {
+  app.fitSize = false;
+  $("#size-fit").classList.remove("on");
+  setCardSize(app.cardSize + delta);
+  saveSize();
+  drawTargetArrows();
+}
+
+$("#size-down").onclick = () => changeSize(-SIZE_STEP);
+$("#size-up").onclick = () => changeSize(SIZE_STEP);
+$("#size-fit").onclick = () => {
+  app.fitSize = !app.fitSize;
+  $("#size-fit").classList.toggle("on", app.fitSize);
+  if (app.fitSize) fitCardSize();
+  saveSize();
 };
+window.addEventListener("resize", () => { if (app.fitSize) fitCardSize(); });
+
+(() => { // the size you used last time
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("cardSize")); } catch {}
+  setCardSize(saved?.size ?? 80);
+  app.fitSize = !!saved?.fit;
+  $("#size-fit").classList.toggle("on", app.fitSize);
+})();
 
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || $("#game").classList.contains("hidden")) return;
@@ -936,7 +1015,7 @@ function landingSpot(board, card) {
   if (/Instant|Sorcery/.test(type)) return null;
   const zone = /Creature/.test(type) ? "creatures" : /Land/.test(type) ? "lands" : "other";
   const row = board.querySelector(`[data-zone="${zone}"]`);
-  const size = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-size")) || 72;
+  const size = app.cardSize;
   const last = row.lastElementChild;
   if (last) { // right after the last card in the row
     const r = last.getBoundingClientRect();

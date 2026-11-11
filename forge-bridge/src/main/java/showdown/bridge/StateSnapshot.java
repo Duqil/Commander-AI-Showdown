@@ -107,6 +107,21 @@ public final class StateSnapshot {
         }
         if (c.isToken()) {
             cj.addProperty("token", true);
+            // Enough to pick the right token picture: many tokens share a name
+            // ("Knight" 2/2 with vigilance vs. with haste and protection).
+            forge.card.ColorSet colors = c.getColor();
+            StringBuilder wubrg = new StringBuilder();
+            if (colors.hasWhite()) wubrg.append('W');
+            if (colors.hasBlue()) wubrg.append('U');
+            if (colors.hasBlack()) wubrg.append('B');
+            if (colors.hasRed()) wubrg.append('R');
+            if (colors.hasGreen()) wubrg.append('G');
+            cj.addProperty("colors", wubrg.toString());
+            cj.addProperty("oracle", c.getOracleText());
+            if (c.isCreature()) {
+                cj.addProperty("base_power", c.getBasePower());
+                cj.addProperty("base_toughness", c.getBaseToughness());
+            }
         }
         if (c.isCommander()) {
             cj.addProperty("commander", true);
@@ -129,6 +144,11 @@ public final class StateSnapshot {
                         ? "?" : combat.getDefenderByAttacker(c).getName());
             } else if (combat.isBlocking(c)) {
                 cj.addProperty("blocking", true);
+                JsonArray blocks = new JsonArray(); // ids of the attackers it blocks
+                for (Card attacker : combat.getAttackersBlockedBy(c)) {
+                    blocks.add(attacker.getId());
+                }
+                cj.add("blocks", blocks);
             }
         }
         JsonObject chosen = chosen(c);

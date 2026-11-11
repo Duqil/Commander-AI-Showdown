@@ -13,7 +13,7 @@ What the browser can ask for (an "API"):
     POST /api/game/stop             stop the running game
     GET  /api/saved                 saved games in games/
     POST /api/saved/load            watch a saved game again. Body: {"id": "..."}
-    GET  /api/card-image?name=X     a card picture (add &token=1 for tokens)
+    GET  /api/card-image?name=X     a card picture (tokens: &token=1, and &colors=W&pt=2/2&oracle=...)
     POST /api/batch/start           run many games without watching. Body: {"decks", "bots",
                                     "games": 20, "parallel": 1, "seed", "save_games", "learn"}
     GET  /api/batch                 progress and results of that batch
@@ -129,7 +129,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/card-image":
             name = query.get("name", [""])[0]
             token = query.get("token", ["0"])[0] == "1"
-            data = STATE.images.get(name, token) if name else None
+            details = {k: query[k][0] for k in ("colors", "pt", "oracle") if k in query}
+            data = STATE.images.get(name, token, details) if name else None
             if data is None:
                 return self.send_json({"error": "no image"}, 404)
             return self.send_bytes(data, "image/jpeg", cache=True)

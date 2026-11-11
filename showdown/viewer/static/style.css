@@ -56,7 +56,9 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 #scrub { flex: 1; min-width: 80px; accent-color: var(--accent); }
 .speed button { padding: 4px 7px; }
 #game-buttons { display: flex; gap: 8px; align-items: center; }
-#card-size { width: 70px; vertical-align: middle; }
+.size-box { display: inline-flex; align-items: center; gap: 4px; }
+.size-box button { padding: 2px 8px; }
+#size-value { min-width: 2.2em; text-align: center; font-variant-numeric: tabular-nums; }
 
 #table { flex: 1; display: grid; grid-template-columns: 1fr 340px; grid-template-rows: minmax(0, 1fr);
          min-height: 0; overflow: hidden; }
@@ -79,6 +81,7 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .log-line.error { color: var(--danger); }
 .log-line.deal { color: #f0b5ff; font-weight: 600; }
 .log-line.cat-DAMAGE, .log-line.cat-LIFE { color: #ffb4a9; }
+.log-line.cat-LIFE.gain { color: #8fd694; }
 .log-line.cat-COMBAT { color: #ffd479; }
 
 /* ---------- one player's board ---------- */
@@ -117,7 +120,8 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .card .text-card { position: absolute; inset: 0; padding: 4px; font-size: 10px; line-height: 1.15; overflow: hidden;
                    border: 2px solid #555; border-radius: inherit; background: #2b2f38; }
 .card .text-card b { display: block; margin-bottom: 2px; }
-.card.tapped { transform: rotate(90deg) scale(.85); }
+.card.tapped { transform: rotate(90deg) scale(.85); /* turned sideways, it's wider: make room so it covers no neighbour */
+               margin: 0 calc(var(--card-w) * .1); }
 .card.sick img { filter: brightness(.75); }
 .card.attacking { box-shadow: 0 0 0 3px var(--danger), 0 0 12px var(--danger); }
 .card.blocking { box-shadow: 0 0 0 3px #539bf5, 0 0 12px #539bf5; }

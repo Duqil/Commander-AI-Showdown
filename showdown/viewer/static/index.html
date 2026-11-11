@@ -77,7 +77,9 @@
     </div>
     <div id="game-buttons">
       <label class="small"><input type="checkbox" id="show-hands" checked> Hands</label>
-      <label class="small">Size <input type="range" id="card-size" min="48" max="160" value="80"></label>
+      <span class="size-box small" title="Card size. Fit picks the biggest size where every card is visible without scrolling.">Size
+        <button id="size-down" title="Smaller">−</button><span id="size-value">80</span><button id="size-up" title="Bigger">+</button>
+        <button id="size-fit" title="Keep cards as big as possible without scrolling (adjusts during the game)">Fit</button></span>
       <button id="btn-new" title="Play again with the same decks and bots">New game</button>
       <button id="btn-stop" title="Stop the running game">Stop</button>
       <button id="btn-setup" title="Back to the main menu: decks, bots, saved games">Main Menu</button>

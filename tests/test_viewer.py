@@ -138,6 +138,16 @@ class CardImagesTest(unittest.TestCase):
             self.assertEqual(images.get("Sol Ring"), b"jpeg!")
 
 
+class TokenScoreTest(unittest.TestCase):
+    def test_rules_text_picks_the_right_knight(self):
+        from showdown.viewer.card_images import token_score
+        vigilance = {"name": "Knight", "colors": ["W"], "power": "2", "toughness": "2", "oracle_text": "Vigilance"}
+        haste = {"name": "Knight", "colors": ["W"], "power": "2", "toughness": "2",
+                 "oracle_text": "Haste\nProtection from white (This creature can't be blocked by white creatures.)"}
+        wanted = {"colors": "W", "pt": "2/2", "oracle": "Vigilance"}
+        self.assertGreater(token_score(vigilance, "Knight", wanted), token_score(haste, "Knight", wanted))
+
+
 class BotNameTest(unittest.TestCase):
     def test_valid_bots(self):
         from showdown.viewer.server import valid_bot

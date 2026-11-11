@@ -16,6 +16,7 @@ We wait at least 0.1 s between requests to respect that.
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import re
@@ -47,10 +48,19 @@ class CardImages:
             self._missing = set(json.loads(missing_file.read_text(encoding="utf-8")))
         self._printings = load_deck_printings(SOURCE_DECKS)
 
-    def get(self, name: str, token: bool = False) -> bytes | None:
-        """The JPEG for this card, or None if Scryfall has no picture for it."""
+    def get(self, name: str, token: bool = False, details: dict | None = None) -> bytes | None:
+        """The JPEG for this card, or None if Scryfall has no picture for it.
+
+        ``details`` (tokens only) helps pick the right one of many tokens with
+        the same name: {"colors": "W", "pt": "2/2", "oracle": "Vigilance"}.
+        """
         # "token-v2:" because v1 cached the wrong face of double-faced tokens (a Dinosaur for Treasure).
-        key = ("token-v2:" if token else "") + name
+        # "token-v3:" adds the details, so a 2/2 Knight with vigilance and one with haste get their own pictures.
+        details = {k: v for k, v in (details or {}).items() if v} if token else {}
+        if details:
+            key = "token-v3:" + name + "|" + "|".join(f"{k}={details[k]}" for k in sorted(details))
+        else:
+            key = ("token-v2:" if token else "") + name
         path = self.cache_dir / file_name(key)
         if path.exists():
             return path.read_bytes()
@@ -59,7 +69,7 @@ class CardImages:
         with self._lock:
             if path.exists():  # another browser request fetched it while we waited
                 return path.read_bytes()
-            data = self._download(name, token)
+            data = self._download(name, token, details)
             self.cache_dir.mkdir(parents=True, exist_ok=True)  # created on first use
             if data is None:
                 self._missing.add(key)
@@ -70,10 +80,10 @@ class CardImages:
 
     # --- talking to Scryfall -------------------------------------------------
 
-    def _download(self, name: str, token: bool) -> bytes | None:
+    def _download(self, name: str, token: bool, details: dict | None = None) -> bytes | None:
         wanted = re.sub(r"\s+Token$", "", name)  # Forge says "Treasure Token", Scryfall "Treasure"
         for url in self._candidate_urls(name, token):
-            image_url = self._image_url(url, wanted)
+            image_url = self._image_url(url, wanted, details)
             if image_url:
                 return self._fetch(image_url)
         return None
@@ -92,7 +102,7 @@ class CardImages:
         urls.append(f"{API}/cards/named?" + urllib.parse.urlencode({"exact": name}))
         return urls
 
-    def _image_url(self, card_url: str, wanted: str = "") -> str | None:
+    def _image_url(self, card_url: str, wanted: str = "", details: dict | None = None) -> str | None:
         """Ask Scryfall for a card (or a search) and pick its picture's URL.
 
         ``wanted`` is the name we're after. A token search for "Treasure" also
@@ -107,16 +117,15 @@ class CardImages:
             results = card.get("data") or []
             if not results:
                 return None
-            exact = [c for c in results if c.get("name") == wanted]
-            card = exact[0] if exact else results[0]
+            # The best match on name, colours, power/toughness and rules text.
+            # max() keeps the first of equal scores, so Scryfall's order breaks ties.
+            # A single-faced token gets a small bonus over the matching face of a double-faced one.
+            card = max(results, key=lambda c: token_score(best_face(c, wanted), wanted, details or {})
+                       + (0 if c.get("card_faces") else 1))
         if "image_uris" in card:
             return card["image_uris"]["normal"]
-        faces = card.get("card_faces") or []
-        # Double-faced: the face with the name we want, otherwise the front.
-        face = next((f for f in faces if f.get("name") == wanted), faces[0] if faces else None)
-        if face:
-            return face.get("image_uris", {}).get("normal")
-        return None
+        face = best_face(card, wanted)
+        return face.get("image_uris", {}).get("normal")
 
     def _fetch(self, url: str) -> bytes | None:
         wait = 0.1 - (time.monotonic() - self._last_request)
@@ -133,6 +142,36 @@ class CardImages:
             raise
         except urllib.error.URLError:
             return None  # offline: the browser shows a text card instead
+
+
+def best_face(card: dict, wanted: str) -> dict:
+    """The face of a double-faced card with the name we want (otherwise the front), or the card itself."""
+    faces = card.get("card_faces") or []
+    if not faces:
+        return card
+    return next((f for f in faces if f.get("name") == wanted), faces[0])
+
+
+def rules_text(text: str) -> str:
+    """Rules text made comparable: no reminder text in (brackets), lower case, single spaces."""
+    text = re.sub(r"\([^)]*\)", "", text or "")
+    text = text.lower().replace("this token", "this creature").replace("this artifact", "this creature")
+    return " ".join(text.split()).strip(" .")
+
+
+def token_score(face: dict, wanted: str, details: dict) -> float:
+    """How well a Scryfall token (one face) matches what Forge created. Higher is better."""
+    score = 2.0 if face.get("name") == wanted else 0.0
+    if "colors" in details:
+        colors = "".join(c for c in "WUBRG" if c in (face.get("colors") or []))
+        score += 4 if colors == details["colors"] else 0
+    if "pt" in details:
+        score += 4 if f"{face.get('power')}/{face.get('toughness')}" == details["pt"] else 0
+    if details:
+        # Similar rules text counts most: it tells "vigilance" from "haste, protection from white".
+        ours, theirs = rules_text(details.get("oracle", "")), rules_text(face.get("oracle_text", ""))
+        score += 8 * difflib.SequenceMatcher(None, ours, theirs).ratio()
+    return score
 
 
 def file_name(key: str) -> str:

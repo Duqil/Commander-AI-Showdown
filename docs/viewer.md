@@ -23,9 +23,12 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   give a number to replay the same shuffle with different bots.
 * **A new game opens paused** on the opening hands. Press ▶ (or Space) to start.
 * **Controls.** ⏮ replay from the start, ◀ / ▶ step one event, ⏸ pause,
-  ⏭ jump to the latest moment, speed 0.5× to 10×, or **Max** to always show
+  ⏭ jump to the latest moment, speed 0.5× to 4×, or **Max** to always show
   the newest moment. Drag the slider to move through the game. Click any log
   line to jump there. Keyboard: Space, ← →, Home, End.
+* **Size.** − and + change the card size in steps of 8. **Fit** keeps the
+  cards as big as possible without any board needing to scroll, and adjusts as
+  cards come and go. The viewer remembers your choice.
 * **New game** plays again with the same decks and bots (new shuffle).
   **Stop** ends a running game. **Main Menu** goes back to the setup screen,
   where the **Saved games** tab lists finished games to watch again.
@@ -47,7 +50,7 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   of its caster's board for a moment. A permanent (creature, artifact, ...)
   then flies to the spot where it will land; an instant or sorcery shrinks into
   the Stack box, where it waits to resolve (faster at higher speeds, skipped at
-  10× and Max). While a spell or ability
+  Max). While a spell or ability
   with targets is on the stack, a red arrow points from it to each target
   (a card, or a player's life total). The arrow for the item that resolves
   next is bright, older ones are faint.
