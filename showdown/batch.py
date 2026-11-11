@@ -123,7 +123,7 @@ def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
                 "boy_games": bot.brain.games,
                 "seat": seat,
                 "deck": decks[seat],
-                "lineup": " ".join(bots),
+                "lineup": ", ".join(bots),  # commas, since a Boy name can have spaces
                 "won": int(bot.result["won"]),
                 "outlived": bot.result["outlived"],
                 "reward": round(bot.result["reward"], 3),

@@ -127,8 +127,16 @@ function botLabel(kind) {
 const NEW_BOY = "__new_boy__";
 function askNewBoy(select) {
   if (select.value !== NEW_BOY) return;
-  const name = (prompt("Name for the new Boy (letters, digits, - or _):") || "").trim();
-  if (!/^[A-Za-z0-9_-]{1,32}$/.test(name)) { select.value = "simple"; return; }
+  const asked = prompt("Name for the new Boy (letters, digits, spaces, - _ or ', up to 32 characters):");
+  // Tidy up: no spaces at the ends, and "Nicol   Bolas" becomes "Nicol Bolas".
+  const name = (asked || "").trim().replace(/\s+/g, " ");
+  if (!name) { select.value = "simple"; return; } // cancelled
+  // Same rule as VALID_NAME in showdown/boys/storage.py.
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9 _'-]{0,30}[A-Za-z0-9])?$/.test(name)) {
+    alert(`"${name}" can't be a Boy's name. Use letters, digits, spaces, - _ or ' (up to 32 characters, starting and ending with a letter or digit).`);
+    select.value = "simple";
+    return;
+  }
   const value = `boy:${name}`;
   for (const other of document.querySelectorAll(".seat-row select:last-child")) {
     if (![...other.options].some((o) => o.value === value)) {

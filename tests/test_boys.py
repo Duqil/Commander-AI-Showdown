@@ -229,6 +229,15 @@ class BoyBotTest(unittest.TestCase):
         self.assertEqual(storage.load_brain("tester").games, 1)
         self.assertIn("boy:tester", __import__("showdown.batch", fromlist=["x"]).bots_available())
 
+    def test_name_with_spaces_saves_and_lists(self):
+        bot = BoyBot("Nicol Bolas", learn=True, seed=1)
+        bot.declare_attackers(attack_decision())
+        state = table()
+        bot.last_state = state
+        bot.game_over({"winner": "2-B", "players": state["players"]}, "1-A")
+        self.assertTrue((Path(self.tmp.name) / "Nicol Bolas.json").exists())
+        self.assertIn("Nicol Bolas", storage.list_boys())
+
     def test_turn_bonus_goes_to_that_turns_choices(self):
         bot = BoyBot("tester", learn=False, seed=1)
         before = table()                       # our turn 5, C at 4 life

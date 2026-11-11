@@ -25,12 +25,17 @@ HISTORY_COLUMNS = ["time", "game", "boy", "boy_games", "seat", "deck", "lineup",
 
 _brains: dict[str, Brain] = {}   # brains already loaded in this Python process
 _lock = threading.Lock()
-VALID_NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+# A Boy's name is also its file name (boys/<name>.json), so only characters that
+# are safe in file names on Windows, Mac and Linux: letters, digits, spaces,
+# - _ and '. It must start and end with a letter or digit, so "Nicol Bolas"
+# is fine but " Bolas" or "Bolas." are not (Windows drops a trailing dot or space).
+#   (?: ... )?   an optional group: a one-letter name has no middle part.
+VALID_NAME = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9 _'-]{0,30}[A-Za-z0-9])?$")
 
 
 def brain_path(name: str) -> Path:
     if not VALID_NAME.match(name):
-        raise ValueError(f"Boy names may only use letters, digits, - and _ (got {name!r})")
+        raise ValueError(f"Boy names may use letters, digits, spaces, - _ and ', up to 32 characters (got {name!r})")
     return BOYS_DIR / f"{name}.json"
 
 

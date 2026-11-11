@@ -45,6 +45,28 @@ def write_forge_profile() -> Path:
     return profile
 
 
+# Forge settings we want for every game. Forge keeps its settings in
+# user/preferences/forge.preferences, one "KEY=value" per line.
+#   LOAD_CARD_SCRIPTS_LAZILY: by default Forge reads all ~34,000 card scripts
+#   before every game, although a game only uses a few hundred. Lazily, it
+#   reads a card the first time something asks for it. That makes the wait
+#   before a game starts about half as long.
+FORGE_PREFERENCES = {"LOAD_CARD_SCRIPTS_LAZILY": "true"}
+
+
+def write_forge_preferences() -> Path:
+    """Put FORGE_PREFERENCES into Forge's settings file, keeping any other lines."""
+    prefs = FORGE_DATA_DIR / "user" / "preferences" / "forge.preferences"
+    prefs.parent.mkdir(parents=True, exist_ok=True)
+    lines = prefs.read_text(encoding="utf-8").splitlines() if prefs.exists() else []
+    # Drop our keys from the old lines (whatever their value was), then add them back.
+    kept = [line for line in lines if line.split("=", 1)[0] not in FORGE_PREFERENCES]
+    wanted = kept + [f"{key}={value}" for key, value in FORGE_PREFERENCES.items()]
+    if wanted != lines:  # only write when something changed
+        prefs.write_text("\n".join(wanted) + "\n", encoding="utf-8")
+    return prefs
+
+
 def start_forge(
     port: int,
     seats: list[tuple[Path, str]],
@@ -57,13 +79,20 @@ def start_forge(
     ``seats`` is a list of (deck file, controller) pairs, where controller is
     "python" or "forge".
     """
-    cmd = [java, "-Xmx2g", "-cp", classpath(), "showdown.bridge.BridgeMain", "--port", str(port)]
+    # -XX:SharedArchiveFile + AutoCreateSharedArchive (Java 19+): the first run
+    # saves Java's prepared classes to a file, later runs load them from it
+    # instead of preparing them again. Java rebuilds the file by itself when the
+    # jars change (e.g. after build_bridge.sh).
+    archive = FORGE_DATA_DIR / "forge-classes.jsa"
+    cmd = [java, "-Xmx2g", "-XX:+AutoCreateSharedArchive", f"-XX:SharedArchiveFile={archive}",
+           "-cp", classpath(), "showdown.bridge.BridgeMain", "--port", str(port)]
     if seed is not None:
         cmd += ["--seed", str(seed)]
     for deck, controller in seats:
         cmd += ["--seat", f"{Path(deck).resolve()}={controller}"]
 
     write_forge_profile()
+    write_forge_preferences()
 
     # Forge prints a lot of its own logging. Send it to a file so our output stays readable.
     out = open(log_file, "w") if log_file else subprocess.DEVNULL

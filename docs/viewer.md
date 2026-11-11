@@ -99,9 +99,18 @@ and lets the ones being played finish (they count). **Stop now** ends
 everything straight away; unfinished games are thrown away and nobody learns
 from them. On the command line, Ctrl+C stops right away too.
 
-Pick **New Boy…** in a bot dropdown to name a new learning bot; it's created
-the first time it plays. The same runner works from the command line:
+Pick **New Boy…** in a bot dropdown to name a new learning bot (spaces are
+fine, like "Nicol Bolas"); it's created the first time it plays. The same runner works from the command line:
 `python -m showdown.batch --help`.
+
+## Start-up time
+
+Clicking **Start game** launches a fresh Forge. To make that quicker, Forge
+reads a card's rules only when the game needs that card (instead of all
+~34,000 before every game), and Java keeps its prepared classes in
+`vendor/forge-data/forge-classes.jsa`. Both are set up by
+`showdown/bridge/forge_process.py`. The first game after `build_bridge.sh`
+is a little slower while Java writes that file again.
 
 ## Where files go
 
