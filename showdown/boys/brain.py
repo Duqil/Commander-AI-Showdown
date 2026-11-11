@@ -48,6 +48,12 @@ Features = dict[str, float]
 # first games look like SimpleBot with some random variation.
 STARTING_WEIGHTS = {"simple_prior": 2.0}
 
+# Starting opinions about single features, used until a brain has learned its
+# own weight for them. Attacking with a 0-power creature starts very unlikely
+# (about 1 in 20 against staying home), but stays possible: with a combat
+# trick in hand it can be right, and a Boy can learn that.
+DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0}
+
 DECISION_KINDS = ("mulligan", "play", "attack")
 
 
@@ -80,8 +86,8 @@ class Brain:
 
     def score(self, kind: str, features: Features) -> float:
         w = self.weights.setdefault(kind, dict(STARTING_WEIGHTS))
-        # .get(name, 0.0): a feature the brain has never seen starts at weight 0.
-        return sum(w.get(name, 0.0) * value for name, value in features.items())
+        # A feature the brain has never seen starts at its default weight (usually 0).
+        return sum(w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) * value for name, value in features.items())
 
     def probabilities(self, kind: str, options: list[Features]) -> list[float]:
         with self._lock:
@@ -132,7 +138,7 @@ class Brain:
                     average = sum(p * f.get(name, 0.0) for p, f in zip(step.probs, step.options))
                     gradient = step.options[step.picked].get(name, 0.0) - average
                     if gradient:
-                        w[name] = w.get(name, 0.0) + rate * gradient
+                        w[name] = w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) + rate * gradient
             # Move the baseline 5% of the way towards this reward.
             self.baseline += 0.05 * (reward - self.baseline)
             self.bonus_baseline += 0.05 * (mean_bonus - self.bonus_baseline)

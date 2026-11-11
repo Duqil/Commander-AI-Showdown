@@ -78,11 +78,13 @@ class FeatureTest(unittest.TestCase):
         # SimpleBot attacks the lowest life player, so its prior points at C.
         self.assertEqual(feats[2]["simple_prior"], 1.0)
 
-    def test_zero_power_creatures_stay_home(self):
+    def test_zero_power_creatures_usually_stay_home(self):
         decision = attack_decision()
         ctx = features.attack_context(decision)
         feats, targets = features.attack_options({**creature(5, 0, 1), "can_attack": [0, 1, 2]}, decision, ctx)
-        self.assertEqual(targets, [None])
+        self.assertEqual(targets, [None, 0, 1, 2])  # still allowed
+        probs = Brain("t").probabilities("attack", feats)
+        self.assertGreater(probs[0], 0.9)  # but staying home is very likely
 
     def test_play_options_add_pass(self):
         decision = {"state": table(), "options": [
