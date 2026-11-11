@@ -139,6 +139,11 @@ class FeatureTest(unittest.TestCase):
                     "is_land": False, "is_spell": True, "max_x": 3}
         five = {"index": 4, "card": {"name": "Big", "type": "Creature", "cmc": 5}, "is_land": False, "is_spell": True}
         self.assertEqual(pick(tervigon, five), 3)
+        # Starstorm with no good X (Forge's AI says no) stays in hand.
+        starstorm = {"index": 5, "card": {"name": "Starstorm", "type": "Instant", "cmc": 2},
+                     "is_land": False, "is_spell": True, "max_x": 6, "forge_would_play": False}
+        self.assertIsNone(pick(starstorm))
+        self.assertEqual(pick(dict(starstorm, forge_would_play=True)), 5)
 
 
 class BrainTest(unittest.TestCase):

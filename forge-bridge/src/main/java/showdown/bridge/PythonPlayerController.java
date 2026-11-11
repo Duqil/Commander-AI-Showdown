@@ -248,26 +248,44 @@ public class PythonPlayerController extends PlayerControllerAi {
     }
 
     /**
-     * Pick X for a spell like Tervigon ({X}{2}{G}{G}, enters with X counters).
+     * Pick X for an X spell Python chose.
      *
      * Forge's AI only picks X while it is deciding to make a play itself.
-     * When Python picks the play instead, X was never set and the spell was
-     * cast with X = 0 (a Ravenous creature entered as a 0/0 and died). Now:
-     * targeted spells keep the X Forge's AI chose with the targets (it may
-     * pick X to match a target's toughness); everything else gets the biggest
-     * X we can pay.
+     * When Python picked the play instead, X was never set and the spell was
+     * cast with X = 0 (a Ravenous creature entered as a 0/0 and died).
      *
-     * @return false if X can't be at least 1
+     * Now Forge's AI picks X first, the way it would for itself. That matters:
+     * for Starstorm (X damage to every creature) it tries every X and keeps
+     * the one that kills the most enemy creatures for the fewest of ours,
+     * which is often not the biggest X. Targeted spells already got Forge's X
+     * together with the targets.
+     *
+     * If Forge's AI wouldn't cast it at any X: a creature or other permanent
+     * (Tervigon, Hydroid Krasis...) still gets the biggest X we can pay,
+     * because bigger is simply better there. Anything else isn't cast:
+     * Starstorm with no good X would only hurt us.
+     *
+     * @return false if the spell shouldn't be cast
      */
     private boolean chooseX(SpellAbility sa) {
         Integer chosen = sa.getXManaCostPaid();
-        if (!usesTargeting(sa) || chosen == null || chosen < 1) {
-            chosen = maxX(sa);
+        if (!usesTargeting(sa)) {
+            sa.setXManaCostPaid(null);
+            try {
+                getAi().canPlaySa(sa); // sets X the way Forge's AI likes it
+            } catch (RuntimeException e) {
+                // a few cards throw here; fall back below
+            }
+            chosen = sa.getXManaCostPaid();
+        }
+        if (chosen == null || chosen < 1) {
+            chosen = sa.isSpell() && sa.getHostCard().isPermanent() ? maxX(sa) : 0;
         }
         if (chosen < 1) {
+            sa.setXManaCostPaid(null);
             return false;
         }
-        sa.setXManaCostPaid(chosen);
+        sa.setXManaCostPaid(Math.min(chosen, maxX(sa)));
         return true;
     }
 
