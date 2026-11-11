@@ -49,7 +49,8 @@ class CardImages:
 
     def get(self, name: str, token: bool = False) -> bytes | None:
         """The JPEG for this card, or None if Scryfall has no picture for it."""
-        key = ("token:" if token else "") + name
+        # "token-v2:" because v1 cached the wrong face of double-faced tokens (a Dinosaur for Treasure).
+        key = ("token-v2:" if token else "") + name
         path = self.cache_dir / file_name(key)
         if path.exists():
             return path.read_bytes()
@@ -70,8 +71,9 @@ class CardImages:
     # --- talking to Scryfall -------------------------------------------------
 
     def _download(self, name: str, token: bool) -> bytes | None:
+        wanted = re.sub(r"\s+Token$", "", name)  # Forge says "Treasure Token", Scryfall "Treasure"
         for url in self._candidate_urls(name, token):
-            image_url = self._image_url(url)
+            image_url = self._image_url(url, wanted)
             if image_url:
                 return self._fetch(image_url)
         return None
@@ -90,20 +92,30 @@ class CardImages:
         urls.append(f"{API}/cards/named?" + urllib.parse.urlencode({"exact": name}))
         return urls
 
-    def _image_url(self, card_url: str) -> str | None:
-        """Ask Scryfall for a card (or a search) and pick its picture's URL."""
+    def _image_url(self, card_url: str, wanted: str = "") -> str | None:
+        """Ask Scryfall for a card (or a search) and pick its picture's URL.
+
+        ``wanted`` is the name we're after. A token search for "Treasure" also
+        finds double-faced tokens like "Dinosaur // Treasure", so we prefer an
+        exact match, and on a double-faced card we show the matching face.
+        """
         raw = self._fetch(card_url)
         if raw is None:
             return None
         card = json.loads(raw)
-        if card.get("object") == "list":  # a search result: take the first card
-            if not card.get("data"):
+        if card.get("object") == "list":  # a search result: pick the best card
+            results = card.get("data") or []
+            if not results:
                 return None
-            card = card["data"][0]
+            exact = [c for c in results if c.get("name") == wanted]
+            card = exact[0] if exact else results[0]
         if "image_uris" in card:
             return card["image_uris"]["normal"]
-        if card.get("card_faces"):  # double-faced cards: show the front
-            return card["card_faces"][0].get("image_uris", {}).get("normal")
+        faces = card.get("card_faces") or []
+        # Double-faced: the face with the name we want, otherwise the front.
+        face = next((f for f in faces if f.get("name") == wanted), faces[0] if faces else None)
+        if face:
+            return face.get("image_uris", {}).get("normal")
         return None
 
     def _fetch(self, url: str) -> bytes | None:
