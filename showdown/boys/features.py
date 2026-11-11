@@ -65,12 +65,34 @@ def mulligan_options(decision: Decision) -> list[Features]:
 # Priority: one option per legal play, plus "pass" as the last option
 # ----------------------------------------------------------------------------
 
+def is_counter_booster(card: dict) -> bool:
+    """Cards like Hardened Scales or Branching Evolution: more +1/+1 counters
+    on everything after them. Worth casting BEFORE a big X creature."""
+    text = card.get("oracle", "").lower()
+    return "+1/+1 counter" in text and any(
+        phrase in text for phrase in ("that many plus", "twice that many", "an additional +1/+1", "plus one"))
+
+
+def x_context(options: list[dict]) -> dict[str, float]:
+    """The best X creature castable right now and roughly how much mana we have.
+
+    An X option's mana value counts X as 0, so mana value + max_x is about the
+    mana we have available. Used to tell whether a cheap play first still
+    leaves a decent X afterwards."""
+    x_creatures = [o for o in options if "max_x" in o and "Creature" in o.get("card", {}).get("type", "")]
+    if not x_creatures:
+        return {}
+    best = max(x_creatures, key=lambda o: o["max_x"])
+    return {"max_x": best["max_x"], "fixed_cost": best["card"].get("cmc", 0)}
+
+
 def play_options(decision: Decision) -> list[Features]:
     state = decision["state"]
     my_turn = state["active_player"] == state["you"]
     main = state["phase"] in MAIN_PHASES
     stack = state.get("stack_size", 0) > 0
     simple_pick = _simple.choose_play(decision)  # an option "index", or None for pass
+    xc = x_context(decision["options"])
 
     result = []
     for option in decision["options"]:
@@ -84,6 +106,9 @@ def play_options(decision: Decision) -> list[Features]:
             "spell": _flag(is_spell),
             "spell_cmc": (card.get("cmc", 0) + option.get("max_x", 0)) / 7 if is_spell else 0.0,
             "x_spell": _flag("max_x" in option),
+            # How big the X would be (all mana in): bigger X = bigger Ravenous creature.
+            "x_size": option.get("max_x", 0) / 7,
+            **sequencing_features(option, card, is_spell, xc),
             "creature_spell": _flag(is_spell and "Creature" in ctype),
             "instant_speed_spell": _flag(is_spell and ("Instant" in ctype or "Flash" in option.get("description", ""))),
             "spell_on_my_main": _flag(is_spell and my_turn and main and not stack),
@@ -105,6 +130,26 @@ def play_options(decision: Decision) -> list[Features]:
         "simple_prior": _flag(simple_pick is None),
     })
     return result
+
+
+def sequencing_features(option: dict, card: dict, is_spell: bool, xc: dict) -> Features:
+    """Should this play come BEFORE an X creature we could also cast now?
+
+    E.g. Hardened Scales (1 mana) first, then Tervigon with X one smaller but
+    every counter +1. SimpleBot always dumps everything into the biggest X;
+    these features let a Boy learn when a cheap play first is better.
+    """
+    if not xc or "max_x" in option:
+        return {"counter_booster": _flag(is_counter_booster(card))}
+    x_after = xc["max_x"] - card.get("cmc", 0)  # what X would be left after this play
+    booster = is_counter_booster(card)
+    return {
+        "counter_booster": _flag(booster),
+        "before_x_creature": 1.0,                       # an X creature is waiting
+        "x_left_after": max(0, x_after) / 7,             # how big it could still be
+        "kills_the_x": _flag(x_after < 1),               # no mana left for X at all
+        "booster_before_x": _flag(booster and x_after >= 1),
+    }
 
 
 # ----------------------------------------------------------------------------

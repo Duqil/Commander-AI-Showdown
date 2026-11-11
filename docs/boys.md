@@ -83,6 +83,14 @@ means "I avoid them". For example, after training you might see:
 }
 ```
 
+**X spells and play order.** SimpleBot always dumps all its mana into the
+biggest X creature. The Boys get features to learn when that's wrong:
+`x_size` (how big X would be), and for every other play while an X creature
+waits: `x_left_after` (X left after this play), `kills_the_x` (no mana left for
+X), `counter_booster` and `booster_before_x` (Hardened Scales first, then a
+slightly smaller Tervigon that gets an extra counter). They start at weight 0,
+so a Boy has to discover them in play.
+
 ## Things to try (good Python exercises)
 
 - Change the weights in `threat.threat_score()` and see if training improves.
@@ -91,8 +99,6 @@ means "I avoid them". For example, after training you might see:
   name simply starts at weight 0.
 - Train four Boys against each other: `--bots boy:Kaiba boy:bob boy:carol boy:dave`.
 
-## Next: deals
+## Deals
 
-Deals (non-aggression for N turns, ganging up on the leader) are the next
-step. They will be extra options for the Boys, with the threat assessment
-above deciding who "the leader" is, and they'll show up in the viewer's log.
+Boys also learn when to offer, accept and break deals: see `docs/deals.md`.
