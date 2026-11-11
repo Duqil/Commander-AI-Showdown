@@ -197,7 +197,9 @@ public class PythonPlayerController extends PlayerControllerAi {
             SpellAbility sa = plays.get(i);
             JsonObject o = new JsonObject();
             o.addProperty("index", i);
-            o.add("card", StateSnapshot.card(sa.getHostCard()));
+            JsonObject card = StateSnapshot.card(sa.getHostCard());
+            card.addProperty("oracle", sa.getHostCard().getOracleText()); // rules text, for features like "counter booster"
+            o.add("card", card);
             o.addProperty("description", sa.toString());
             o.addProperty("is_land", sa.isLandAbility());
             o.addProperty("is_spell", sa.isSpell());

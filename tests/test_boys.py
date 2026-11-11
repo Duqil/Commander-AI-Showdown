@@ -146,6 +146,24 @@ class FeatureTest(unittest.TestCase):
         self.assertEqual(pick(dict(starstorm, forge_would_play=True)), 5)
 
 
+class SequencingTest(unittest.TestCase):
+    def test_hardened_scales_before_tervigon(self):
+        scales = {"index": 0, "card": {"name": "Hardened Scales", "type": "Enchantment", "cmc": 1,
+                  "oracle": "If one or more +1/+1 counters would be put on a creature you control, "
+                            "that many plus one +1/+1 counters are put on it instead."},
+                  "is_land": False, "is_spell": True}
+        tervigon = {"index": 1, "card": {"name": "Tervigon", "type": "Creature", "cmc": 4},
+                    "is_land": False, "is_spell": True, "max_x": 3}
+        bear = {"index": 2, "card": {"name": "Bear", "type": "Creature", "cmc": 4, "oracle": ""},
+                "is_land": False, "is_spell": True}
+        feats = features.play_options({"state": table(), "options": [scales, tervigon, bear]})
+        self.assertEqual(feats[0]["booster_before_x"], 1.0)
+        self.assertAlmostEqual(feats[0]["x_left_after"], 2 / 7)   # X 3 -> 2 after Scales
+        self.assertAlmostEqual(feats[1]["x_size"], 3 / 7)
+        self.assertEqual(feats[2]["kills_the_x"], 1.0)            # the 4-drop eats all the mana
+        self.assertNotIn("before_x_creature", feats[1])           # the X creature itself
+
+
 class BrainTest(unittest.TestCase):
     def test_softmax_sums_to_one(self):
         probs = Brain("t").probabilities("play", [{"simple_prior": 1.0}, {}, {}])
