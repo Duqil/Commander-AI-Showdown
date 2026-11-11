@@ -233,3 +233,7 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
               background: rgba(20, 24, 31, .96); border: 2px solid; padding: 6px 14px; border-radius: 10px; }
 .board.deal-glow { box-shadow: 0 0 0 3px var(--deal) inset, 0 0 24px var(--deal); }
 #banner.break { border-color: var(--danger); color: #ff8c84; box-shadow: 0 0 40px rgba(229, 83, 75, .6); }
+.deals-help { margin: 2px 0 10px; }
+.deals-help summary { cursor: pointer; }
+.deals-help ul { margin: 6px 0; padding-left: 18px; }
+.deals-help p { margin: 4px 0; }
