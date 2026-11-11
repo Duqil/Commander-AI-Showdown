@@ -95,8 +95,18 @@ class SimpleBot(Bot):
         ranked = sorted(opponents, key=threat.threat_score, reverse=True)
         leader = ranked[0]
         if threat.threat_score(threat.me(state)) > threat.threat_score(leader):
-            return {"type": "peace", "to": leader["name"]}  # we're ahead: keep the strongest off us
-        return {"type": "gang_up", "to": ranked[1]["name"], "against": leader["name"]}
+            offer = {"type": "peace", "to": leader["name"]}  # we're ahead: keep the strongest off us
+        else:
+            offer = {"type": "gang_up", "to": ranked[1]["name"], "against": leader["name"]}
+        # Don't pester: after asking someone, wait a full round before asking them again.
+        # (getattr: older SimpleBots made before this existed have no memory yet.)
+        asked = getattr(self, "_asked", {})
+        turn, last = state.get("turn", 0), asked.get(offer["to"])
+        if last is not None and 0 <= turn - last < len(state["players"]):
+            return None
+        asked[offer["to"]] = turn
+        self._asked = asked
+        return offer
 
     def answer_deal(self, view: Decision) -> bool:
         offerer = view["offer"]["a"]

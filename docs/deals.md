@@ -38,13 +38,24 @@ because Python decides attacks. A broken deal is a big event:
 - **Reputation:** the victim's trust in the breaker drops by 0.5, everyone
   else's by 0.25. SimpleBot refuses offers from anyone below 0.5.
 
+## Winning trust back
+
+Trust (0 to 1) can recover during a game:
+
+- **Kept deal:** when a deal runs its full length unbroken, both partners'
+  trust in each other goes up by 0.1 (logged as "kept their deal").
+- **Helping:** attacking the agreed gang-up target raises your partner's
+  trust in you by 0.05.
+
+Grudges don't fade yet. All the numbers are at the top of `showdown/deals.py`.
+
 Deals, trust and grudges reset every game.
 
 ## Who makes deals
 
 | Bot | Deals |
 |---|---|
-| `simple` | Never breaks a deal. From round 2 on: if someone else leads, asks the next strongest to gang up on the leader; if it leads itself, offers peace to the strongest. Accepts from players it trusts, unless they lead. |
+| `simple` | Never breaks a deal. From round 2 on: if someone else leads, asks the next strongest to gang up on the leader; if it leads itself, offers peace to the strongest. Waits a round before asking the same player again. Accepts from players it trusts, unless they lead. |
 | `random` | Offers a random deal 30% of the time, accepts half, and breaks deals often since it attacks at random. |
 | `boy:<name>` | Learns what to offer, what to accept and when breaking pays. Starts out close to SimpleBot. |
 | `forge` | Forge's own AI can't make deals: offers to it are declined. |

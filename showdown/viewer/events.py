@@ -42,6 +42,7 @@ EVENT_KINDS = {
     "deal_offer": "A bot offers a deal to another bot.",
     "deal_accept": "A deal was accepted.",
     "deal_decline": "A deal was declined.",
+    "deal_kept": "A deal ran its full length without being broken.",
     "deal_break": "A bot broke a deal it had made.",
 }
 

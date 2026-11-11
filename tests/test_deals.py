@@ -77,6 +77,30 @@ class DealBookTest(unittest.TestCase):
         self.assertTrue(self.book.has_deal("1-A", "2-B", 13))   # 2 rounds of 4 players
         self.assertFalse(self.book.has_deal("1-A", "2-B", 14))
 
+    def test_kept_deal_restores_trust(self):
+        self.book.trust["1-A"]["2-B"] = 0.5
+        self.book.offer_phase(state(turn=5), {"1-A": Offerer({"type": "peace", "to": "2-B"}), "2-B": Accepter()})
+        self.assertEqual(self.book.settle(13), [])               # still running
+        msgs = self.book.settle(14)
+        self.assertEqual([m["event"] for m in msgs], ["kept"])
+        self.assertAlmostEqual(self.book.trust["1-A"]["2-B"], 0.6)
+        self.assertEqual(self.book.trust["2-B"]["1-A"], 1.0)     # never above 1
+        self.assertEqual(self.book.settle(15), [])               # only once
+        kinds = [e["kind"] for e in TimelineBuilder().feed(msgs[0])]
+        self.assertEqual(kinds, ["deal_kept"])
+
+    def test_broken_deal_is_not_kept(self):
+        self.book.offer_phase(state(turn=5), {"1-A": Offerer({"type": "peace", "to": "2-B"}), "2-B": Accepter()})
+        self.book.check_attack("2-B", attack("2-B", 0), {"7": 0})
+        self.assertEqual(self.book.settle(14), [])
+
+    def test_attacking_gang_target_builds_trust(self):
+        self.book.trust["2-B"]["1-A"] = 0.5
+        self.book.offer_phase(state(), {"1-A": Offerer({"type": "gang_up", "to": "2-B", "against": "3-C"}),
+                                        "2-B": Accepter()})
+        self.book.check_attack("1-A", attack("1-A", 2), {"7": 2})  # A attacks C as promised
+        self.assertAlmostEqual(self.book.trust["2-B"]["1-A"], 0.55)
+
     def test_viewer_shows_deals(self):
         msgs = self.book.offer_phase(state(), {"1-A": Offerer({"type": "peace", "to": "2-B"}), "2-B": Accepter()})
         builder = TimelineBuilder()
@@ -96,6 +120,14 @@ class SimpleBotDealTest(unittest.TestCase):
     def test_no_offers_in_the_first_round(self):
         view = {"state": state(turn=2), "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": []}}
         self.assertIsNone(SimpleBot().offer_deal(view))
+
+    def test_waits_a_round_before_asking_again(self):
+        bot = SimpleBot()
+        def view(turn):
+            return {"state": state(turn=turn), "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": []}}
+        self.assertIsNotNone(bot.offer_deal(view(5)))
+        self.assertIsNone(bot.offer_deal(view(7)))      # same player, same round: no
+        self.assertIsNotNone(bot.offer_deal(view(9)))   # a round later: ok
 
 
 if __name__ == "__main__":

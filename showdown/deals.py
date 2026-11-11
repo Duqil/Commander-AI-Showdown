@@ -19,7 +19,9 @@ decide that themselves; this module only notices. When a deal is broken:
     first, Boys get it as a feature),
   * the victim's trust in the breaker drops a lot and everyone else's a
     little (word gets around), so the breaker's future offers get declined.
-Trust starts at 1.0. All of this lasts for one game.
+Trust starts at 1.0 and can be won back: keeping a deal until it ends raises
+both partners' trust in each other, and actually attacking the agreed target
+in a gang-up raises the partner's trust in you. All of this lasts for one game.
 
 Every offer, answer and break becomes a "deal" message, which shows up in the
 game log and in the browser viewer's timeline.
@@ -36,6 +38,8 @@ from showdown.boys import threat
 DEAL_ROUNDS = 2         # how long a deal lasts: 2 rounds = every player gets 2 more turns
 VICTIM_TRUST_LOSS = 0.5
 OTHERS_TRUST_LOSS = 0.25
+KEPT_TRUST_GAIN = 0.1   # a deal ran its full length: both partners trust each other a bit more
+HELP_TRUST_GAIN = 0.05  # you attacked the gang-up target: your partner trusts you a bit more
 DEAL_TYPES = ("peace", "gang_up")
 
 
@@ -50,6 +54,7 @@ class Deal:
     rounds: int = DEAL_ROUNDS
     against: str | None = None # gang_up: the player they both attack
     broken_by: str | None = None
+    settled: bool = False      # we already handed out the "kept the deal" trust
 
     def partners(self) -> tuple[str, str]:
         return self.a, self.b
@@ -115,9 +120,13 @@ class DealBook:
         """Run the start-of-turn offer. Returns the deal messages that happened."""
         turn = state.get("turn", 0)
         offerer = state.get("active_player")
+        kept = self.settle(turn)
         if turn <= self.last_offer_turn or offerer not in bots or offerer not in self.players:
-            return []
+            return kept
         self.last_offer_turn = turn
+        return kept + self._offer(state, bots, turn, offerer)
+
+    def _offer(self, state: dict, bots: dict[str, Any], turn: int, offerer: str) -> list[dict]:
         public = public_state(state, offerer)
         bot = bots[offerer]
         offer = bot.offer_deal({"kind": "offer_deal", "player": offerer, "state": public,
@@ -160,6 +169,24 @@ class DealBook:
     def alive(state: dict) -> list[str]:
         return [p["name"] for p in state.get("players", []) if not p.get("lost")]
 
+    # --- keeping deals -----------------------------------------------------------------
+
+    def settle(self, turn: int) -> list[dict]:
+        """Reward deals that ran their full length unbroken. Returns "kept" messages."""
+        messages = []
+        for deal in self.deals:
+            if deal.broken_by is None and not deal.settled and turn > deal.expires_turn:
+                deal.settled = True
+                self._gain_trust(deal.a, deal.b, KEPT_TRUST_GAIN)
+                self._gain_trust(deal.b, deal.a, KEPT_TRUST_GAIN)
+                messages.append(deal_message("kept", deal, turn))
+        return messages
+
+    def _gain_trust(self, me: str, them: str, amount: float) -> None:
+        row = self.trust.get(me, {})
+        if them in row:
+            row[them] = min(1.0, row[them] + amount)
+
     # --- breaking deals ---------------------------------------------------------------
 
     def check_attack(self, attacker: str, decision: dict, choice: dict | None) -> list[dict]:
@@ -172,6 +199,8 @@ class DealBook:
         messages = []
         for deal in self.deals_of(attacker, turn):
             victim = deal.other(attacker)
+            if deal.against in attacked and victim not in attacked:
+                self._gain_trust(victim, attacker, HELP_TRUST_GAIN)  # kept their word
             if victim in attacked:
                 deal.broken_by = attacker
                 self._lose_trust(attacker, victim)
@@ -199,11 +228,13 @@ def public_state(state: dict, viewer: str) -> dict:
 
 
 def deal_message(event: str, deal: Deal, turn: int, **extra: Any) -> dict:
-    """A message for the game log / viewer: event is offer, accept, decline or break."""
+    """A message for the game log / viewer: event is offer, accept, decline, kept or break."""
     if event == "offer":
         text = f"{deal.a} offers {deal.b} a deal: {deal.describe()}"
     elif event == "accept":
         text = f"{deal.b} accepts {deal.a}'s deal ({deal.describe()})"
+    elif event == "kept":
+        text = f"{deal.a} and {deal.b} kept their deal ({deal.describe()}) and trust each other more"
     elif event == "decline":
         reason = extra.get("reason")
         text = f"{deal.b} declines {deal.a}'s deal" + (f" ({reason})" if reason else "")
