@@ -263,3 +263,19 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
 .card.triggering::after { content: "TRIGGER"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
   background: #f2cc60; color: #1a1406; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 6px;
   letter-spacing: .05em; pointer-events: none; }
+
+/* A batch of games finished: summary card + confetti (celebrateBatch in app.js). */
+.batch-done { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); z-index: 41;
+  background: var(--panel, #22272e); border: 2px solid #f2cc60; border-radius: 14px; padding: 18px 26px;
+  text-align: center; box-shadow: 0 0 40px rgba(242, 204, 96, .45); display: grid; gap: 6px; min-width: 280px; }
+.batch-done-icon { font-size: 44px; line-height: 1; }
+.batch-done button { justify-self: center; margin-top: 6px; }
+.confetti-layer { position: fixed; inset: 0; pointer-events: none; z-index: 40; overflow: hidden; }
+.confetti { position: absolute; bottom: -10px; width: 9px; height: 14px; border-radius: 2px;
+  animation: confetti-fly linear forwards; }
+/* Up and sideways first, then falling down past the bottom while spinning. */
+@keyframes confetti-fly {
+  0%   { transform: translate(0, 0) rotate(0); opacity: 1; }
+  35%  { transform: translate(calc(var(--dx) * .6), calc(var(--up) * -1)) rotate(calc(var(--spin) * .4)); }
+  100% { transform: translate(var(--dx), 10vh) rotate(var(--spin)); opacity: .9; }
+}

@@ -151,9 +151,10 @@ class TokenScoreTest(unittest.TestCase):
 class BotNameTest(unittest.TestCase):
     def test_valid_bots(self):
         from showdown.viewer.server import valid_bot
-        for name in ["simple", "random", "forge", "boy:alice", "boy:new_one-2"]:
+        for name in ["simple", "random", "forge", "boy:alice", "boy:new_one-2", "boy:Nicol Bolas",
+                     "boy:Urza's Heir", "boy:K"]:
             self.assertTrue(valid_bot(name), name)
-        for name in ["", "boy:", "boy:../evil", "smart", "boy:has space"]:
+        for name in ["", "boy:", "boy:../evil", "smart", "boy: Bolas", "boy:Bolas ", "boy:a/b", "boy:Bolas."]:
             self.assertFalse(valid_bot(name), name)
 
 

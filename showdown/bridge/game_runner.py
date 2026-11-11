@@ -136,6 +136,139 @@ def play(
     raise ConnectionError("Forge disconnected before the game ended (see the Forge log file)")
 
 
+class Forge:
+    """One Forge program that can play many games, one after another.
+
+    Starting Forge (Java + loading the rules) takes a few seconds. "Run many
+    games" keeps one Forge per parallel slot and just asks it for the next game.
+    Single games (the viewer, ``run_game``) still start a fresh Forge each time.
+
+    Use it like this, and always close it (a ``with`` block does that for you):
+
+        with Forge() as forge:
+            for seed in range(5):
+                result = forge.play(seats, seed=seed)
+
+    If anything goes wrong in a game, this Forge is killed and the next
+    ``play`` starts a fresh one, so one bad game can't spoil the rest.
+    """
+
+    # Start a fresh Forge now and then anyway, in case Forge keeps a little
+    # memory of every game it played. 25 games of ~40 s each is ~15 minutes.
+    MAX_GAMES = 25
+
+    def __init__(self, forge_log: Path | None = None) -> None:
+        self.forge_log = forge_log
+        self.process: subprocess.Popen | None = None
+        self.conn: BridgeConnection | None = None
+        self.games = 0  # games played by the current Forge program
+
+    # "with Forge() as forge:" calls __enter__ at the start and __exit__ at the end.
+    def __enter__(self) -> "Forge":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+    def play(
+        self,
+        seats: list[Seat],
+        seed: int | None = None,
+        on_log: Callable[[str], None] | None = None,
+        timeout: float = 600,
+        on_message: MessageCallback | None = None,
+        abort: threading.Event | None = None,
+        deals: bool = False,
+    ) -> GameResult:
+        """Play one game. Setting ``abort`` (from any thread) kills Forge and raises GameAborted."""
+        if self.conn is not None and self.games >= self.MAX_GAMES:
+            self.close()
+        if self.conn is None:
+            self._start(seats, seed, abort)
+        else:
+            # Forge is waiting after its last game: tell it what to play next.
+            self.conn.send({"type": "next_game", "seed": seed,
+                            "seats": [{"deck": str(Path(s.deck).resolve()), "python": s.bot is not None}
+                                      for s in seats]})
+        assert self.conn is not None and self.process is not None
+        process = self.process
+        game_done = threading.Event()
+        if abort is not None:
+            # A small helper thread that watches the abort flag while the game runs.
+            # Killing Forge closes its connection, which makes play() below stop.
+            def watch() -> None:
+                while not game_done.wait(0.5):
+                    if abort.is_set():
+                        process.kill()
+                        return
+            threading.Thread(target=watch, name="abort-watch", daemon=True).start()
+        try:
+            self.conn.settimeout(timeout)  # no single message should take this long
+            result = play(self.conn, [s.bot for s in seats], on_log, on_message, deals=deals)
+            self.games += 1
+            return result
+        except BaseException:
+            # Something went wrong, or the game was stopped on purpose (e.g. the
+            # viewer's Stop button): don't let Forge play on, end it right away.
+            self.close(kill=True)
+            if abort is not None and abort.is_set():
+                raise GameAborted("stopped by the user")
+            raise
+        finally:
+            game_done.set()
+
+    def _start(self, seats: list[Seat], seed: int | None, abort: threading.Event | None) -> None:
+        server = listen()
+        try:
+            self.process = start_forge(
+                server.getsockname()[1],
+                [(s.deck, "forge" if s.bot is None else "python") for s in seats],
+                seed=seed,
+                log_file=self.forge_log,
+            )
+            # Forge takes a few seconds to load. Wait in 1-second steps so an
+            # abort doesn't have to wait for the whole 2 minutes.
+            server.settimeout(1)
+            deadline = time.monotonic() + 120
+            while True:
+                if abort is not None and abort.is_set():
+                    raise GameAborted("stopped before the game began")
+                if self.process.poll() is not None:
+                    raise ConnectionError("Forge quit before the game began (see the Forge log file)")
+                try:
+                    sock, _ = server.accept()
+                    break
+                except socket.timeout:
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("Forge didn't connect within 2 minutes (see the Forge log file)")
+            self.conn = BridgeConnection(sock)
+            self.games = 0
+        except BaseException:
+            self.close(kill=True)
+            raise
+        finally:
+            server.close()
+
+    def close(self, kill: bool = False) -> None:
+        """End this Forge: politely ("quit") after a good game, or kill it after a bad one."""
+        if self.conn is not None:
+            if not kill:
+                try:
+                    self.conn.send({"type": "quit"})
+                except OSError:
+                    pass
+            self.conn.close()
+            self.conn = None
+        if self.process is not None:
+            if kill:
+                self.process.kill()
+            try:
+                self.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+            self.process = None
+
+
 def run_game(
     seats: list[Seat],
     seed: int | None = None,
@@ -146,62 +279,11 @@ def run_game(
     abort: threading.Event | None = None,
     deals: bool = False,
 ) -> GameResult:
-    """Play one full Commander game in Forge and return the result.
+    """Play one full Commander game in a fresh Forge and return the result.
 
     Setting ``abort`` (from any thread) ends the game right away: Forge is
     killed and GameAborted is raised. The viewer's "Stop now" button uses it.
     """
-    server = listen()
-    port = server.getsockname()[1]
-    process = start_forge(
-        port,
-        [(s.deck, "forge" if s.bot is None else "python") for s in seats],
-        seed=seed,
-        log_file=forge_log,
-    )
-    game_done = threading.Event()
-    if abort is not None:
-        # A small helper thread that watches the abort flag while the game runs.
-        # Killing Forge closes its connection, which makes play() below stop.
-        def watch() -> None:
-            while not game_done.wait(0.5):
-                if abort.is_set():
-                    process.kill()
-                    return
-        threading.Thread(target=watch, name="abort-watch", daemon=True).start()
-    try:
-        # Forge takes a while to load ~30,000 cards. Wait in 1-second steps so
-        # an abort doesn't have to wait for the whole 2 minutes.
-        server.settimeout(1)
-        deadline = time.monotonic() + 120
-        while True:
-            if abort is not None and abort.is_set():
-                raise GameAborted("stopped before the game began")
-            try:
-                sock, _ = server.accept()
-                break
-            except socket.timeout:
-                if time.monotonic() > deadline:
-                    raise TimeoutError("Forge didn't connect within 2 minutes (see the Forge log file)")
-        sock.settimeout(timeout)  # no single message should take this long
-        conn = BridgeConnection(sock)
-        try:
-            return play(conn, [s.bot for s in seats], on_log, on_message, deals=deals)
-        except Exception:
-            if abort is not None and abort.is_set():
-                raise GameAborted("stopped by the user")
-            raise
-        finally:
-            conn.close()
-    except BaseException:
-        # Something went wrong, or the game was stopped on purpose (e.g. the
-        # viewer's Stop button): don't let Forge play on, end it right away.
-        process.kill()
-        raise
-    finally:
-        game_done.set()
-        server.close()
-        try:
-            process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            process.kill()
+    with Forge(forge_log) as forge:
+        return forge.play(seats, seed=seed, on_log=on_log, timeout=timeout,
+                          on_message=on_message, abort=abort, deals=deals)

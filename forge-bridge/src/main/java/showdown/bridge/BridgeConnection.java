@@ -73,6 +73,20 @@ public final class BridgeConnection implements AutoCloseable {
         }
     }
 
+    /**
+     * Wait for Python's next message outside a decision (e.g. "next_game").
+     *
+     * @return the message, or null when Python closed the connection
+     */
+    public JsonObject receive() {
+        try {
+            String line = in.readLine();
+            return line == null ? null : gson.fromJson(line, JsonObject.class);
+        } catch (IOException e) {
+            return null; // a broken connection means the same as "no more games"
+        }
+    }
+
     @Override
     public void close() throws IOException {
         socket.close();

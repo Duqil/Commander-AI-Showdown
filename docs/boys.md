@@ -21,6 +21,10 @@ A new name creates a new Boy. Its brain is saved in `boys/Kaiba.json` after
 every game; delete that file to start it over. `boys/history.csv` has one
 row per Boy per training game. The `boys/` folder is ignored by git.
 
+Names may use letters, digits, spaces, `-`, `_` and `'` (up to 32
+characters). On the command line, put a name with a space in quotes:
+`--bots "boy:Nicol Bolas" simple simple simple`.
+
 A game takes about 45 seconds, and each one runs its own Forge using about
 2 GB of memory and 2 CPU cores. `--parallel 2` or `3` is a good choice on a
 normal PC. So 100 games is roughly half an hour.

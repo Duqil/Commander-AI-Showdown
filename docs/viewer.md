@@ -32,6 +32,9 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
 * **New game** plays again with the same decks and bots (new shuffle).
   **Stop** ends a running game. **Main Menu** goes back to the setup screen,
   where the **Saved games** tab lists finished games to watch again.
+* **Round and turn.** The top left shows e.g. "Round 9 · Turn 35 · 3-Nelly ·
+  Combat". A round is over once every player still in the game has had a
+  turn, so after a knockout a round is shorter.
 * **Board.** Each player has a coloured board. Its top line holds the name,
   the bot, cards in hand (✋), library (📚), graveyard (🪦, click to see it),
   exile (🌀), poison and commander damage taken, then the life total. Rows are:
@@ -99,9 +102,28 @@ and lets the ones being played finish (they count). **Stop now** ends
 everything straight away; unfinished games are thrown away and nobody learns
 from them. On the command line, Ctrl+C stops right away too.
 
-Pick **New Boy…** in a bot dropdown to name a new learning bot; it's created
-the first time it plays. The same runner works from the command line:
+When a batch ends you get confetti and a small summary card, and the
+browser tab title starts with "✓ Games done" until you look at it.
+
+Pick **New Boy…** in a bot dropdown to name a new learning bot (spaces are
+fine, like "Nicol Bolas"); it's created the first time it plays. The same runner works from the command line:
 `python -m showdown.batch --help`.
+
+## Start-up time
+
+Clicking **Start game** launches a fresh Forge. To make that quicker, Forge
+reads a card's rules only when the game needs that card (instead of all
+~34,000 before every game), and Java keeps its prepared classes in
+`vendor/forge-data/forge-classes.jsa`. Both are set up by
+`showdown/bridge/forge_process.py`. The first game after `build_bridge.sh`
+is a little slower while Java writes that file again.
+
+**Run many games** goes further: each parallel slot keeps its Forge running
+and asks it for the next game, so the rules load once per slot, and Java,
+which speeds up as it runs, stays warm. In a test with 5 games in a row this
+took 205 s instead of 235 s, with exactly the same results per seed. A slot
+starts a fresh Forge every 25 games, and after any game that crashed or was
+stopped (`Forge` in `showdown/bridge/game_runner.py`).
 
 ## Where files go
 

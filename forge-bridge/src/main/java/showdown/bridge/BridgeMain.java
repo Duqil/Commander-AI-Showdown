@@ -1,6 +1,7 @@
 package showdown.bridge;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import forge.GuiDesktop;
@@ -38,6 +39,11 @@ import java.util.Random;
  * "=python" seats ask Python for their decisions; "=forge" seats use Forge's
  * built-in AI, which is handy as an opponent and as a yardstick.
  *
+ * After a game, Forge waits for Python to say what's next. Loading Forge's
+ * rules takes seconds, so "Run many games" reuses one Forge for many games:
+ *   {"type": "next_game", "seed": 43, "seats": [{"deck": "...", "python": true}, ...]}
+ *   {"type": "quit"}  (or Python closing the connection) ends the program.
+ *
  * The working directory must be Forge's "forge-gui" folder, because Forge
  * loads its card scripts from the "res" folder there.
  */
@@ -70,16 +76,30 @@ public final class BridgeMain {
         }
 
         try (BridgeConnection bridge = new BridgeConnection("127.0.0.1", port)) {
-            int code = runGame(bridge, seats, seed);
-            System.exit(code);
+            // Forge needs a "GUI interface" even when nothing is shown; the desktop
+            // one works fine headless. Then load cards, editions, AI profiles, ...
+            // This is the slow part, and it happens only once per Forge.
+            GuiBase.setInterface(new GuiDesktop());
+            FModel.initialize(null, null);
+            while (true) {
+                runGame(bridge, seats, seed);
+                JsonObject next = bridge.receive();
+                if (next == null || !"next_game".equals(next.get("type").getAsString())) {
+                    break;
+                }
+                seats = new ArrayList<>();
+                for (JsonElement e : next.getAsJsonArray("seats")) {
+                    JsonObject sj = e.getAsJsonObject();
+                    seats.add(new Seat(sj.get("deck").getAsString(), sj.get("python").getAsBoolean()));
+                }
+                JsonElement nextSeed = next.get("seed");
+                seed = nextSeed == null || nextSeed.isJsonNull() ? null : nextSeed.getAsLong();
+            }
+            System.exit(0);
         }
     }
 
     private static int runGame(BridgeConnection bridge, List<Seat> seats, Long seed) {
-        // Forge needs a "GUI interface" even when nothing is shown; the desktop
-        // one works fine headless. Then load cards, editions, AI profiles, ...
-        GuiBase.setInterface(new GuiDesktop());
-        FModel.initialize(null, null);
         if (seed != null) {
             MyRandom.setRandom(new Random(seed));
         }
