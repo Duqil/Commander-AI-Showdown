@@ -269,6 +269,10 @@ function resetPlayback() {
   $("#boards").innerHTML = "";
   $("#stack").textContent = "empty";
   $("#turn-info").textContent = "Loading rules…";
+  // The arrows live in their own layer on top of the page, not in #boards, so
+  // clear them too. Otherwise the last game's attack arrows stay up until the
+  // new game's first table arrives.
+  drawTargetArrows();
 }
 
 async function enterGame() {
