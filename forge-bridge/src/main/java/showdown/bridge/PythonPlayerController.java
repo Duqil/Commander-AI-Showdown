@@ -83,8 +83,17 @@ public class PythonPlayerController extends PlayerControllerAi {
     // 1. Mulligan
     // ------------------------------------------------------------------
 
+    /** Keep without asking once keeping would leave only 2 cards (7 - 5). */
+    private static final int MAX_CARDS_TO_BOTTOM = 5;
+
     @Override
     public boolean mulliganKeepHand(Player firstPlayer, int cardsToReturn) {
+        if (cardsToReturn >= MAX_CARDS_TO_BOTTOM) {
+            // Forge lets you mulligan forever. A bot that always answers "mulligan"
+            // (a Boy that learned to dislike keeping) would hang the game, so at
+            // 2 cards left we keep, whatever the bot thinks.
+            return true;
+        }
         JsonObject extra = new JsonObject();
         extra.addProperty("cards_to_bottom_if_kept", cardsToReturn);
         extra.addProperty("going_first", firstPlayer == getPlayer());

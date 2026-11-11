@@ -170,6 +170,18 @@ class BrainTest(unittest.TestCase):
         self.assertAlmostEqual(sum(probs), 1.0)
         self.assertGreater(probs[0], probs[1])
 
+    def test_mulligan_eagerness_stops(self):
+        """Joey's real weights made him mulligan forever; deeper mulligans must lose."""
+        brain = Brain("joey")
+        brain.weights["mulligan"] = {"simple_prior": 1.34, "mulligan": 0.82, "keep": -0.82,
+                                     "keep_good_lands": -0.70, "keep_land_distance": -0.25}
+        hand = [{"name": "Forest", "type": "Land"}] * 3 + [{"name": "Bear", "type": "Creature"}] * 4
+        state = table(); state["players"][0]["hand"] = hand
+        def keeps(to_bottom):
+            opts = features.mulligan_options({"state": state, "cards_to_bottom_if_kept": to_bottom})
+            return brain.choose("mulligan", opts, random.Random(0), explore=False).picked == 0
+        self.assertTrue(keeps(2))   # two mulligans deep: keep
+
     def test_learns_to_prefer_rewarded_feature(self):
         """Option with feature "good" pays off, the other doesn't. The weight should grow."""
         brain = Brain("t")
