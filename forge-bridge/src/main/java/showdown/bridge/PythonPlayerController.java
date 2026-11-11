@@ -216,6 +216,9 @@ public class PythonPlayerController extends PlayerControllerAi {
                 continue;
             }
             List<GameEntity> candidates = new ArrayList<>(a.getTargetRestrictions().getAllCandidates(a));
+            if (candidates.isEmpty() && a.getMinTargets() > 0) {
+                return false; // nothing to target: no need to ask
+            }
             JsonArray candJson = new JsonArray();
             JsonArray suggested = new JsonArray();
             for (int i = 0; i < candidates.size(); i++) {
@@ -240,6 +243,15 @@ public class PythonPlayerController extends PlayerControllerAi {
             JsonObject extra = new JsonObject();
             extra.add("source", StateSnapshot.card(sa.getHostCard()));
             extra.addProperty("description", a.getDescription());
+            // What the ability does, in Forge's own terms, e.g. "Destroy", "DealDamage", "Pump".
+            extra.addProperty("api", a.getApi() == null ? null : a.getApi().name());
+            JsonObject params = new JsonObject();
+            for (String key : new String[] {"NumAtt", "NumDef", "Origin", "Destination", "CounterType"}) {
+                if (a.hasParam(key)) {
+                    params.addProperty(key, a.getParam(key)); // e.g. NumAtt "-2" means a shrink, not a pump
+                }
+            }
+            extra.add("params", params);
             extra.addProperty("min", a.getMinTargets());
             extra.addProperty("max", Math.min(a.getMaxTargets(), candidates.size()));
             extra.add("candidates", candJson);

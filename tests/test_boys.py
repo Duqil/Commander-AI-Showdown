@@ -88,6 +88,7 @@ class FeatureTest(unittest.TestCase):
 
     def test_target_features(self):
         decision = {"state": table(), "description": "deals 3 damage to any target", "suggested": [1],
+                    "api": "DealDamage", "params": {},
                     "min": 1, "max": 1, "candidates": [
                         {"index": 0, "name": "1-A", "life": 30, "is_player": True},
                         {"index": 1, **creature(10, 6, controller="2-B"), "is_player": False},
@@ -99,6 +100,14 @@ class FeatureTest(unittest.TestCase):
         self.assertEqual(feats[1]["forge_suggested"], 1.0)
         bot = BoyBot("tester_t", learn=False, seed=3)
         self.assertIn(bot.choose_targets(decision)[0], [0, 1, 2])
+
+    def test_harmful_or_helpful(self):
+        self.assertTrue(features.is_harmful({"api": "Destroy"}))
+        self.assertFalse(features.is_harmful({"api": "Pump", "params": {"NumAtt": "+3"}}))
+        self.assertTrue(features.is_harmful({"api": "Pump", "params": {"NumAtt": "-3"}}))
+        self.assertTrue(features.is_harmful({"api": "ChangeZone", "params": {"Origin": "Battlefield"}}))
+        self.assertFalse(features.is_harmful({"api": "ChangeZone", "params": {"Origin": "Graveyard"}}))
+        self.assertTrue(features.is_harmful({"api": None, "description": "Exile target creature"}))
 
     def test_play_options_add_pass(self):
         decision = {"state": table(), "options": [

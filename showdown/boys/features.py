@@ -112,7 +112,14 @@ def attack_context(decision: Decision) -> dict[str, Any]:
     state = decision["state"]
     players = {p["name"]: p for p in state["players"]}
     total_power = sum(max(0, a.get("power", 0)) for a in decision["attackers"])
+    mine = threat.me(state)
+    instants = sum(1 for c in mine.get("hand", []) if "Instant" in c.get("type", ""))
+    untapped_lands = sum(1 for c in mine.get("battlefield", [])
+                         if "Land" in c.get("type", "") and not c.get("tapped"))
     return {
+        # Could we cast a combat trick? (We only see card types, not what the
+        # instant does, so this is a rough "maybe".)
+        "trick_possible": instants > 0 and untapped_lands > 0,
         "state": state,
         "players": players,
         "leader": threat.leader(state),
@@ -152,6 +159,9 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
             "attack_power": power / 10,
             "attack_small": _flag(power <= 1),      # 0/1 tokens and the like rarely do much
             "attack_zero_power": _flag(power == 0), # no damage unless pumped mid-combat
+            # Same, but with an instant in hand and mana open: maybe a pump spell.
+            "attack_small_with_trick": _flag(power <= 1 and ctx["trick_possible"]),
+            "attack_zero_power_with_trick": _flag(power == 0 and ctx["trick_possible"]),
             "attack_is_commander": _flag(attacker.get("commander", False)),
             "attack_planeswalker": _flag(target is None),
             "simple_prior": _flag(simple_target == index),
@@ -180,14 +190,35 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
 # Targets: one option per legal target (only for abilities with one target)
 # ----------------------------------------------------------------------------
 
-# Words that usually mean the ability hurts what it targets.
+# What an ability does, by Forge's name for it ("api"). Harmful ones hurt
+# their target, helpful ones help it. Some depend on details, checked below.
+HARMFUL_APIS = {"Destroy", "DealDamage", "Debuff", "Counter", "Sacrifice", "Tap", "Fight",
+                "GainControl", "GainControlVariant", "ExchangeControl", "Goad", "Detain",
+                "LoseLife", "Mill", "Discard", "Poison", "MustBlock", "RemoveFromCombat",
+                "SetLife"}
+HELPFUL_APIS = {"Untap", "Protection", "Regenerate", "GainLife", "Animate", "Draw",
+                "HealDamage", "PreventDamage", "Phases"}
+
+# Fallback when the api is unknown: words that usually mean "this hurts".
 HARMFUL_WORDS = ("destroy", "exile", "damage", "sacrifice", "counter target", "tap target",
                  "return target", "-1/-1", "loses", "goad", "gain control", "fight")
 
 
-def is_harmful(description: str) -> bool:
-    """A rough guess from the text: does this ability hurt its target?"""
-    text = description.lower()
+def is_harmful(decision: Decision) -> bool:
+    """Does this ability hurt what it targets? Uses what Forge says it does."""
+    api = decision.get("api")
+    params = decision.get("params", {})
+    if api in HARMFUL_APIS:
+        return True
+    if api in HELPFUL_APIS:
+        return False
+    if api in ("Pump", "PumpAll"):
+        return params.get("NumAtt", "").startswith("-")      # -2/-2 shrinks, +2/+2 pumps
+    if api in ("PutCounter", "PutCounterAll"):
+        return "M1M1" in params.get("CounterType", "")        # -1/-1 counters hurt
+    if api in ("ChangeZone", "ChangeZoneAll"):
+        return params.get("Origin", "") == "Battlefield"       # exile or bounce from play
+    text = decision.get("description", "").lower()
     return any(word in text for word in HARMFUL_WORDS)
 
 
@@ -196,7 +227,7 @@ def target_options(decision: Decision) -> list[Features]:
     you = state["you"]
     leader = threat.leader(state)
     players = {p["name"]: p for p in state["players"]}
-    harmful = is_harmful(decision.get("description", ""))
+    harmful = is_harmful(decision)
     suggested = set(decision.get("suggested", []))
 
     result = []
