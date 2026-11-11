@@ -1,14 +1,14 @@
 """Play many games in a row without watching, e.g. to train The Boys.
 
 Examples:
-    python -m showdown.batch --bots boy:alice simple simple simple --games 20
-        Alice plays 20 games against three SimpleBots and learns after each.
+    python -m showdown.batch --bots boy:Kaiba simple simple simple --games 20
+        Kaiba plays 20 games against three SimpleBots and learns after each.
 
-    python -m showdown.batch --bots boy:alice boy:bob boy:carol boy:dave --games 100 --parallel 2
+    python -m showdown.batch --bots boy:Kaiba boy:bob boy:carol boy:dave --games 100 --parallel 2
         Four Boys learn against each other, two games at a time.
 
-    python -m showdown.batch --bots boy:alice forge forge forge --games 10 --no-learn
-        Test Alice against Forge's AI without changing her brain.
+    python -m showdown.batch --bots boy:Kaiba forge forge forge --games 10 --no-learn
+        Test Kaiba against Forge's AI without changing her brain.
 
     python -m showdown.batch --report
         Show how each Boy has been doing over time (from boys/history.csv).

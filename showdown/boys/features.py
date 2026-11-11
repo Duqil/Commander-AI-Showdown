@@ -8,8 +8,8 @@ a small dict of named numbers, for example:
 
 The brain multiplies each number by a learned weight and adds them up. That
 sum is the option's score. Named features (instead of a bare list of numbers)
-make the saved brain readable: you can open boys/alice.json and see how much
-Alice likes attacking the leader.
+make the saved brain readable: you can open boys/Kaiba.json and see how much
+Kaiba likes attacking the leader.
 
 Most numbers are scaled to roughly 0..1, so no single feature drowns the rest.
 

@@ -14,8 +14,8 @@ next game starts a little smarter.
 So far a Boy decides mulligans, what to play (or pass), and attacks. Blocks
 and targets are still Forge's AI, like for the other bots.
 
-Use it with:  python -m showdown.run_game --bots boy:alice simple simple simple
-Train it with: python -m showdown.batch --bots boy:alice simple simple simple --games 20
+Use it with:  python -m showdown.run_game --bots boy:Kaiba simple simple simple
+Train it with: python -m showdown.batch --bots boy:Kaiba simple simple simple --games 20
 """
 
 from __future__ import annotations

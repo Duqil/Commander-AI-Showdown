@@ -7,7 +7,7 @@ Examples:
     python -m showdown.run_game --bots simple forge random forge --seed 7
         Mix Python bots with Forge's own AI ("forge").
 
-    python -m showdown.run_game --bots boy:alice simple simple simple
+    python -m showdown.run_game --bots boy:Kaiba simple simple simple
         Watch a Boy play (it doesn't learn here; use showdown.batch to train).
 
     python -m showdown.run_game --decks zidane kuja --quiet

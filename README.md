@@ -91,8 +91,8 @@ Decks: `zidane`, `anhelo`, `nelly`, `kuja`. Bots: `simple` (our bot), `forge`
 ## 6. Train The Boys (learning bots)
 
 ```bash
-python -m showdown.batch --bots boy:alice simple simple simple --games 50 --parallel 2
-python -m showdown.batch --report        # how Alice has been doing
+python -m showdown.batch --bots boy:Kaiba simple simple simple --games 50 --parallel 2
+python -m showdown.batch --report        # how Kaiba has been doing
 ```
 
 `boy:<any name>` is a bot that learns from every game it plays; its brain is
