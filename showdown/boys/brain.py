@@ -58,7 +58,7 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "attack_breaks_deal": -1.0, "attack_grudge": 1.0,
                    "mulligan_deeper": -2.0}
 
-DECISION_KINDS = ("mulligan", "play", "attack", "target", "offer", "answer")
+DECISION_KINDS = ("mulligan", "play", "attack", "target", "offer_whether", "offer", "answer")
 
 
 @dataclass

@@ -117,6 +117,14 @@ class SimpleBotDealTest(unittest.TestCase):
         decision["defenders"] = [d | {"is_player": True} for d in decision["defenders"][1:]]
         self.assertNotEqual(SimpleBot().declare_attackers(decision)["7"], 2)  # ...but we have a deal
 
+    def test_fresh_boy_rarely_offers_when_simplebot_wouldnt(self):
+        """One "no" next to nine offers used to make fresh Boys offer ~55% of turns."""
+        from showdown.boys import features
+        from showdown.boys.brain import Brain
+        view = {"state": state(turn=2), "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": []}}
+        probs = Brain("fresh").probabilities("offer_whether", features.offer_whether_options(view))
+        self.assertLess(probs[1], 0.15)   # SimpleBot says "no offer" in round 1
+
     def test_no_offers_in_the_first_round(self):
         view = {"state": state(turn=2), "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": []}}
         self.assertIsNone(SimpleBot().offer_deal(view))

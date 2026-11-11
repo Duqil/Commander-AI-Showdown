@@ -360,8 +360,38 @@ def target_options(decision: Decision) -> list[Features]:
 # Deals: what to offer at the start of our turn, and whether to accept
 # ----------------------------------------------------------------------------
 
-def offer_options(view: Decision) -> tuple[list[Features], list[dict | None]]:
-    """Options for offering a deal. Returns (features, offer per option); None = no offer."""
+def offer_whether_options(view: Decision) -> list[Features]:
+    """Step 1 of offering: offer a deal this turn at all? [no, yes].
+
+    Deciding "whether" separately from "which" matters: with one "no offer"
+    option next to up to nine possible offers, a brain that knows nothing
+    would offer 9 times out of 10, every single turn. As two separate choices,
+    a fresh Boy starts at 50/50 (then follows SimpleBot via simple_prior)
+    and learns when offering pays off.
+    """
+    state = view["state"]
+    opponents = threat.opponents(state)
+    me = threat.me(state)
+    i_lead = bool(opponents) and threat.threat_score(me) > max(threat.threat_score(p) for p in opponents)
+    simple = _simple.offer_deal(view)
+    leader = max(opponents, key=threat.threat_score) if opponents else None
+    others = [threat.threat_score(p) for p in opponents if p is not leader] + [threat.threat_score(me)]
+    runaway = bool(leader) and threat.threat_score(leader) > 1.5 * max(others)  # one player far ahead
+    no = {"no_offer": 1.0, "simple_prior": _flag(simple is None)}
+    yes = {
+        "make_offer": 1.0,
+        "simple_prior": _flag(simple is not None),
+        "offer_while_in_deal": _flag(bool(view["deals"]["active"])),
+        "offer_in_first_round": _flag(state.get("turn", 0) <= len(state["players"])),
+        "offer_when_leading": _flag(i_lead),
+        "offer_in_danger": min(threat.danger_to_me(state), 2.0) / 2,
+        "offer_vs_runaway_leader": _flag(runaway),
+    }
+    return [no, yes]
+
+
+def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
+    """Step 2 of offering: which deal, to whom. Returns (features, offer per option)."""
     state = view["state"]
     trust = view["deals"]["trust"]
     opponents = threat.opponents(state)
@@ -372,8 +402,8 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict | None]]:
     simple = _simple.offer_deal(view)
     protected = set(view["deals"]["protected"])
 
-    feats: list[Features] = [{"no_offer": 1.0, "simple_prior": _flag(simple is None)}]
-    offers: list[dict | None] = [None]
+    feats: list[Features] = []
+    offers: list[dict] = []
     for to in opponents:
         if to["name"] in protected:
             continue  # already have a deal with them
