@@ -174,3 +174,55 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
         feats.append(f)
         targets.append(index)
     return feats, targets
+
+
+# ----------------------------------------------------------------------------
+# Targets: one option per legal target (only for abilities with one target)
+# ----------------------------------------------------------------------------
+
+# Words that usually mean the ability hurts what it targets.
+HARMFUL_WORDS = ("destroy", "exile", "damage", "sacrifice", "counter target", "tap target",
+                 "return target", "-1/-1", "loses", "goad", "gain control", "fight")
+
+
+def is_harmful(description: str) -> bool:
+    """A rough guess from the text: does this ability hurt its target?"""
+    text = description.lower()
+    return any(word in text for word in HARMFUL_WORDS)
+
+
+def target_options(decision: Decision) -> list[Features]:
+    state = decision["state"]
+    you = state["you"]
+    leader = threat.leader(state)
+    players = {p["name"]: p for p in state["players"]}
+    harmful = is_harmful(decision.get("description", ""))
+    suggested = set(decision.get("suggested", []))
+
+    result = []
+    for cand in decision["candidates"]:
+        is_player = cand.get("is_player", False)
+        owner = cand["name"] if is_player else cand.get("controller", "")
+        mine = owner == you
+        ctype = cand.get("type", "")
+        f: Features = {
+            "forge_suggested": _flag(cand["index"] in suggested),  # Forge's AI would pick this
+            "hurt_mine": _flag(harmful and mine),
+            "hurt_opponent": _flag(harmful and not mine),
+            "help_mine": _flag(not harmful and mine),
+            "help_opponent": _flag(not harmful and not mine),
+            "target_player": _flag(is_player),
+            "target_creature": _flag("Creature" in ctype),
+            "target_power": max(0, cand.get("power", 0)) / 10,
+            "target_cmc": cand.get("cmc", 0) / 7,
+            "target_commander": _flag(cand.get("commander", False)),
+            "target_of_leader": _flag(owner == leader),
+        }
+        if is_player and not mine:
+            life = cand.get("life", threat.STARTING_LIFE)
+            f["target_player_life"] = life / threat.STARTING_LIFE
+            f["target_player_low_life"] = _flag(life <= 10)
+        elif not is_player and not mine and owner in players:
+            f["target_owner_threat_rank"] = threat.threat_rank(state, owner)
+        result.append(f)
+    return result

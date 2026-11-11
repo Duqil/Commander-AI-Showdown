@@ -38,10 +38,11 @@ import java.util.Map;
  * Decisions Python makes today:
  *   1. mulligan       - keep or mulligan the opening hand
  *   2. choose_play    - with priority: which spell/ability/land to play, or pass
+ *      choose_targets - the targets of the play Python just chose
  *   3. attack         - which creatures attack which player
  *
- * Details of a chosen play (targets, X, how to pay mana) are still filled in
- * by Forge's AI. Moving more decisions to Python later means overriding more
+ * Other details of a chosen play (X, modes, how to pay mana) and the targets
+ * of triggered abilities are still filled in by Forge's AI. Moving more decisions to Python later means overriding more
  * methods here, one at a time.
  */
 public class PythonPlayerController extends PlayerControllerAi {
@@ -167,9 +168,101 @@ public class PythonPlayerController extends PlayerControllerAi {
             System.err.println("[bridge] Python chose option " + index + " which does not exist; passing.");
             return null;
         }
+        SpellAbility sa = plays.get(index);
+        if (usesTargeting(sa) && !chooseTargets(sa)) {
+            return null; // no legal targets after all: pass instead of a cast that fails
+        }
         List<SpellAbility> chosen = new ArrayList<>();
-        chosen.add(plays.get(index));
+        chosen.add(sa);
         return chosen; // Forge then calls playChosenSpellAbility(), which the AI handles
+    }
+
+    // ------------------------------------------------------------------
+    // 2b. Targets for the play Python just chose
+    // ------------------------------------------------------------------
+
+    /** Whether the ability or any of its sub-abilities ("then ...") has targets. */
+    private static boolean usesTargeting(SpellAbility sa) {
+        for (SpellAbility a = sa; a != null; a = a.getSubAbility()) {
+            if (a.usesTargeting()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Fill in the targets of a play Python chose.
+     *
+     * First Forge's AI picks targets the way it would for itself; that is
+     * sent to Python as "suggested". Then Python is asked for each part of the
+     * ability that targets: it can keep the suggestion (answer null) or pick
+     * other targets from the list of legal ones.
+     *
+     * @return false if the play can't get legal targets, so it shouldn't be cast
+     */
+    private boolean chooseTargets(SpellAbility sa) {
+        for (SpellAbility a = sa; a != null; a = a.getSubAbility()) {
+            a.resetTargets();
+        }
+        try {
+            getAi().canPlaySa(sa); // the AI's check fills in the targets it likes (its verdict is ignored)
+        } catch (RuntimeException e) {
+            // a few cards throw here; Python can still choose
+        }
+
+        for (SpellAbility a = sa; a != null; a = a.getSubAbility()) {
+            if (!a.usesTargeting()) {
+                continue;
+            }
+            List<GameEntity> candidates = new ArrayList<>(a.getTargetRestrictions().getAllCandidates(a));
+            JsonArray candJson = new JsonArray();
+            JsonArray suggested = new JsonArray();
+            for (int i = 0; i < candidates.size(); i++) {
+                GameEntity e = candidates.get(i);
+                JsonObject cj;
+                if (e instanceof Card c) {
+                    cj = StateSnapshot.card(c);
+                    cj.addProperty("is_player", false);
+                } else {
+                    Player p = (Player) e;
+                    cj = new JsonObject();
+                    cj.addProperty("name", p.getName());
+                    cj.addProperty("life", p.getLife());
+                    cj.addProperty("is_player", true);
+                }
+                cj.addProperty("index", i);
+                candJson.add(cj);
+                if (a.getTargets().contains(e)) {
+                    suggested.add(i);
+                }
+            }
+            JsonObject extra = new JsonObject();
+            extra.add("source", StateSnapshot.card(sa.getHostCard()));
+            extra.addProperty("description", a.getDescription());
+            extra.addProperty("min", a.getMinTargets());
+            extra.addProperty("max", Math.min(a.getMaxTargets(), candidates.size()));
+            extra.add("candidates", candJson);
+            extra.add("suggested", suggested); // what Forge's AI would pick
+            JsonElement choice = ask("choose_targets", extra).get("choice");
+
+            if (!isNull(choice)) {
+                a.resetTargets();
+                for (JsonElement idx : choice.getAsJsonArray()) {
+                    int i = idx.getAsInt();
+                    if (i >= 0 && i < candidates.size() && a.canTarget(candidates.get(i))
+                            && !a.getTargets().contains(candidates.get(i)) && a.canAddMoreTarget()) {
+                        a.getTargets().add(candidates.get(i));
+                    } else {
+                        System.err.println("[bridge] Ignoring illegal target " + i + " for " + a);
+                    }
+                }
+            }
+            if (!a.isTargetNumberValid() || (a.getMinTargets() > 0 && a.getTargets().isEmpty())) {
+                return false;
+            }
+        }
+        return getGame().getStack().hasLegalTargeting(sa);
     }
 
     // ------------------------------------------------------------------

@@ -86,6 +86,20 @@ class FeatureTest(unittest.TestCase):
         probs = Brain("t").probabilities("attack", feats)
         self.assertGreater(probs[0], 0.9)  # but staying home is very likely
 
+    def test_target_features(self):
+        decision = {"state": table(), "description": "deals 3 damage to any target", "suggested": [1],
+                    "min": 1, "max": 1, "candidates": [
+                        {"index": 0, "name": "1-A", "life": 30, "is_player": True},
+                        {"index": 1, **creature(10, 6, controller="2-B"), "is_player": False},
+                        {"index": 2, **creature(1, 3, controller="1-A"), "is_player": False}]}
+        feats = features.target_options(decision)
+        self.assertEqual(feats[0]["hurt_mine"], 1.0)        # burning ourselves
+        self.assertEqual(feats[1]["hurt_opponent"], 1.0)
+        self.assertEqual(feats[1]["target_of_leader"], 1.0)
+        self.assertEqual(feats[1]["forge_suggested"], 1.0)
+        bot = BoyBot("tester_t", learn=False, seed=3)
+        self.assertIn(bot.choose_targets(decision)[0], [0, 1, 2])
+
     def test_play_options_add_pass(self):
         decision = {"state": table(), "options": [
             {"index": 0, "card": {"name": "Evolving Wilds", "type": "Land", "cmc": 0},
