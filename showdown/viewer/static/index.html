@@ -19,6 +19,19 @@
     <button id="start" class="primary">Start game</button>
     <p id="setup-error" class="error"></p>
 
+    <h2>Run many games</h2>
+    <p class="muted small">Plays games back to back without showing them, with the decks and bots above.
+      Good for training The Boys or comparing bots.</p>
+    <div class="batch-options">
+      <label>Games <input id="batch-games" type="number" min="1" max="10000" value="20"></label>
+      <label title="Each game at the same time needs about 2 GB of memory">At once
+        <select id="batch-parallel"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option></select></label>
+      <label><input type="checkbox" id="batch-learn" checked> Boys learn</label>
+      <label><input type="checkbox" id="batch-save"> Save games for replay</label>
+    </div>
+    <button id="batch-start">Run games</button>
+    <div id="batch" class="hidden"></div>
+
     <h2>Saved games</h2>
     <div id="saved" class="muted small">None yet. Finished games are saved to the games/ folder.</div>
   </div>
@@ -40,7 +53,7 @@
     </div>
     <div id="game-buttons">
       <label class="small"><input type="checkbox" id="show-hands" checked> Hands</label>
-      <label class="small">Size <input type="range" id="card-size" min="48" max="120" value="72"></label>
+      <label class="small">Size <input type="range" id="card-size" min="48" max="160" value="80"></label>
       <button id="btn-new" title="Play again with the same decks and bots">New game</button>
       <button id="btn-stop" title="Stop the running game">Stop</button>
       <button id="btn-setup" title="Back to the main menu: decks, bots, saved games">Main Menu</button>

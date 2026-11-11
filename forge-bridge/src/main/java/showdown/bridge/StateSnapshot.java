@@ -9,7 +9,10 @@ import forge.game.card.Card;
 import forge.game.card.CounterType;
 import forge.game.combat.Combat;
 import forge.game.player.Player;
+import forge.game.GameObject;
+import forge.game.spellability.SpellAbility;
 import forge.game.spellability.SpellAbilityStackInstance;
+import forge.game.spellability.TargetChoices;
 import forge.game.zone.ZoneType;
 
 import java.util.List;
@@ -172,7 +175,11 @@ public final class StateSnapshot {
         JsonArray arr = new JsonArray();
         for (SpellAbilityStackInstance si : game.getStack()) {
             JsonObject sj = new JsonObject();
+            sj.addProperty("id", si.getId());
             sj.addProperty("description", si.getStackDescription());
+            // "spell" = a card being cast; otherwise an activated or triggered ability.
+            sj.addProperty("kind", si.isSpell() ? "spell" : si.isTrigger() ? "trigger" : "ability");
+            sj.add("targets", targets(game, si));
             if (si.getSourceCard() != null) {
                 sj.add("card", card(si.getSourceCard()));
             }
@@ -182,6 +189,42 @@ public final class StateSnapshot {
             arr.add(sj);
         }
         return arr;
+    }
+
+    /**
+     * What a stack item targets, as a list of {"card": id}, {"player": name} or
+     * {"spell": stack id}. Includes the targets of its parts ("sub abilities"),
+     * e.g. a spell that deals damage to one creature and then another.
+     */
+    static JsonArray targets(Game game, SpellAbilityStackInstance si) {
+        JsonArray out = new JsonArray();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (SpellAbilityStackInstance part = si; part != null; part = part.getSubInstance()) {
+            TargetChoices choices = part.getTargetChoices();
+            if (choices == null) {
+                continue;
+            }
+            for (GameObject o : choices) {
+                JsonObject t = new JsonObject();
+                if (o instanceof Card c) {
+                    t.addProperty("card", c.getId());
+                } else if (o instanceof Player p) {
+                    t.addProperty("player", p.getName());
+                } else if (o instanceof SpellAbility sa) {
+                    SpellAbilityStackInstance target = game.getStack().getInstanceMatchingSpellAbilityID(sa);
+                    if (target == null) {
+                        continue;
+                    }
+                    t.addProperty("spell", target.getId());
+                } else {
+                    continue;
+                }
+                if (seen.add(t.toString())) {
+                    out.add(t);
+                }
+            }
+        }
+        return out;
     }
 
     /** Game log lines added after the first {@code alreadySent} ones, oldest first. */

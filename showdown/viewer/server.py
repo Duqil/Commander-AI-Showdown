@@ -14,6 +14,10 @@ What the browser can ask for (an "API"):
     GET  /api/saved                 saved games in games/
     POST /api/saved/load            watch a saved game again. Body: {"id": "..."}
     GET  /api/card-image?name=X     a card picture (add &token=1 for tokens)
+    POST /api/batch/start           run many games without watching. Body: {"decks", "bots",
+                                    "games": 20, "parallel": 1, "seed", "save_games", "learn"}
+    GET  /api/batch                 progress and results of that batch
+    POST /api/batch/stop            start no more games. Body {"now": true} also ends running ones
 
 The browser asks for new events about twice a second ("polling"). Simple, and
 plenty fast for a local app.
@@ -27,12 +31,21 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from showdown.batch import bots_available
+from showdown.boys.storage import VALID_NAME
 from showdown.run_game import DECK_DIR
+from showdown.viewer.batch_job import BatchJob
 from showdown.viewer.card_images import CardImages
 from showdown.viewer.session import GAMES_DIR, GameConfig, GameSession, list_saved_games, new_game_id
 
 STATIC_DIR = Path(__file__).parent / "static"
-BOT_TYPES = ["simple", "random", "forge"]
+
+
+def valid_bot(name: str) -> bool:
+    """simple / random / forge, or "boy:<name>" (a new name creates a new Boy)."""
+    if name.startswith("boy:"):
+        return bool(VALID_NAME.match(name.removeprefix("boy:")))
+    return name in ("simple", "random", "forge")
 CONTENT_TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
                  ".svg": "image/svg+xml", ".png": "image/png"}
 
@@ -42,6 +55,7 @@ class ViewerState:
 
     def __init__(self) -> None:
         self.session: GameSession | None = None
+        self.batch: BatchJob | None = None
         self.images = CardImages()
         self.lock = threading.Lock()
 
@@ -95,7 +109,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.serve_static(path.removeprefix("/static/"))
         if path == "/api/decks":
             decks = sorted(p.stem for p in DECK_DIR.glob("*.dck"))
-            return self.send_json({"decks": decks, "bots": BOT_TYPES})
+            return self.send_json({"decks": decks, "bots": bots_available()})
+        if path == "/api/batch":
+            return self.send_json(STATE.batch.summary() if STATE.batch else {"status": "none"})
         if path == "/api/game":
             return self.send_json(STATE.session.summary() if STATE.session else {"status": "none"})
         if path == "/api/game/events":
@@ -123,11 +139,29 @@ class Handler(BaseHTTPRequestHandler):
             decks, bots = body.get("decks", []), body.get("bots", [])
             if not 2 <= len(decks) <= 4 or len(bots) != len(decks):
                 return self.send_json({"error": "Pick 2 to 4 decks, one bot each"}, 400)
-            if any(b not in BOT_TYPES for b in bots):
-                return self.send_json({"error": f"Bots must be one of {BOT_TYPES}"}, 400)
+            if not all(valid_bot(b) for b in bots):
+                return self.send_json({"error": "Bots must be simple, random, forge or boy:<name>"}, 400)
             seed = body.get("seed")
             config = GameConfig(decks=decks, bots=bots, seed=int(seed) if seed not in (None, "") else None)
             return self.send_json(STATE.start_game(config).summary())
+        if path == "/api/batch/start":
+            decks, bots = body.get("decks", []), body.get("bots", [])
+            if not 2 <= len(decks) <= 4 or len(bots) != len(decks) or not all(valid_bot(b) for b in bots):
+                return self.send_json({"error": "Pick 2 to 4 decks with a valid bot each"}, 400)
+            if STATE.batch and STATE.batch.status in ("running", "stopping"):
+                return self.send_json({"error": "A batch is already running"}, 409)
+            games = max(1, min(int(body.get("games") or 10), 10000))
+            parallel = max(1, min(int(body.get("parallel") or 1), 5))
+            seed = body.get("seed")
+            STATE.batch = BatchJob(decks, bots, games, parallel,
+                                   seed=int(seed) if seed not in (None, "") else None,
+                                   save_games=bool(body.get("save_games")), learn=bool(body.get("learn", True)))
+            STATE.batch.start()
+            return self.send_json(STATE.batch.summary())
+        if path == "/api/batch/stop":
+            if STATE.batch:
+                STATE.batch.stop(now=bool(body.get("now")))
+            return self.send_json({"ok": True})
         if path == "/api/game/stop":
             if STATE.session:
                 STATE.session.stop()

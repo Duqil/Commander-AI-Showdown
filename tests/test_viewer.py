@@ -138,6 +138,27 @@ class CardImagesTest(unittest.TestCase):
             self.assertEqual(images.get("Sol Ring"), b"jpeg!")
 
 
+class BotNameTest(unittest.TestCase):
+    def test_valid_bots(self):
+        from showdown.viewer.server import valid_bot
+        for name in ["simple", "random", "forge", "boy:alice", "boy:new_one-2"]:
+            self.assertTrue(valid_bot(name), name)
+        for name in ["", "boy:", "boy:../evil", "smart", "boy:has space"]:
+            self.assertFalse(valid_bot(name), name)
+
+
+class BatchStopTest(unittest.TestCase):
+    def test_stop_now_aborts_running_games(self):
+        from showdown.viewer.batch_job import BatchJob
+        job = BatchJob(["a", "b"], ["simple", "simple"], games=3)  # not started: no Forge needed
+        job.stop()
+        self.assertTrue(job._stop.is_set())
+        self.assertFalse(job._abort.is_set())  # plain stop lets running games finish
+        job.stop(now=True)
+        self.assertTrue(job._abort.is_set())
+        self.assertEqual(job.status, "stopping")
+
+
 class ServerTest(unittest.TestCase):
     """Start the real web server on a free port and ask it things."""
 
@@ -168,6 +189,16 @@ class ServerTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             self.get("/static/../server.py")
         self.assertEqual(ctx.exception.code, 404)
+
+    def test_no_batch_yet_and_bad_batch_is_refused(self):
+        import showdown.viewer.server as server
+        if server.STATE.batch is None:
+            self.assertEqual(json.loads(self.get("/api/batch")[1])["status"], "none")
+        req = urllib.request.Request(f"http://127.0.0.1:{self.port}/api/batch/start",
+                                     data=b'{"decks": ["zidane", "kuja"], "bots": ["simple", "boy:../x"]}', method="POST")
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            urllib.request.urlopen(req)
+        self.assertEqual(ctx.exception.code, 400)
 
     def test_bad_new_game_is_refused(self):
         req = urllib.request.Request(f"http://127.0.0.1:{self.port}/api/game/new", data=b'{"decks": ["zidane"]}',
