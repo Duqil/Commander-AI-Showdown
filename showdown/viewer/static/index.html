@@ -107,9 +107,12 @@
         <div id="stack" class="muted small">empty</div>
       </div>
       <div id="log-box">
-        <h3>Log
-          <label class="small muted"><input type="checkbox" id="show-noisy"> phases &amp; mana</label>
-        </h3>
+        <div class="log-tabs">
+          <button data-log="log" class="on">Log</button>
+          <button data-log="all" title="The log with every phase and mana line">Phases &amp; mana</button>
+          <button data-log="politics" title="Deals between bots: what's on right now, and what happened">Politics</button>
+        </div>
+        <div id="politics-now" class="hidden"></div>
         <div id="log"></div>
       </div>
       <div id="preview" class="hidden"><img alt=""><div class="preview-text"></div></div>

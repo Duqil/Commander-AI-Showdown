@@ -35,7 +35,8 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
 * **Board.** Each player has a coloured board. Its top line holds the name,
   the bot, cards in hand (✋), library (📚), graveyard (🪦, click to see it),
   exile (🌀), poison and commander damage taken, then the life total. Rows are:
-  creatures, other permanents, lands (identical lands are stacked with ×N),
+  creatures, other permanents, lands (small strips showing just the art, to
+  save room; identical lands are stacked with ×N; tapped ones are darker),
   and the hand (untick **Hands** to hide them). Tapped cards are turned
   sideways, attackers glow red, blockers blue, and
   a coloured outline (in the owner's seat colour) marks a permanent controlled
@@ -56,15 +57,18 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   next is bright, older ones are faint.
 * **Deals.** Tick **Bots make deals** in the main menu (for watched games and
   Run many games) and bots can offer each other peace or to gang up on
-  someone (see docs/deals.md). Every offer, answer and broken deal plays out
-  on the table: an arrow between the two boards with what was said (purple
-  offer, green accept, grey decline, red for a broken deal, which also gets a
-  big banner). Chips in the board headers show the deals that are on:
-  🤝 peace, ⚔ who you're ganging up on, 🎯 who is ganging up on you, and
-  💢 grudges against someone who broke a deal with you. Hover a chip for details.
+  someone (see docs/deals.md; the fold-out under the checkbox says how each
+  bot type handles deals). Every offer, answer and broken deal pops up as a
+  big icon between the two boards with what was said: 🤝? offer, 🤝 accept,
+  ✋ decline, 💔 broken (which also gets a red banner). The **Politics** tab
+  next to the log shows the deals that are on right now and grudges, and
+  every offer, answer and break so far.
+* **Combat.** A red arrow goes from each attacker to the middle of the board
+  it attacks, ending in a sword. A blocker shows a shield and a blue arrow to
+  the creature it blocks.
 * **Log.** Forge's game log plus what the Python bots decided (in blue),
   and choices Forge doesn't log itself ("2-Anhelo chose Red for Thriving Moor").
-  Phase and mana lines are hidden unless you tick "phases & mana".
+  Phase and mana lines are only in the **Phases & mana** tab.
 
 ## Stats
 

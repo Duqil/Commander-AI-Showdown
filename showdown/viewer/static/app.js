@@ -24,7 +24,7 @@ const EVENT_STYLES = {
   bot_choice:   { cls: "bot_choice", delay: 500 },
   game_over:    { cls: "game_over", banner: true, delay: 0 },
   error:        { cls: "error", banner: true, delay: 0 },
-  deal_offer:   { cls: "deal", delay: 400 },   // deals also get an arrow between the boards (playDealMoment)
+  deal_offer:   { cls: "deal", delay: 400 },   // deals also get an icon between the boards (playDealMoment)
   deal_accept:  { cls: "deal accept", delay: 400 },
   deal_decline: { cls: "deal decline", delay: 400 },
   deal_break:   { cls: "deal break", banner: true, delay: 600 },
@@ -59,6 +59,7 @@ const app = {
   shownStateSeq: -1, // which snapshot is drawn right now
   lastLife: {},      // to flash life changes
   knownCards: new Set(), // card ids drawn before, to animate new arrivals
+  logTab: "log",     // which log tab is open: "log", "all" (phases & mana too) or "politics"
   followLog: true,   // keep the log scrolled to the newest line (off while you scroll up)
   stepping: false,   // true while playback moves forward one event (not when jumping)
   shownStack: [],    // the stack drawn right now, to spot newly cast spells
@@ -418,8 +419,8 @@ function render() {
       if (app.followLog) $("#log").scrollTop = $("#log").scrollHeight; // the stack may have resized it
     }
   }
-  // Deal chips change with deal events too, which carry no table snapshot.
-  if (app.dealSeqs.length && app.shownStateSeq >= 0) drawDealChips(app.events[app.shownStateSeq].state.turn);
+  // The Politics tab changes with deal events too, which carry no table snapshot.
+  if (app.logTab === "politics") drawPolitics(app.shownStateSeq >= 0 ? app.events[app.shownStateSeq].state.turn : 0);
   const last = app.events[app.pos - 1];
   if (last?.kind === "game_over") $("#turn-info").textContent = last.text;
 }
@@ -737,9 +738,10 @@ function showBanner(text, ms = 1600, cls = "") {
 // The log
 // ===========================================================================
 function isShownInLog(ev) {
+  if (app.logTab === "politics") return ev.kind.startsWith("deal_");
   if (ev.kind !== "log") return true;
   if (!ev.text) return false; // a snapshot without text
-  return !NOISY.has(ev.category) || $("#show-noisy").checked;
+  return !NOISY.has(ev.category) || app.logTab === "all";
 }
 
 /** Forge adds an internal card number after names, "Garnet (403)": drop it, it means nothing to us. */
@@ -833,7 +835,16 @@ $("#btn-new").onclick = async () => {
   await api("/api/game/new", { decks: app.config.decks, bots: app.config.bots, seed: null, deals: !!app.config.deals });
   enterGame();
 };
-$("#show-noisy").onchange = rebuildLog;
+// Log tabs: the game log, the same with every phase and mana line, or only politics (deals).
+for (const tab of document.querySelectorAll(".log-tabs button")) {
+  tab.onclick = () => {
+    app.logTab = tab.dataset.log;
+    document.querySelectorAll(".log-tabs button").forEach((t) => t.classList.toggle("on", t === tab));
+    $("#politics-now").classList.toggle("hidden", app.logTab !== "politics");
+    rebuildLog();
+    render();
+  };
+}
 $("#show-hands").onchange = () => { app.shownStateSeq = -2; render(); };
 // ---------------------------------------------------------------------------
 // Card size: steps of 8 px with the value shown, or "Fit", which keeps picking
@@ -962,13 +973,14 @@ async function loadStats() {
 
 // ===========================================================================
 // Deals between bots (showdown/deals.py). Two things show them:
-//   * chips in each board's header for deals that are on right now, and for
-//     grudges (someone broke a deal with this player),
+//   * the Politics tab next to the log: deals that are on right now, grudges,
+//     and every offer, answer and break so far,
 //   * a moment on the table when a deal is offered, accepted, declined or
-//     broken: an arrow between the two boards with what was said. Playback
+//     broken: a big icon between the two boards with what was said. Playback
 //     waits for it, like the cast animation.
 // ===========================================================================
 const DEAL_COLORS = { deal_offer: "#c38bff", deal_accept: "#57ab5a", deal_decline: "#8a94a6", deal_break: "#e5534b" };
+const DEAL_ICONS = { deal_offer: "🤝?", deal_accept: "🤝", deal_decline: "✋", deal_break: "💔" };
 
 /** Deals that are on and grudges, as of the playhead. Reads only the deal events. */
 function dealsNow(turn) {
@@ -990,54 +1002,31 @@ function dealsNow(turn) {
 
 function shortName(player) { return player.replace(/^\d+-/, ""); }
 
-function drawDealChips(turn) {
-  document.querySelectorAll("#boards .deal-chips").forEach((n) => n.remove());
-  if (!app.dealSeqs.length) return;
+/** The "Right now" part of the Politics tab: deals that are on, who is hunted, grudges. */
+function drawPolitics(turn) {
+  const box = $("#politics-now");
   const { deals, grudges } = dealsNow(turn);
-  const chipsFor = new Map();
-  const add = (player, cls, text, title) => {
-    if (!chipsFor.has(player)) chipsFor.set(player, []);
-    const chip = el("span", `deal-chip ${cls}`, text);
-    chip.title = title;
-    chipsFor.get(player).push(chip);
-  };
-  // One chip per kind and target: two gang-ups on Zidane become "⚔ Zidane (with Nelly, Kuja)".
-  const groups = new Map();
+  const tab = $('.log-tabs [data-log="politics"]');
+  tab.textContent = deals.length ? `Politics (${deals.length})` : "Politics";
+  if (!app.dealSeqs.length) {
+    box.innerHTML = '<p class="muted">No deals in this game. Tick "Bots make deals" in the main menu to turn them on.</p>';
+    return;
+  }
+  const lines = [];
+  const both = (d) => `${shortName(d.a)} & ${shortName(d.b)}`;
   for (const d of deals) {
-    for (const [me, them] of [[d.a, d.b], [d.b, d.a]]) {
-      const key = `${me}|${d.kind}|${d.against ?? ""}`;
-      if (!groups.has(key)) groups.set(key, { me, kind: d.kind, against: d.against, partners: [], until: 0 });
-      const g = groups.get(key);
-      g.partners.push(them);
-      g.until = Math.max(g.until, d.expires_turn);
-    }
+    if (d.kind === "gang_up") lines.push(["gang", `⚔ ${both(d)} are ganging up on ${shortName(d.against)}`, `until turn ${d.expires_turn}`]);
+    else lines.push(["peace", `🤝 ${both(d)} have peace`, `until turn ${d.expires_turn}`]);
   }
-  for (const g of groups.values()) {
-    const names = g.partners.map(shortName).join(", ");
-    if (g.kind === "gang_up") {
-      add(g.me, "gang", `⚔ ${shortName(g.against)} (with ${names})`,
-          `Ganging up on ${g.against} with ${g.partners.join(" and ")}, until turn ${g.until}`);
-    } else {
-      add(g.me, "peace", `🤝 ${names}`, `Peace with ${g.partners.join(" and ")}, until turn ${g.until}`);
-    }
+  for (const g of grudges) lines.push(["grudge", `💢 ${shortName(g.victim)} wants revenge on ${shortName(g.breaker)}`, "broke a deal"]);
+  box.replaceChildren(el("h4", "", "Right now"));
+  if (!lines.length) box.append(el("p", "muted", "No deals right now."));
+  for (const [cls, text, note] of lines) {
+    const row = el("div", `politics-row ${cls}`, text);
+    row.append(el("span", "muted", ` · ${note}`));
+    box.append(row);
   }
-  // The player being ganged up on sees who is after them.
-  const hunted = new Map();
-  for (const d of deals.filter((d) => d.kind === "gang_up")) {
-    if (!hunted.has(d.against)) hunted.set(d.against, new Set());
-    hunted.get(d.against).add(d.a).add(d.b);
-  }
-  for (const [target, hunters] of hunted) {
-    add(target, "hunted", `🎯 ${[...hunters].map(shortName).join(" + ")}`, `${[...hunters].join(" and ")} agreed to gang up on ${target}`);
-  }
-  for (const g of grudges) add(g.victim, "grudge", `💢 ${shortName(g.breaker)}`, `${g.breaker} broke a deal with ${g.victim}: revenge!`);
-  for (const [player, chips] of chipsFor) {
-    const head = $(`#boards [data-player="${CSS.escape(player)}"] .board-head`);
-    if (!head) continue;
-    const box = el("span", "deal-chips");
-    box.append(...chips);
-    head.insertBefore(box, head.querySelector(".command-row"));
-  }
+  box.append(el("h4", "", "What happened"));
 }
 
 function playDealMoment(ev) {
@@ -1052,20 +1041,22 @@ function playDealMoment(ev) {
   const total = (ev.kind === "deal_break" ? 2600 : 1800) / app.speed;
   app.holdUntil = Math.max(app.holdUntil, performance.now() + total);
   const color = DEAL_COLORS[ev.kind];
+  // A big icon halfway between the two boards, with what was said underneath.
   const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-  const [x1, y1] = [ra.left + ra.width / 2, ra.top + ra.height / 2], [x2, y2] = [rb.left + rb.width / 2, rb.top + rb.height / 2];
+  const x = (ra.left + ra.width / 2 + rb.left + rb.width / 2) / 2;
+  const y = (ra.top + ra.height / 2 + rb.top + rb.height / 2) / 2;
   const layer = el("div", "deal-layer");
-  const svg = document.createElementNS(SVG_NS, "svg");
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-  svg.innerHTML = `<path d="M${x1},${y1} Q${mx + (y2 - y1) * .15},${my - (x2 - x1) * .15} ${x2},${y2}"
-    stroke="${color}" stroke-width="6" fill="none" stroke-linecap="round" stroke-dasharray="${ev.kind === "deal_break" ? "4 10" : "14 8"}"
-    style="filter: drop-shadow(0 0 6px ${color})"/>`;
+  const icon = el("div", `deal-icon ${ev.kind}`, DEAL_ICONS[ev.kind]);
+  icon.style.borderColor = color;
+  icon.style.boxShadow = `0 0 30px ${color}`;
   const label = el("div", "deal-label", cleanText(ev.text));
   label.style.borderColor = color;
-  Object.assign(label.style, { left: `${mx}px`, top: `${my}px` });
-  layer.append(svg, label);
+  for (const node of [icon, label]) Object.assign(node.style, { left: `${x}px`, top: `${y}px` });
+  layer.append(icon, label);
   document.body.append(layer);
   app.dealLayer = layer;
+  icon.animate([{ transform: "translate(-50%, -50%) scale(.3)" }, { transform: "translate(-50%, -50%) scale(1.15)", offset: .15 },
+                { transform: "translate(-50%, -50%) scale(1)", offset: .25 }], { duration: total, fill: "forwards" });
   for (const board of [a, b]) board.style.setProperty("--deal", color), board.classList.add("deal-glow");
   layer.animate([{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .85 }, { opacity: 0 }], { duration: total, fill: "forwards" });
   setTimeout(() => {
@@ -1207,6 +1198,59 @@ function pointToward(r, x, y, part = 0.55) {
   return [cx + (dx / len) * toEdge * part, cy + (dy / len) * toEdge * part];
 }
 
+// ---------------------------------------------------------------------------
+// Combat arrows: each attacker gets a red arrow to the middle of the board of
+// the player it attacks, ending in a sword. A blocker gets a blue arrow to the
+// creature it blocks, and a shield on itself. (Snapshots only have attackers
+// and blockers during combat, so these show only then.)
+// ---------------------------------------------------------------------------
+const SWORD = '<path d="M27 5 L31 5 L31 9 L16 24 L12 20 Z" fill="#fff"/><path d="M9 21 L15 27 M11 29 L7 25 M13 25 L8 30" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>';
+const SHIELD = '<path d="M18 6 L28 10 L28 18 C28 25 23 29 18 31 C13 29 8 25 8 18 L8 10 Z" fill="#fff"/>';
+
+function combatIcon(svg, x, y, shape, color) {
+  const g = document.createElementNS(SVG_NS, "g");
+  g.setAttribute("class", "arrow combat-icon");
+  g.setAttribute("transform", `translate(${x - 18},${y - 18})`);
+  g.innerHTML = `<circle cx="18" cy="18" r="17" fill="${color}" stroke="#fff" stroke-width="2"/>${shape}`;
+  svg.append(g);
+}
+
+function curve(svg, x1, y1, x2, y2, cls) {
+  const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+  const cx = (x1 + x2) / 2 + (y2 - y1) * 0.12, cy = (y1 + y2) / 2 - (x2 - x1) * 0.12;
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("class", `arrow ${cls}`);
+  path.setAttribute("d", `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`);
+  svg.append(path);
+  return len;
+}
+
+function drawCombatArrows(svg) {
+  const center = (r) => [r.left + r.width / 2, r.top + r.height / 2];
+  for (const node of document.querySelectorAll("#boards .card")) {
+    const c = node._card;
+    if (!c) continue;
+    if (c.attacking) {
+      // c.attacking is the defending player (or a planeswalker's name: then aim at that card's controller's board).
+      const board = $(`#boards [data-player="${CSS.escape(c.attacking)}"]`);
+      if (board) {
+        const [x1, y1] = center(node.getBoundingClientRect()), [x2, y2] = center(board.getBoundingClientRect());
+        curve(svg, x1, y1, x2, y2, "attack");
+        combatIcon(svg, x2, y2, SWORD, "#e5534b");
+      }
+    }
+    for (const id of c.blocks || []) {
+      const target = cardNode(id);
+      if (!target) continue;
+      const r = node.getBoundingClientRect();
+      const [x1, y1] = center(r);
+      const [x2, y2] = pointToward(target.getBoundingClientRect(), x1, y1);
+      curve(svg, x1, y1, x2, y2, "block");
+      combatIcon(svg, x1, y1, SHIELD, "#539bf5"); // the shield sits on the blocker
+    }
+  }
+}
+
 function drawTargetArrows() {
   let svg = $("#arrows");
   if (!svg) {
@@ -1220,6 +1264,7 @@ function drawTargetArrows() {
   document.querySelectorAll(".targeted, .targeting").forEach((n) => n.classList.remove("targeted", "targeting"));
   if ($("#game").classList.contains("hidden") || app.castLayer) return; // after the cast animation
 
+  drawCombatArrows(svg);
   app.shownStack.forEach((item, index) => {
     const targets = item.targets || [];
     const from = targets.length ? arrowSource(item, index) : null;
