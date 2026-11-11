@@ -24,15 +24,16 @@ const EVENT_STYLES = {
   bot_choice:   { cls: "bot_choice", delay: 500 },
   game_over:    { cls: "game_over", banner: true, delay: 0 },
   error:        { cls: "error", banner: true, delay: 0 },
-  deal_offer:   { cls: "deal", banner: true, delay: 1500 },
-  deal_accept:  { cls: "deal", banner: true, delay: 1500 },
-  deal_decline: { cls: "deal", delay: 1000 },
-  deal_break:   { cls: "deal", banner: true, delay: 2000 },
+  deal_offer:   { cls: "deal", delay: 400 },   // deals also get an icon between the boards (playDealMoment)
+  deal_accept:  { cls: "deal accept", delay: 400 },
+  deal_decline: { cls: "deal decline", delay: 400 },
+  deal_break:   { cls: "deal break", banner: true, delay: 600 },
+  deal_kept:    { cls: "deal accept", delay: 300 },   // a deal ran its full length unbroken: a quiet line only
 };
 // Forge log categories that get their own pacing.
 const CATEGORY_DELAY = { TURN: 1000, PHASE: 120, MANA: 40, STATE: 150, COMBAT: 700, DAMAGE: 600 };
 const NOISY = new Set(["PHASE", "MANA", "STATE"]); // hidden from the log unless the box is ticked
-const SPEEDS = [0.5, 1, 2, 4, 10, Infinity];      // Infinity = "Max": jump straight to the latest event
+const SPEEDS = [0.5, 0.75, 1, 2, 4, Infinity];    // Infinity = "Max": jump straight to the latest event
 const PHASE_NAMES = {
   UNTAP: "Untap", UPKEEP: "Upkeep", DRAW: "Draw", MAIN1: "Main 1",
   COMBAT_BEGIN: "Beginning of combat", COMBAT_DECLARE_ATTACKERS: "Declare attackers",
@@ -47,6 +48,7 @@ const PHASE_NAMES = {
 const app = {
   events: [],        // the timeline downloaded so far
   stateSeqs: [],     // positions of events that carry a "state", in order
+  dealSeqs: [],      // positions of deal events (offers, accepts, breaks), in order
   status: "none",    // the game's status on the server
   config: null,      // decks/bots of the current game
   seats: [],         // from the game_start event
@@ -57,6 +59,7 @@ const app = {
   shownStateSeq: -1, // which snapshot is drawn right now
   lastLife: {},      // to flash life changes
   knownCards: new Set(), // card ids drawn before, to animate new arrivals
+  logTab: "log",     // which log tab is open: "log", "all" (phases & mana too) or "politics"
   followLog: true,   // keep the log scrolled to the newest line (off while you scroll up)
   stepping: false,   // true while playback moves forward one event (not when jumping)
   shownStack: [],    // the stack drawn right now, to spot newly cast spells
@@ -159,6 +162,7 @@ $("#batch-start").onclick = async () => {
       learn: $("#batch-learn").checked,
       save_games: $("#batch-save").checked,
       seed: $("#seed").value,
+      deals: $("#deals").checked,
     });
     pollBatch();
   } catch (e) {
@@ -217,9 +221,16 @@ async function loadSavedList() {
   const box = $("#saved");
   if (!games.length) return;
   box.innerHTML = "";
-  for (const g of games.slice(0, 15)) {
+  box.classList.remove("muted");
+  box.append(el("p", "muted small", `${games.length} saved games, newest first. They're in the games/ folder.`));
+  for (const g of games) {
+    // An id looks like "2026-11-10_234210_zidane-anhelo-nelly-kuja_003" (the last part only for batch games).
+    const [date, time, decks, number] = g.id.split("_");
     const row = el("div", "saved-row");
-    row.append(el("span", "", g.id.replaceAll("_", " ")));
+    const when = time ? `${date} ${time.slice(0, 2)}:${time.slice(2, 4)}` : g.id;
+    row.append(el("span", "saved-when", when),
+               el("span", "saved-decks", (decks || "").replaceAll("-", " · ")),
+               el("span", "muted small", number ? `batch game ${Number(number) + 1}` : ""));
     const watch = el("button", "", "Watch");
     watch.onclick = async () => { await api("/api/saved/load", { id: g.id }); enterGame(); };
     row.append(watch);
@@ -231,7 +242,7 @@ $("#start").onclick = async () => {
   const { decks, bots } = chosenSeats();
   try {
     $("#setup-error").textContent = "";
-    await api("/api/game/new", { decks, bots, seed: $("#seed").value });
+    await api("/api/game/new", { decks, bots, seed: $("#seed").value, deals: $("#deals").checked });
     enterGame();
   } catch (e) {
     $("#setup-error").textContent = e.message;
@@ -242,7 +253,7 @@ $("#start").onclick = async () => {
 // Game screen: downloading the timeline
 // ===========================================================================
 function resetPlayback() {
-  Object.assign(app, { events: [], stateSeqs: [], seats: [], pos: 0, shownStateSeq: -1,
+  Object.assign(app, { events: [], stateSeqs: [], dealSeqs: [], seats: [], pos: 0, shownStateSeq: -1,
                        lastLife: {}, playing: false, shownStack: [], holdUntil: 0 }); // a new game opens paused: press ▶ to start
   cancelCastAnimation();
   app.knownCards.clear();
@@ -295,6 +306,7 @@ function addEvent(ev) {
   if (ev.seq !== app.events.length) return; // already have it (or a gap: next poll fixes it)
   app.events.push(ev);
   if (ev.state) app.stateSeqs.push(ev.seq);
+  if (ev.kind.startsWith("deal_")) app.dealSeqs.push(ev.seq);
   if (ev.kind === "game_start") app.seats = ev.data.seats;
 }
 
@@ -342,7 +354,8 @@ function stepForward() {
   app.pos++;
   appendLogLine(ev);
   const style = EVENT_STYLES[ev.kind];
-  if (style?.banner && app.speed !== Infinity) showBanner(ev.text);
+  if (style?.banner && app.speed !== Infinity) showBanner(ev.text, 2500, ev.kind === "deal_break" ? "break" : "");
+  if (ev.kind in DEAL_COLORS) playDealMoment(ev);
   if (ev.kind === "game_over") { app.playing = false; updateButtons(); showBanner(ev.text, 6000); }
   app.stepping = true; // render() may animate what changed, since we moved one step forward
   render();
@@ -352,6 +365,8 @@ function stepForward() {
 /** Jump the playhead to any position (scrubbing, step back, replay). */
 function goTo(pos) {
   cancelCastAnimation();
+  app.dealLayer?.remove();
+  document.querySelectorAll(".deal-glow").forEach((b) => b.classList.remove("deal-glow"));
   app.pos = Math.max(0, Math.min(pos, app.events.length));
   rebuildLog();
   render();
@@ -394,6 +409,7 @@ function render() {
         : "Opening hands (mulligans)";
       drawBoards(state);
       drawStack(state);
+      if (app.fitSize) scheduleFit();
       const before = new Set(app.shownStack.map((item) => item.id));
       app.shownStack = state.stack || [];
       // A spell that just went on the stack: show it big (only when playing forward).
@@ -403,6 +419,8 @@ function render() {
       if (app.followLog) $("#log").scrollTop = $("#log").scrollHeight; // the stack may have resized it
     }
   }
+  // The Politics tab changes with deal events too, which carry no table snapshot.
+  if (app.logTab === "politics") drawPolitics(app.shownStateSeq >= 0 ? app.events[app.shownStateSeq].state.turn : 0);
   const last = app.events[app.pos - 1];
   if (last?.kind === "game_over") $("#turn-info").textContent = last.text;
 }
@@ -503,7 +521,10 @@ function updateBoard(board, p, state) {
   stats.append(gy, ex);
   if (p.poison) stats.append(el("span", "warn", `☠ ${p.poison} poison`));
   for (const d of p.commander_damage || []) {
-    stats.append(el("span", d.damage >= 15 ? "warn" : "", `⚔ ${d.damage} from ${d.commander}`));
+    // Short, so the header stays on one line: "⚔ 4 Nelly". Hover for the full name.
+    const span = el("span", d.damage >= 15 ? "warn" : "", `⚔ ${d.damage} ${d.commander.split(/[ ,]/)[0]}`);
+    span.title = `${d.damage} commander damage from ${d.commander} (21 kills)`;
+    stats.append(span);
   }
   if (p.lost) stats.append(el("span", "warn", "OUT"));
 
@@ -571,7 +592,15 @@ function fillRow(board, zone, cards, player) {
 }
 
 function imageUrl(card) {
-  return `/api/card-image?name=${encodeURIComponent(card.name)}${card.token ? "&token=1" : ""}`;
+  const params = new URLSearchParams({ name: card.name });
+  if (card.token) {
+    params.set("token", "1");
+    // Many tokens share a name: these pick the right picture (e.g. which "Knight").
+    if (card.colors !== undefined) params.set("colors", card.colors);
+    if (card.base_power !== undefined) params.set("pt", `${card.base_power}/${card.base_toughness}`);
+    if (card.oracle !== undefined) params.set("oracle", card.oracle);
+  }
+  return `/api/card-image?${params}`;
 }
 
 function makeCard(card) {
@@ -652,7 +681,7 @@ function drawStack(state) {
   if (!state.stack?.length) { box.textContent = "empty"; return; }
   box.innerHTML = "";
   for (const item of state.stack) { // top of the stack first
-    const div = el("div", "stack-item", item.description);
+    const div = el("div", "stack-item", cleanText(item.description));
     div.style.borderLeftColor = `var(--seat-${seatIndex(item.controller)})`;
     if (item.card) {
       div.addEventListener("mouseenter", () => showPreview(item.card));
@@ -696,9 +725,10 @@ function showZone(title, cards) {
 $("#zone-popup button").onclick = () => $("#zone-popup").classList.add("hidden");
 
 let bannerTimer = null;
-function showBanner(text, ms = 1600) {
+function showBanner(text, ms = 1600, cls = "") {
   const b = $("#banner");
   b.textContent = text;
+  b.className = cls;
   b.classList.remove("hidden");
   clearTimeout(bannerTimer);
   bannerTimer = setTimeout(() => b.classList.add("hidden"), Math.max(400, ms / Math.min(app.speed, 4)));
@@ -708,9 +738,15 @@ function showBanner(text, ms = 1600) {
 // The log
 // ===========================================================================
 function isShownInLog(ev) {
+  if (app.logTab === "politics") return ev.kind.startsWith("deal_");
   if (ev.kind !== "log") return true;
   if (!ev.text) return false; // a snapshot without text
-  return !NOISY.has(ev.category) || $("#show-noisy").checked;
+  return !NOISY.has(ev.category) || app.logTab === "all";
+}
+
+/** Forge adds an internal card number after names, "Garnet (403)": drop it, it means nothing to us. */
+function cleanText(text) {
+  return text.replace(/ \(\d+\)/g, "");
 }
 
 function makeLogLine(ev) {
@@ -719,7 +755,10 @@ function makeLogLine(ev) {
   if (ev.category === "TURN") line.classList.add("turn");
   if (ev.player && ev.kind !== "log") line.style.borderLeftColor = `var(--seat-${seatIndex(ev.player)})`;
   if (ev.kind === "log" && ev.category !== "TURN") line.append(el("span", "cat", ev.category.toLowerCase().replace("_", " ")));
-  line.append(document.createTextNode(ev.text));
+  line.append(document.createTextNode(cleanText(ev.text)));
+  // Forge logs life changes as "Life: 2-Anhelo 33 > 36": green when it went up.
+  const life = ev.category === "LIFE" && /(\d+)\s*>\s*(\d+)/.exec(ev.text);
+  if (life && Number(life[2]) > Number(life[1])) line.classList.add("gain");
   line.dataset.seq = ev.seq;
   line.onclick = () => { setPlaying(false); goTo(ev.seq + 1); };
   return line;
@@ -793,15 +832,83 @@ $("#btn-setup").onclick = () => { setPlaying(false); cancelCastAnimation(); app.
 $("#btn-stop").onclick = () => api("/api/game/stop", {});
 $("#btn-new").onclick = async () => {
   if (!app.config) return showSetup();
-  await api("/api/game/new", { decks: app.config.decks, bots: app.config.bots, seed: null });
+  await api("/api/game/new", { decks: app.config.decks, bots: app.config.bots, seed: null, deals: !!app.config.deals });
   enterGame();
 };
-$("#show-noisy").onchange = rebuildLog;
+// Log tabs: the game log, the same with every phase and mana line, or only politics (deals).
+for (const tab of document.querySelectorAll(".log-tabs button")) {
+  tab.onclick = () => {
+    app.logTab = tab.dataset.log;
+    document.querySelectorAll(".log-tabs button").forEach((t) => t.classList.toggle("on", t === tab));
+    $("#politics-now").classList.toggle("hidden", app.logTab !== "politics");
+    rebuildLog();
+    render();
+  };
+}
 $("#show-hands").onchange = () => { app.shownStateSeq = -2; render(); };
-$("#card-size").oninput = (e) => {
-  document.documentElement.style.setProperty("--card-size", `${e.target.value}px`);
-  drawTargetArrows(); // cards moved
+// ---------------------------------------------------------------------------
+// Card size: steps of 8 px with the value shown, or "Fit", which keeps picking
+// the biggest size where no board needs scrolling (cards come and go, so it
+// re-checks whenever the table changes). Your choice is remembered.
+// ---------------------------------------------------------------------------
+const SIZE_MIN = 48, SIZE_MAX = 160, SIZE_STEP = 8;
+
+function setCardSize(px) {
+  app.cardSize = Math.max(SIZE_MIN, Math.min(SIZE_MAX, px));
+  document.documentElement.style.setProperty("--card-size", `${app.cardSize}px`);
+  $("#size-value").textContent = app.cardSize;
+}
+
+function boardsOverflow() {
+  return [...document.querySelectorAll("#boards .board")].some(
+    (b) => b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1);
+}
+
+/** The biggest size where nothing overflows (each try re-measures the boards). */
+function fitCardSize() {
+  if ($("#game").classList.contains("hidden") || !document.querySelector("#boards .board")) return;
+  const before = app.cardSize;
+  let size = SIZE_MAX;
+  setCardSize(size);
+  while (size > SIZE_MIN && boardsOverflow()) setCardSize((size -= SIZE_STEP));
+  if (app.cardSize !== before) drawTargetArrows();
+}
+
+let fitFrame = 0;
+function scheduleFit() { // at most once per screen refresh, even when many events play at once
+  cancelAnimationFrame(fitFrame);
+  fitFrame = requestAnimationFrame(fitCardSize);
+}
+
+function saveSize() {
+  try { localStorage.setItem("cardSize", JSON.stringify({ size: app.cardSize, fit: app.fitSize })); } catch {}
+}
+
+function changeSize(delta) {
+  app.fitSize = false;
+  $("#size-fit").classList.remove("on");
+  setCardSize(app.cardSize + delta);
+  saveSize();
+  drawTargetArrows();
+}
+
+$("#size-down").onclick = () => changeSize(-SIZE_STEP);
+$("#size-up").onclick = () => changeSize(SIZE_STEP);
+$("#size-fit").onclick = () => {
+  app.fitSize = !app.fitSize;
+  $("#size-fit").classList.toggle("on", app.fitSize);
+  if (app.fitSize) fitCardSize();
+  saveSize();
 };
+window.addEventListener("resize", () => { if (app.fitSize) fitCardSize(); });
+
+(() => { // the size you used last time
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("cardSize")); } catch {}
+  setCardSize(saved?.size ?? 80);
+  app.fitSize = !!saved?.fit;
+  $("#size-fit").classList.toggle("on", app.fitSize);
+})();
 
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || $("#game").classList.contains("hidden")) return;
@@ -826,6 +933,7 @@ for (const tab of document.querySelectorAll(".tabs button")) {
 function showTab(name) {
   for (const tab of document.querySelectorAll(".tabs button")) tab.classList.toggle("on", tab.dataset.tab === name);
   $("#tab-play").classList.toggle("hidden", name !== "play");
+  $("#tab-saved").classList.toggle("hidden", name !== "saved");
   $("#tab-stats").classList.toggle("hidden", name !== "stats");
   if (name === "stats") loadStats();
 }
@@ -861,6 +969,100 @@ async function loadStats() {
   };
   body.append(table("Decks", s.decks, "Deck"), table("Bots", s.bots, "Bot"), table("Deck + bot", s.pairs, "Deck · bot"));
   body.append(el("p", "muted small", "Few games say little: with under ~30 games a win rate can easily be off by 15 points. Numbers come from stats/results.csv in the repo folder."));
+}
+
+// ===========================================================================
+// Deals between bots (showdown/deals.py). Two things show them:
+//   * the Politics tab next to the log: deals that are on right now, grudges,
+//     and every offer, answer and break so far,
+//   * a moment on the table when a deal is offered, accepted, declined or
+//     broken: a big icon between the two boards with what was said. Playback
+//     waits for it, like the cast animation.
+// ===========================================================================
+const DEAL_COLORS = { deal_offer: "#c38bff", deal_accept: "#57ab5a", deal_decline: "#8a94a6", deal_break: "#e5534b" };
+const DEAL_ICONS = { deal_offer: "🤝?", deal_accept: "🤝", deal_decline: "✋", deal_break: "💔" };
+
+/** Deals that are on and grudges, as of the playhead. Reads only the deal events. */
+function dealsNow(turn) {
+  const deals = new Map(), grudges = [];
+  for (const seq of app.dealSeqs) {
+    if (seq >= app.pos) break;
+    const ev = app.events[seq], deal = ev.data?.deal;
+    if (!deal) continue;
+    if (ev.kind === "deal_accept") deals.set(deal.id, deal);
+    if (ev.kind === "deal_kept") deals.delete(deal.id);
+    if (ev.kind === "deal_break") {
+      deals.delete(deal.id);
+      const victim = deal.a === ev.player ? deal.b : deal.a;
+      grudges.push({ victim, breaker: ev.player });
+    }
+  }
+  return { deals: [...deals.values()].filter((d) => turn <= d.expires_turn), grudges };
+}
+
+function shortName(player) { return player.replace(/^\d+-/, ""); }
+
+/** The "Right now" part of the Politics tab: deals that are on, who is hunted, grudges. */
+function drawPolitics(turn) {
+  const box = $("#politics-now");
+  const { deals, grudges } = dealsNow(turn);
+  const tab = $('.log-tabs [data-log="politics"]');
+  tab.textContent = deals.length ? `Politics (${deals.length})` : "Politics";
+  if (!app.dealSeqs.length) {
+    box.innerHTML = '<p class="muted">No deals in this game. Tick "Bots make deals" in the main menu to turn them on.</p>';
+    return;
+  }
+  const lines = [];
+  const both = (d) => `${shortName(d.a)} & ${shortName(d.b)}`;
+  for (const d of deals) {
+    if (d.kind === "gang_up") lines.push(["gang", `⚔ ${both(d)} are ganging up on ${shortName(d.against)}`, `until turn ${d.expires_turn}`]);
+    else lines.push(["peace", `🤝 ${both(d)} have peace`, `until turn ${d.expires_turn}`]);
+  }
+  for (const g of grudges) lines.push(["grudge", `💢 ${shortName(g.victim)} wants revenge on ${shortName(g.breaker)}`, "broke a deal"]);
+  box.replaceChildren(el("h4", "", "Right now"));
+  if (!lines.length) box.append(el("p", "muted", "No deals right now."));
+  for (const [cls, text, note] of lines) {
+    const row = el("div", `politics-row ${cls}`, text);
+    row.append(el("span", "muted", ` · ${note}`));
+    box.append(row);
+  }
+  box.append(el("h4", "", "What happened"));
+}
+
+function playDealMoment(ev) {
+  const deal = ev.data?.deal;
+  if (!deal || app.speed === Infinity) return;
+  // Who "speaks": the offerer offers, the other one answers, the breaker breaks.
+  const from = ev.kind === "deal_offer" ? deal.a : ev.kind === "deal_break" ? ev.player : deal.b;
+  const to = from === deal.a ? deal.b : deal.a;
+  const a = $(`#boards [data-player="${CSS.escape(from)}"]`), b = $(`#boards [data-player="${CSS.escape(to)}"]`);
+  if (!a || !b) return;
+  app.dealLayer?.remove();
+  const total = (ev.kind === "deal_break" ? 2600 : 1800) / app.speed;
+  app.holdUntil = Math.max(app.holdUntil, performance.now() + total);
+  const color = DEAL_COLORS[ev.kind];
+  // A big icon halfway between the two boards, with what was said underneath.
+  const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+  const x = (ra.left + ra.width / 2 + rb.left + rb.width / 2) / 2;
+  const y = (ra.top + ra.height / 2 + rb.top + rb.height / 2) / 2;
+  const layer = el("div", "deal-layer");
+  const icon = el("div", `deal-icon ${ev.kind}`, DEAL_ICONS[ev.kind]);
+  icon.style.borderColor = color;
+  icon.style.boxShadow = `0 0 30px ${color}`;
+  const label = el("div", "deal-label", cleanText(ev.text));
+  label.style.borderColor = color;
+  for (const node of [icon, label]) Object.assign(node.style, { left: `${x}px`, top: `${y}px` });
+  layer.append(icon, label);
+  document.body.append(layer);
+  app.dealLayer = layer;
+  icon.animate([{ transform: "translate(-50%, -50%) scale(.3)" }, { transform: "translate(-50%, -50%) scale(1.15)", offset: .15 },
+                { transform: "translate(-50%, -50%) scale(1)", offset: .25 }], { duration: total, fill: "forwards" });
+  for (const board of [a, b]) board.style.setProperty("--deal", color), board.classList.add("deal-glow");
+  layer.animate([{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .85 }, { opacity: 0 }], { duration: total, fill: "forwards" });
+  setTimeout(() => {
+    for (const board of [a, b]) board.classList.remove("deal-glow");
+    if (app.dealLayer === layer) { layer.remove(); app.dealLayer = null; }
+  }, total);
 }
 
 // ===========================================================================
@@ -928,7 +1130,7 @@ function landingSpot(board, card) {
   if (/Instant|Sorcery/.test(type)) return null;
   const zone = /Creature/.test(type) ? "creatures" : /Land/.test(type) ? "lands" : "other";
   const row = board.querySelector(`[data-zone="${zone}"]`);
-  const size = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-size")) || 72;
+  const size = app.cardSize;
   const last = row.lastElementChild;
   if (last) { // right after the last card in the row
     const r = last.getBoundingClientRect();
@@ -996,6 +1198,62 @@ function pointToward(r, x, y, part = 0.55) {
   return [cx + (dx / len) * toEdge * part, cy + (dy / len) * toEdge * part];
 }
 
+// ---------------------------------------------------------------------------
+// Combat arrows: each attacker gets a red arrow to the middle of the board of
+// the player it attacks, ending in a sword. A blocker gets a blue arrow to the
+// creature it blocks, and a shield on itself. (Snapshots only have attackers
+// and blockers during combat, so these show only then.)
+// ---------------------------------------------------------------------------
+const SWORD = '<path d="M27 5 L31 5 L31 9 L16 24 L12 20 Z" fill="#fff"/><path d="M9 21 L15 27 M11 29 L7 25 M13 25 L8 30" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>';
+const SHIELD = '<path d="M18 6 L28 10 L28 18 C28 25 23 29 18 31 C13 29 8 25 8 18 L8 10 Z" fill="#fff"/>';
+
+function combatIcon(svg, x, y, shape, color) {
+  const g = document.createElementNS(SVG_NS, "g");
+  g.setAttribute("class", "arrow combat-icon");
+  g.setAttribute("transform", `translate(${x - 18},${y - 18})`);
+  g.innerHTML = `<circle cx="18" cy="18" r="17" fill="${color}" stroke="#fff" stroke-width="2"/>${shape}`;
+  svg.append(g);
+}
+
+function curve(svg, x1, y1, x2, y2, cls) {
+  const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+  const cx = (x1 + x2) / 2 + (y2 - y1) * 0.12, cy = (y1 + y2) / 2 - (x2 - x1) * 0.12;
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("class", `arrow ${cls}`);
+  path.setAttribute("d", `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`);
+  svg.append(path);
+  return len;
+}
+
+function drawCombatArrows(svg) {
+  const center = (r) => [r.left + r.width / 2, r.top + r.height / 2];
+  const cards = [...document.querySelectorAll("#boards .card")].filter((n) => n._card);
+  // A blocked attacker shows only the blocker's blue arrow, not its own red one.
+  const blocked = new Set(cards.flatMap((n) => n._card.blocks || []));
+  for (const node of cards) {
+    const c = node._card;
+    const ids = c._ids || [c.id];
+    if (c.attacking && !ids.every((id) => blocked.has(id))) {
+      // c.attacking is the defending player (or a planeswalker's name: then aim at that card's controller's board).
+      const board = $(`#boards [data-player="${CSS.escape(c.attacking)}"]`);
+      if (board) {
+        const [x1, y1] = center(node.getBoundingClientRect()), [x2, y2] = center(board.getBoundingClientRect());
+        curve(svg, x1, y1, x2, y2, "attack");
+        combatIcon(svg, x2, y2, SWORD, "#e5534b");
+      }
+    }
+    for (const id of c.blocks || []) {
+      const target = cardNode(id);
+      if (!target) continue;
+      const r = node.getBoundingClientRect();
+      const [x1, y1] = center(r);
+      const [x2, y2] = pointToward(target.getBoundingClientRect(), x1, y1);
+      curve(svg, x1, y1, x2, y2, "block");
+      combatIcon(svg, x1, y1, SHIELD, "#539bf5"); // the shield sits on the blocker
+    }
+  }
+}
+
 function drawTargetArrows() {
   let svg = $("#arrows");
   if (!svg) {
@@ -1009,6 +1267,12 @@ function drawTargetArrows() {
   document.querySelectorAll(".targeted, .targeting").forEach((n) => n.classList.remove("targeted", "targeting"));
   if ($("#game").classList.contains("hidden") || app.castLayer) return; // after the cast animation
 
+  drawCombatArrows(svg);
+  // Triggered abilities waiting on the stack: their card glows gold with a "TRIGGER" tag.
+  document.querySelectorAll(".card.triggering").forEach((n) => n.classList.remove("triggering"));
+  for (const item of app.shownStack) {
+    if (item.kind === "trigger" && item.card) cardNode(item.card.id)?.classList.add("triggering");
+  }
   app.shownStack.forEach((item, index) => {
     const targets = item.targets || [];
     const from = targets.length ? arrowSource(item, index) : null;

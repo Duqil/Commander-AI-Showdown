@@ -56,7 +56,9 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 #scrub { flex: 1; min-width: 80px; accent-color: var(--accent); }
 .speed button { padding: 4px 7px; }
 #game-buttons { display: flex; gap: 8px; align-items: center; }
-#card-size { width: 70px; vertical-align: middle; }
+.size-box { display: inline-flex; align-items: center; gap: 4px; }
+.size-box button { padding: 2px 8px; }
+#size-value { min-width: 2.2em; text-align: center; font-variant-numeric: tabular-nums; }
 
 #table { flex: 1; display: grid; grid-template-columns: 1fr 340px; grid-template-rows: minmax(0, 1fr);
          min-height: 0; overflow: hidden; }
@@ -77,8 +79,12 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .log-line.bot_choice { color: #9ecbff; font-style: italic; }
 .log-line.game_over { color: var(--good); font-weight: 700; font-size: 14px; }
 .log-line.error { color: var(--danger); }
-.log-line.deal { color: #f0b5ff; font-weight: 600; }
+.log-line.deal { color: #e0b8ff; font-weight: 600; }
+.log-line.deal.accept { color: #8fd694; }
+.log-line.deal.decline { color: var(--muted); }
+.log-line.deal.break { color: #ff8c84; }
 .log-line.cat-DAMAGE, .log-line.cat-LIFE { color: #ffb4a9; }
+.log-line.cat-LIFE.gain { color: #8fd694; }
 .log-line.cat-COMBAT { color: #ffd479; }
 
 /* ---------- one player's board ---------- */
@@ -101,7 +107,15 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .zone-row:empty { display: none; }
 .zone-label { font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
 .hand-row { padding-top: 4px; border-top: 1px dashed var(--line); }
-.hand-row, .land-row { --card-w: calc(var(--card-size) * .75); }
+.hand-row { --card-w: calc(var(--card-size) * .75); }
+/* Lands are small strips showing only their art (like the commander): they rarely need reading,
+   and this saves most of a card's height. Hover one for the whole card. Tapped lands go dark
+   instead of turning sideways. */
+.land-row { --card-w: calc(var(--card-size) * .62); }
+.land-row .card { height: calc(var(--card-size) * .42); overflow: hidden; border-radius: 5px; }
+.land-row .card img { object-position: 50% 20%; transform: scale(1.3); transform-origin: 50% 20%; }
+.land-row .card.tapped { transform: none; margin: 0; filter: brightness(.5) saturate(.6); }
+.land-row .badge.tapped-n { top: auto; bottom: 2px; }
 /* The commander next to the life total: a landscape crop showing only the art, as tall as the life number. */
 .command-row { flex-wrap: nowrap; margin-left: auto; }
 .command-row .card { --card-w: 48px; width: 48px; height: 32px; border-radius: 5px; }
@@ -117,7 +131,8 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .card .text-card { position: absolute; inset: 0; padding: 4px; font-size: 10px; line-height: 1.15; overflow: hidden;
                    border: 2px solid #555; border-radius: inherit; background: #2b2f38; }
 .card .text-card b { display: block; margin-bottom: 2px; }
-.card.tapped { transform: rotate(90deg) scale(.85); }
+.card.tapped { transform: rotate(90deg) scale(.85); /* turned sideways, it's wider: make room so it covers no neighbour */
+               margin: 0 calc(var(--card-w) * .1); }
 .card.sick img { filter: brightness(.75); }
 .card.attacking { box-shadow: 0 0 0 3px var(--danger), 0 0 12px var(--danger); }
 .card.blocking { box-shadow: 0 0 0 3px #539bf5, 0 0 12px #539bf5; }
@@ -187,6 +202,9 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
 #arrows { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 30; }
 #arrows .arrow { stroke: #e5534b; stroke-width: 5; fill: none; stroke-linecap: round; stroke-dasharray: 12 7;
                  filter: drop-shadow(0 0 5px #e5534b); animation: march .6s linear infinite; }
+#arrows .arrow.attack { stroke: #e5534b; }
+#arrows .arrow.block { stroke: #539bf5; filter: drop-shadow(0 0 5px #539bf5); }
+#arrows .combat-icon { stroke: none; stroke-dasharray: none; animation: none; filter: drop-shadow(0 0 6px rgba(0,0,0,.6)); }
 #arrows .arrow.faint { stroke-width: 3; opacity: .35; filter: none; animation: none; }
 @keyframes march { to { stroke-dashoffset: -19; } }
 .card.targeted, .card.targeting, .stack-item.targeting { box-shadow: 0 0 0 3px #e5534b, 0 0 14px #e5534b; }
@@ -207,3 +225,41 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
 .rate-bar.above > div { background: var(--accent); }
 .rate-bar::after { content: ""; position: absolute; left: calc(var(--fair) * 100%); top: -3px; bottom: -3px;
                    width: 2px; background: var(--text, #fff); opacity: .6; }
+
+/* ---------- Saved games tab ---------- */
+#saved .saved-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; border-bottom: 1px solid var(--line); }
+.saved-when { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.saved-decks { text-transform: capitalize; }
+
+/* ---------- deals ---------- */
+.deal-layer { position: fixed; inset: 0; pointer-events: none; z-index: 45; }
+.deal-icon { position: fixed; transform: translate(-50%, -50%); width: 76px; height: 76px; border-radius: 50%;
+             display: flex; align-items: center; justify-content: center; font-size: 36px; letter-spacing: -4px;
+             background: rgba(20, 24, 31, .96); border: 3px solid; }
+.deal-icon.deal_offer { font-size: 30px; }
+.deal-label { position: fixed; transform: translate(-50%, 52px); max-width: 420px; text-align: center; font-weight: 700;
+              background: rgba(20, 24, 31, .96); border: 2px solid; padding: 6px 14px; border-radius: 10px; }
+.board.deal-glow { box-shadow: 0 0 0 3px var(--deal) inset, 0 0 24px var(--deal); }
+#banner.break { border-color: var(--danger); color: #ff8c84; box-shadow: 0 0 40px rgba(229, 83, 75, .6); }
+.deals-help { margin: 2px 0 10px; }
+.deals-help summary { cursor: pointer; }
+.deals-help ul { margin: 6px 0; padding-left: 18px; }
+.deals-help p { margin: 4px 0; }
+
+/* ---------- log tabs and the Politics tab ---------- */
+.log-tabs { display: flex; gap: 2px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
+.log-tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+                   padding: 4px 8px; font-size: 12px; color: var(--muted); }
+.log-tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+#politics-now { font-size: 12px; }
+#politics-now h4 { margin: 4px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.politics-row { padding: 2px 0; }
+.politics-row.peace { color: #8fd694; }
+.politics-row.gang { color: #e0b8ff; }
+.politics-row.grudge { color: #ff8c84; }
+
+/* ---------- a card whose triggered ability is on the stack ---------- */
+.card.triggering { box-shadow: 0 0 0 3px #f2cc60, 0 0 22px 6px rgba(242, 204, 96, .85); z-index: 5; }
+.card.triggering::after { content: "TRIGGER"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+  background: #f2cc60; color: #1a1406; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 6px;
+  letter-spacing: .05em; pointer-events: none; }

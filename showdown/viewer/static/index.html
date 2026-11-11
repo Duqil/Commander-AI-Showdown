@@ -14,6 +14,7 @@
     <h1>Commander AI Showdown</h1>
     <nav class="tabs">
       <button data-tab="play" class="on">Play</button>
+      <button data-tab="saved">Saved games</button>
       <button data-tab="stats">Stats</button>
     </nav>
 
@@ -21,6 +22,19 @@
     <p class="muted">Pick a deck and a bot for each seat, then watch.</p>
     <div id="seats"></div>
     <label class="seed">Seed <input id="seed" type="number" placeholder="random"></label>
+    <label class="seed" title="Bots can offer each other deals: peace, or ganging up on someone. Breaking one makes enemies.">
+      <input type="checkbox" id="deals"> Bots make deals</label>
+    <details class="deals-help muted small">
+      <summary>How each bot handles deals</summary>
+      <!-- Easy to edit: how strict bots are about deals may change after testing (showdown/deals.py). -->
+      <ul>
+        <li><b>SimpleBot</b> offers deals from round 2 and never breaks one. It refuses players it holds a grudge against or trusts little, and attacks grudge targets first.</li>
+        <li><b>RandomBot</b> offers and accepts at random, and often breaks deals.</li>
+        <li><b>Boys</b> learn when to offer, accept and break deals.</li>
+        <li><b>Forge AI</b> declines every offer and never offers.</li>
+      </ul>
+      <p>Breaking a deal costs trust with everyone for the rest of the game. See docs/deals.md.</p>
+    </details>
     <p class="muted small">The same seed and decks give the same shuffle, handy for comparing bots.</p>
     <button id="start" class="primary">Start game</button>
     <p id="setup-error" class="error"></p>
@@ -37,9 +51,11 @@
     </div>
     <button id="batch-start">Run games</button>
     <div id="batch" class="hidden"></div>
+    </div>
 
-    <h2>Saved games</h2>
-    <div id="saved" class="muted small">None yet. Finished games are saved to the games/ folder.</div>
+    <!-- Finished games, to watch again -->
+    <div id="tab-saved" class="hidden">
+      <div id="saved" class="muted small">None yet. Finished games are saved to the games/ folder.</div>
     </div>
 
     <!-- Win rates from every finished game (stats/results.csv) -->
@@ -74,7 +90,9 @@
     </div>
     <div id="game-buttons">
       <label class="small"><input type="checkbox" id="show-hands" checked> Hands</label>
-      <label class="small">Size <input type="range" id="card-size" min="48" max="160" value="80"></label>
+      <span class="size-box small" title="Card size. Fit picks the biggest size where every card is visible without scrolling.">Size
+        <button id="size-down" title="Smaller">−</button><span id="size-value">80</span><button id="size-up" title="Bigger">+</button>
+        <button id="size-fit" title="Keep cards as big as possible without scrolling (adjusts during the game)">Fit</button></span>
       <button id="btn-new" title="Play again with the same decks and bots">New game</button>
       <button id="btn-stop" title="Stop the running game">Stop</button>
       <button id="btn-setup" title="Back to the main menu: decks, bots, saved games">Main Menu</button>
@@ -89,9 +107,12 @@
         <div id="stack" class="muted small">empty</div>
       </div>
       <div id="log-box">
-        <h3>Log
-          <label class="small muted"><input type="checkbox" id="show-noisy"> phases &amp; mana</label>
-        </h3>
+        <div class="log-tabs">
+          <button data-log="log" class="on">Log</button>
+          <button data-log="all" title="The log with every phase and mana line">Phases &amp; mana</button>
+          <button data-log="politics" title="Deals between bots: what's on right now, and what happened">Politics</button>
+        </div>
+        <div id="politics-now" class="hidden"></div>
         <div id="log"></div>
       </div>
       <div id="preview" class="hidden"><img alt=""><div class="preview-text"></div></div>
