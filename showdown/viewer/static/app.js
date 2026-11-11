@@ -1227,10 +1227,13 @@ function curve(svg, x1, y1, x2, y2, cls) {
 
 function drawCombatArrows(svg) {
   const center = (r) => [r.left + r.width / 2, r.top + r.height / 2];
-  for (const node of document.querySelectorAll("#boards .card")) {
+  const cards = [...document.querySelectorAll("#boards .card")].filter((n) => n._card);
+  // A blocked attacker shows only the blocker's blue arrow, not its own red one.
+  const blocked = new Set(cards.flatMap((n) => n._card.blocks || []));
+  for (const node of cards) {
     const c = node._card;
-    if (!c) continue;
-    if (c.attacking) {
+    const ids = c._ids || [c.id];
+    if (c.attacking && !ids.every((id) => blocked.has(id))) {
       // c.attacking is the defending player (or a planeswalker's name: then aim at that card's controller's board).
       const board = $(`#boards [data-player="${CSS.escape(c.attacking)}"]`);
       if (board) {
@@ -1265,6 +1268,11 @@ function drawTargetArrows() {
   if ($("#game").classList.contains("hidden") || app.castLayer) return; // after the cast animation
 
   drawCombatArrows(svg);
+  // Triggered abilities waiting on the stack: their card glows gold with a "TRIGGER" tag.
+  document.querySelectorAll(".card.triggering").forEach((n) => n.classList.remove("triggering"));
+  for (const item of app.shownStack) {
+    if (item.kind === "trigger" && item.card) cardNode(item.card.id)?.classList.add("triggering");
+  }
   app.shownStack.forEach((item, index) => {
     const targets = item.targets || [];
     const from = targets.length ? arrowSource(item, index) : null;

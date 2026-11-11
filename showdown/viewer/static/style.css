@@ -257,3 +257,9 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
 .politics-row.peace { color: #8fd694; }
 .politics-row.gang { color: #e0b8ff; }
 .politics-row.grudge { color: #ff8c84; }
+
+/* ---------- a card whose triggered ability is on the stack ---------- */
+.card.triggering { box-shadow: 0 0 0 3px #f2cc60, 0 0 22px 6px rgba(242, 204, 96, .85); z-index: 5; }
+.card.triggering::after { content: "TRIGGER"; position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+  background: #f2cc60; color: #1a1406; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 6px;
+  letter-spacing: .05em; pointer-events: none; }

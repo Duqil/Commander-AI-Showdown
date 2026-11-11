@@ -65,7 +65,10 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   every offer, answer and break so far.
 * **Combat.** A red arrow goes from each attacker to the middle of the board
   it attacks, ending in a sword. A blocker shows a shield and a blue arrow to
-  the creature it blocks.
+  the creature it blocks. Once an attacker is blocked, its red arrow goes
+  away so only the blue one is left.
+* **Triggers.** While a triggered ability waits on the stack, the card it
+  comes from glows gold with a small TRIGGER tag.
 * **Log.** Forge's game log plus what the Python bots decided (in blue),
   and choices Forge doesn't log itself ("2-Anhelo chose Red for Thriving Moor").
   Phase and mana lines are only in the **Phases & mana** tab.
