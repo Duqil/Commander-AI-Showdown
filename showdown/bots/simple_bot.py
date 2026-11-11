@@ -34,6 +34,12 @@ def is_ability(option: dict) -> bool:
     return option.get("is_ability", not option["is_land"] and not option["is_spell"])
 
 
+def spell_size(option: dict) -> int:
+    """How much mana a spell would use. For X spells (Tervigon: {X}{2}{G}{G})
+    the card's mana value counts X as 0, so add the biggest X we can pay."""
+    return option["card"]["cmc"] + option.get("max_x", 0)
+
+
 class SimpleBot(Bot):
     name = "simple"
 
@@ -66,8 +72,8 @@ class SimpleBot(Bot):
 
         spells = [o for o in options if o["is_spell"]]
         if spells:
-            # max(..., key=...) picks the option with the highest mana value.
-            best = max(spells, key=lambda o: o["card"]["cmc"])
+            # max(..., key=...) picks the option with the biggest mana value.
+            best = max(spells, key=spell_size)
             return best["index"]
         # Nothing left to cast: use other abilities with the mana that's left.
         if abilities:

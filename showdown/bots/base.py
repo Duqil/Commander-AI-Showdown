@@ -42,6 +42,7 @@ class Bot:
              "is_ability": false, "api": "ChangeZone", "forge_would_play": true}
         is_ability marks activated abilities (Evolving Wilds, Treasure, ...).
         forge_would_play is a hint: would Forge's own AI make this play now?
+        X spells also have "max_x", the biggest X you could pay (the bridge then pays that X).
         Only legal options are listed; the bridge already checked timing and mana.
         """
         return None

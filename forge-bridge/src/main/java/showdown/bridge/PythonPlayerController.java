@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import forge.LobbyPlayer;
 import forge.ai.ComputerUtilAbility;
 import forge.ai.ComputerUtilCost;
+import forge.ai.ComputerUtilMana;
 import forge.ai.PlayerControllerAi;
 import forge.game.Game;
 import forge.game.GameEntity;
@@ -102,7 +103,7 @@ public class PythonPlayerController extends PlayerControllerAi {
     /** Every spell, ability and land drop this player could legally start right now. */
     private List<SpellAbility> legalPlays() {
         Player me = getPlayer();
-        CardCollection available = ComputerUtilAbility.getAvailableCards(getGame(), me);
+        CardCollection available = playableCards(me);
         List<SpellAbility> result = new ArrayList<>();
         for (SpellAbility sa : ComputerUtilAbility.getSpellAbilities(available, me)) {
             try {
@@ -119,12 +120,58 @@ public class PythonPlayerController extends PlayerControllerAi {
                 if (getAi().hasFailedToCast(sa)) {
                     continue; // Forge already tried this one this turn and it didn't work
                 }
+                if (sa.costHasManaX() && maxX(sa) < 1) {
+                    continue; // X would be 0: a Ravenous 0/0 just dies, an X burn spell does nothing
+                }
                 result.add(sa);
             } catch (RuntimeException e) {
                 // A few odd cards throw while being checked; just leave them out.
             }
         }
         return result;
+    }
+
+    /**
+     * The cards worth checking for plays: Forge's list, minus cards in exile,
+     * graveyards or on top of a library that this player can't play anyway.
+     *
+     * Why: checking one card can be slow (Forge re-runs every static ability
+     * for it when something changes spells on the stack). Forge's list has
+     * EVERY exiled card at the table, and in long games exile can hold dozens
+     * of cards (Virtue of Courage exiles a lot), which made one game take 45
+     * minutes. Leaving out cards nobody may cast keeps every legal play.
+     */
+    private CardCollection playableCards(Player me) {
+        CardCollection result = new CardCollection();
+        for (Card c : ComputerUtilAbility.getAvailableCards(getGame(), me)) {
+            ZoneType zone = c.getZone() == null ? null : c.getZone().getZoneType();
+            boolean hidden = zone == ZoneType.Exile || zone == ZoneType.Library || zone == ZoneType.Graveyard;
+            if (hidden && !mayCastFrom(c, me, zone)) {
+                continue;
+            }
+            result.add(c);
+        }
+        return result;
+    }
+
+    /** Could this player cast or play this card from its graveyard, exile or library? */
+    private static boolean mayCastFrom(Card c, Player me, ZoneType zone) {
+        if (!c.mayPlay(me).isEmpty()) {
+            return true; // "you may play/cast it" effects: Virtue of Courage, adventures, impulse draw...
+        }
+        if (!me.equals(c.getOwner())) {
+            return false;
+        }
+        if (c.isForetold() || c.isPlotted()) {
+            return true;
+        }
+        for (SpellAbility sa : c.getSpellAbilities()) {
+            if (sa.getRestrictions().getZone() == zone) {
+                return true; // the card itself says it can be used from there (Unearth, ...)
+            }
+        }
+        // Flashback, Escape, Retrace... are keywords, also when another card grants them.
+        return zone == ZoneType.Graveyard && !c.getKeywords().isEmpty();
     }
 
     @Override
@@ -159,6 +206,9 @@ public class PythonPlayerController extends PlayerControllerAi {
                 o.addProperty("api", sa.getApi().name()); // e.g. "ChangeZone" for Evolving Wilds
             }
             o.addProperty("forge_would_play", forgeWouldPlay(sa));
+            if (sa.costHasManaX()) {
+                o.addProperty("max_x", maxX(sa)); // the biggest X we could pay right now
+            }
             options.add(o);
         }
         JsonObject extra = new JsonObject();
@@ -177,9 +227,48 @@ public class PythonPlayerController extends PlayerControllerAi {
         if (usesTargeting(sa) && !chooseTargets(sa)) {
             return null; // no legal targets after all: pass instead of a cast that fails
         }
+        if (sa.costHasManaX() && !chooseX(sa)) {
+            return null; // can't pay any X after all
+        }
         List<SpellAbility> chosen = new ArrayList<>();
         chosen.add(sa);
         return chosen; // Forge then calls playChosenSpellAbility(), which the AI handles
+    }
+
+    /** The biggest X this player could pay for the ability right now (0 if none). */
+    private int maxX(SpellAbility sa) {
+        Integer old = sa.getXManaCostPaid();
+        try {
+            return ComputerUtilMana.determineLeftoverMana(sa, getPlayer(), false);
+        } catch (RuntimeException e) {
+            return 0;
+        } finally {
+            sa.setXManaCostPaid(old); // the check may change X; put it back
+        }
+    }
+
+    /**
+     * Pick X for a spell like Tervigon ({X}{2}{G}{G}, enters with X counters).
+     *
+     * Forge's AI only picks X while it is deciding to make a play itself.
+     * When Python picks the play instead, X was never set and the spell was
+     * cast with X = 0 (a Ravenous creature entered as a 0/0 and died). Now:
+     * targeted spells keep the X Forge's AI chose with the targets (it may
+     * pick X to match a target's toughness); everything else gets the biggest
+     * X we can pay.
+     *
+     * @return false if X can't be at least 1
+     */
+    private boolean chooseX(SpellAbility sa) {
+        Integer chosen = sa.getXManaCostPaid();
+        if (!usesTargeting(sa) || chosen == null || chosen < 1) {
+            chosen = maxX(sa);
+        }
+        if (chosen < 1) {
+            return false;
+        }
+        sa.setXManaCostPaid(chosen);
+        return true;
     }
 
     /**
@@ -191,11 +280,13 @@ public class PythonPlayerController extends PlayerControllerAi {
         if (sa.isLandAbility()) {
             return true;
         }
+        Integer oldX = sa.getXManaCostPaid();
         try {
             return getAi().canPlaySa(sa).willingToPlay();
         } catch (RuntimeException e) {
             return false; // a few cards throw here; call it a no
         } finally {
+            sa.setXManaCostPaid(oldX); // the check picks an X as a side effect too
             for (SpellAbility a = sa; a != null; a = a.getSubAbility()) {
                 a.resetTargets(); // the check picks targets as a side effect; forget them
             }

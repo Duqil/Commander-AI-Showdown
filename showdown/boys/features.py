@@ -82,7 +82,8 @@ def play_options(decision: Decision) -> list[Features]:
         result.append({
             "land_drop": _flag(is_land),
             "spell": _flag(is_spell),
-            "spell_cmc": card.get("cmc", 0) / 7 if is_spell else 0.0,
+            "spell_cmc": (card.get("cmc", 0) + option.get("max_x", 0)) / 7 if is_spell else 0.0,
+            "x_spell": _flag("max_x" in option),
             "creature_spell": _flag(is_spell and "Creature" in ctype),
             "instant_speed_spell": _flag(is_spell and ("Instant" in ctype or "Flash" in option.get("description", ""))),
             "spell_on_my_main": _flag(is_spell and my_turn and main and not stack),

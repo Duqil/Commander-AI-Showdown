@@ -134,6 +134,11 @@ class FeatureTest(unittest.TestCase):
         self.assertEqual(pick(dict(pump, forge_would_play=True)), 2)        # ...then the ability
         feats = features.play_options({"state": table(), "options": [wilds]})
         self.assertEqual(feats[0]["ability_forge_would_play"], 1.0)
+        # An X spell counts the X we can pay: Tervigon (mana value 4) with X=3 beats a 5-drop.
+        tervigon = {"index": 3, "card": {"name": "Tervigon", "type": "Creature", "cmc": 4},
+                    "is_land": False, "is_spell": True, "max_x": 3}
+        five = {"index": 4, "card": {"name": "Big", "type": "Creature", "cmc": 5}, "is_land": False, "is_spell": True}
+        self.assertEqual(pick(tervigon, five), 3)
 
 
 class BrainTest(unittest.TestCase):
