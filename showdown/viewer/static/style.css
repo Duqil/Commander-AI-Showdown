@@ -9,7 +9,7 @@
   --accent: #e0a63a;
   --danger: #e5534b;
   --good: #57ab5a;
-  --card-size: 72px;                    /* changed by the "Size" slider */
+  --card-size: 80px;                    /* changed by the "Size" slider */
   --card-w: var(--card-size);
   --seat-0: #e5534b; --seat-1: #539bf5; --seat-2: #e0a63a; --seat-3: #b083f0;
 }

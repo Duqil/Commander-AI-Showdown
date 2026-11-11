@@ -852,17 +852,18 @@ function playCastAnimation(item) {
   document.body.append(layer);
   app.castLayer = layer;
 
-  // Where it goes: the Stack box on the right (the newest item is listed first).
-  const target = $("#stack").firstElementChild || $("#stack");
-  const t = target.getBoundingClientRect();
-  const dx = t.left + t.width / 2 - (left + width / 2);
-  const dy = t.top + t.height / 2 - (top + (width * 1.397) / 2);
+  // Where it goes: a permanent (creature, artifact, ...) flies to the spot on
+  // its caster's board where it will land; an instant or sorcery never stays on
+  // the table, so it shrinks into the Stack box on the right until it resolves.
+  const spot = landingSpot(board, item.card) || stackSpot();
+  const dx = spot.x - (left + width / 2);
+  const dy = spot.y - (top + (width * 1.397) / 2);
   const opts = { duration: total, easing: "ease-in-out", fill: "forwards" };
   card.animate([
     { transform: "scale(.4)", opacity: 0, offset: 0 },
     { transform: "scale(1)", opacity: 1, offset: 0.2 },
-    { transform: "scale(1)", opacity: 1, offset: 0.72 },
-    { transform: `translate(${dx}px, ${dy}px) scale(.15)`, opacity: 0.2, offset: 1 },
+    { transform: "scale(1)", opacity: 1, offset: 0.65 },
+    { transform: `translate(${dx}px, ${dy}px) scale(${spot.width / width})`, opacity: spot.fade ? 0.2 : 1, offset: 1 },
   ], opts);
   for (const node of [dim, label]) {
     node.animate([{ opacity: 0 }, { opacity: 1, offset: 0.15 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], opts);
@@ -872,6 +873,30 @@ function playCastAnimation(item) {
     cancelCastAnimation();
     drawTargetArrows(); // held back while the card was shown big
   }, total);
+}
+
+/** Center and width of the next free place in the row this permanent goes to, or null for instants/sorceries. */
+function landingSpot(board, card) {
+  const type = card.type || "";
+  if (/Instant|Sorcery/.test(type)) return null;
+  const zone = /Creature/.test(type) ? "creatures" : /Land/.test(type) ? "lands" : "other";
+  const row = board.querySelector(`[data-zone="${zone}"]`);
+  const size = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--card-size")) || 72;
+  const last = row.lastElementChild;
+  if (last) { // right after the last card in the row
+    const r = last.getBoundingClientRect();
+    const w = Math.min(r.width, r.height / 1.397);
+    return { x: r.right + 6 + w / 2, y: r.top + r.height / 2, width: w };
+  }
+  // The row is empty (and hidden): use the top left of the board, under the header.
+  const w = zone === "lands" ? size * 0.75 : size;
+  const head = board.querySelector(".board-head").getBoundingClientRect();
+  return { x: head.left + w / 2, y: head.bottom + 6 + (w * 1.397) / 2, width: w };
+}
+
+function stackSpot() {
+  const t = ($("#stack").firstElementChild || $("#stack")).getBoundingClientRect(); // newest item is first
+  return { x: t.left + t.width / 2, y: t.top + t.height / 2, width: 40, fade: true };
 }
 
 function cancelCastAnimation() {

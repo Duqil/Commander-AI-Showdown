@@ -44,8 +44,10 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   colour of a Thriving land. Seats go clockwise from the top left.
   Hover a card for a big picture.
 * **Casting and targeting.** A spell that is cast is shown big in the middle
-  of its caster's board for a moment, then shrinks into the Stack box
-  (faster at higher speeds, skipped at 10× and Max). While a spell or ability
+  of its caster's board for a moment. A permanent (creature, artifact, ...)
+  then flies to the spot where it will land; an instant or sorcery shrinks into
+  the Stack box, where it waits to resolve (faster at higher speeds, skipped at
+  10× and Max). While a spell or ability
   with targets is on the stack, a red arrow points from it to each target
   (a card, or a player's life total). The arrow for the item that resolves
   next is bright, older ones are faint.
