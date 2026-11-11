@@ -9,13 +9,13 @@ What the browser can ask for (an "API"):
     GET  /api/decks                 deck names in decks/forge/ and bot types
     GET  /api/game                  the current game's status
     GET  /api/game/events?since=N   timeline events from position N on
-    POST /api/game/new              start a game. Body: {"decks": [...], "bots": [...], "seed": 7}
+    POST /api/game/new              start a game. Body: {"decks": [...], "bots": [...], "seed": 7, "deals": true}
     POST /api/game/stop             stop the running game
     GET  /api/saved                 saved games in games/
     POST /api/saved/load            watch a saved game again. Body: {"id": "..."}
     GET  /api/card-image?name=X     a card picture (tokens: &token=1, and &colors=W&pt=2/2&oracle=...)
     POST /api/batch/start           run many games without watching. Body: {"decks", "bots",
-                                    "games": 20, "parallel": 1, "seed", "save_games", "learn"}
+                                    "games": 20, "parallel": 1, "seed", "save_games", "learn", "deals"}
     GET  /api/batch                 progress and results of that batch
     GET  /api/stats?source=batch    win rates per deck and bot (source is optional)
     POST /api/batch/stop            start no more games. Body {"now": true} also ends running ones
@@ -147,7 +147,8 @@ class Handler(BaseHTTPRequestHandler):
             if not all(valid_bot(b) for b in bots):
                 return self.send_json({"error": "Bots must be simple, random, forge or boy:<name>"}, 400)
             seed = body.get("seed")
-            config = GameConfig(decks=decks, bots=bots, seed=int(seed) if seed not in (None, "") else None)
+            config = GameConfig(decks=decks, bots=bots, seed=int(seed) if seed not in (None, "") else None,
+                                deals=bool(body.get("deals")))
             return self.send_json(STATE.start_game(config).summary())
         if path == "/api/batch/start":
             decks, bots = body.get("decks", []), body.get("bots", [])
@@ -160,7 +161,8 @@ class Handler(BaseHTTPRequestHandler):
             seed = body.get("seed")
             STATE.batch = BatchJob(decks, bots, games, parallel,
                                    seed=int(seed) if seed not in (None, "") else None,
-                                   save_games=bool(body.get("save_games")), learn=bool(body.get("learn", True)))
+                                   save_games=bool(body.get("save_games")), learn=bool(body.get("learn", True)),
+                                   deals=bool(body.get("deals")))
             STATE.batch.start()
             return self.send_json(STATE.batch.summary())
         if path == "/api/batch/stop":

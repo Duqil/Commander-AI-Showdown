@@ -83,7 +83,7 @@ def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
         # "Saved games" in the browser viewer.
         from showdown.viewer.events import TimelineBuilder
         from showdown.viewer.session import GameConfig, GameSession, new_game_id
-        config = GameConfig(decks=list(decks), bots=list(bots), seed=seed)
+        config = GameConfig(decks=list(decks), bots=list(bots), seed=seed, deals=deals)
         session = GameSession(config, f"{new_game_id(config)}_{index:03d}")
         builder = TimelineBuilder()
 
