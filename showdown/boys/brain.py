@@ -49,12 +49,15 @@ Features = dict[str, float]
 #   * simple_prior / forge_suggested: a new Boy trusts SimpleBot's choice (and
 #     Forge's suggested target), so its first games look like SimpleBot with
 #     some random variation.
+#   * attack_breaks_deal: a new Boy mostly keeps its word, but can learn when
+#     betrayal pays. attack_grudge: and it starts out wanting revenge.
 #   * attack_zero_power: attacking with a 0-power creature starts very unlikely
 #     (about 1 in 20 against staying home), but stays possible: with a combat
 #     trick in hand it can be right, and a Boy can learn that.
-DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_suggested": 2.0}
+DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_suggested": 2.0,
+                   "attack_breaks_deal": -1.0, "attack_grudge": 1.0}
 
-DECISION_KINDS = ("mulligan", "play", "attack", "target")
+DECISION_KINDS = ("mulligan", "play", "attack", "target", "offer", "answer")
 
 
 @dataclass

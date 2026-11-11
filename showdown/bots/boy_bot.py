@@ -102,6 +102,15 @@ class BoyBot(Bot):
                 attacks[str(attacker["id"])] = target
         return attacks
 
+    # --- deals -------------------------------------------------------------------------
+
+    def offer_deal(self, view: Decision) -> dict | None:
+        feats, offers = features.offer_options(view)
+        return offers[self._pick("offer", feats)]
+
+    def answer_deal(self, view: Decision) -> bool:
+        return self._pick("answer", features.answer_options(view)) == 0  # option 0 = accept
+
     # --- after the game -------------------------------------------------------------
 
     def game_over(self, result: dict, player: str) -> None:

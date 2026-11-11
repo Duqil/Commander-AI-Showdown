@@ -38,10 +38,11 @@ EVENT_KINDS = {
     "bot_choice": "A Python bot made a decision (mulligan, attack, ...).",
     "game_over": "The game ended. data has the winner and final life totals.",
     "error": "Something went wrong (Forge crashed, the game was stopped, ...).",
-    # Planned (deals between bots). Reserved here so the browser can style them already:
+    # Deals between bots (showdown/deals.py):
     "deal_offer": "A bot offers a deal to another bot.",
     "deal_accept": "A deal was accepted.",
     "deal_decline": "A deal was declined.",
+    "deal_kept": "A deal ran its full length without being broken.",
     "deal_break": "A bot broke a deal it had made.",
 }
 
@@ -144,6 +145,13 @@ class TimelineBuilder:
         player = decision.get("player")
         return [make_event("bot_choice", f"{player} ({msg.get('bot')}) {text}",
                            turn=self.turn, player=player, category=decision.get("kind", "").upper())]
+
+    def _on_deal(self, msg: dict) -> list[Event]:
+        """A deal was offered, accepted, declined or broken (see showdown/deals.py)."""
+        deal = msg.get("deal", {})
+        player = msg.get("breaker") or (deal.get("b") if msg["event"] in ("accept", "decline") else deal.get("a"))
+        return [make_event(f"deal_{msg['event']}", msg["text"], turn=msg.get("turn", self.turn),
+                           player=player, category="DEAL", deal=deal)]
 
     def _on_game_over(self, msg: dict) -> list[Event]:
         if msg.get("draw"):

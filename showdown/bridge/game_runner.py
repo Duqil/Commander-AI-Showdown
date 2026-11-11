@@ -25,6 +25,7 @@ from typing import Callable
 from showdown.bots.base import Bot, Decision
 from showdown.bridge.connection import BridgeConnection, listen
 from showdown.bridge.forge_process import start_forge
+from showdown.deals import DealBook
 
 
 # A @dataclass writes __init__ and __repr__ for us from the field list.
@@ -71,11 +72,25 @@ def play(
     bots_by_seat: list[Bot | None],
     on_log: Callable[[str], None] | None = None,
     on_message: MessageCallback | None = None,
+    deals: bool = False,
 ) -> GameResult:
-    """Drive a game over an already-open connection. Separate from run_game() so tests can use a fake Forge."""
+    """Drive a game over an already-open connection. Separate from run_game() so tests can use a fake Forge.
+
+    With ``deals`` on, bots can make deals with each other (see showdown/deals.py).
+    """
     bots_by_name: dict[str, Bot] = {}
     decisions = 0
     log: list[str] = []
+    book: DealBook | None = None
+
+    def deal_messages(messages: list[dict]) -> None:
+        # Deals aren't in Forge's log, so we add them to ours (and the viewer's).
+        for m in messages:
+            log.append("Deal: " + m["text"])
+            if on_log:
+                on_log("Deal: " + m["text"])
+            if on_message:
+                on_message(m)
 
     for msg in conn.messages():
         if on_message:
@@ -86,6 +101,8 @@ def play(
                 bot = bots_by_seat[seat["seat"]]
                 if bot is not None:
                     bots_by_name[seat["name"]] = bot
+            if deals:
+                book = DealBook([seat["name"] for seat in msg["seats"]])
         elif kind == "event":
             for line in msg.get("log", []):
                 log.append(line)
@@ -93,7 +110,12 @@ def play(
                     on_log(line)
         elif kind == "decision":
             bot = bots_by_name.get(msg["player"])
+            if book is not None and "state" in msg:
+                deal_messages(book.offer_phase(msg["state"], bots_by_name))  # start of a new turn?
+                msg["deals"] = book.view_for(msg["player"], msg["state"])
             choice = answer_decision(bot, msg) if bot else None
+            if book is not None and msg.get("kind") == "attack":
+                deal_messages(book.check_attack(msg["player"], msg, choice))
             conn.answer(msg["id"], choice)
             decisions += 1
             if on_message:
@@ -122,6 +144,7 @@ def run_game(
     timeout: float = 600,
     on_message: MessageCallback | None = None,
     abort: threading.Event | None = None,
+    deals: bool = False,
 ) -> GameResult:
     """Play one full Commander game in Forge and return the result.
 
@@ -163,7 +186,7 @@ def run_game(
         sock.settimeout(timeout)  # no single message should take this long
         conn = BridgeConnection(sock)
         try:
-            return play(conn, [s.bot for s in seats], on_log, on_message)
+            return play(conn, [s.bot for s in seats], on_log, on_message, deals=deals)
         except Exception:
             if abort is not None and abort.is_set():
                 raise GameAborted("stopped by the user")
