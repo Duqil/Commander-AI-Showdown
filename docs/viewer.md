@@ -32,6 +32,9 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
 * **New game** plays again with the same decks and bots (new shuffle).
   **Stop** ends a running game. **Main Menu** goes back to the setup screen,
   where the **Saved games** tab lists finished games to watch again.
+* **Round and turn.** The top left shows e.g. "Round 9 · Turn 35 · 3-Nelly ·
+  Combat". A round is over once every player still in the game has had a
+  turn, so after a knockout a round is shorter.
 * **Board.** Each player has a coloured board. Its top line holds the name,
   the bot, cards in hand (✋), library (📚), graveyard (🪦, click to see it),
   exile (🌀), poison and commander damage taken, then the life total. Rows are:

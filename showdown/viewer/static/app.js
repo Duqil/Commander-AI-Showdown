@@ -262,7 +262,8 @@ $("#start").onclick = async () => {
 // ===========================================================================
 function resetPlayback() {
   Object.assign(app, { events: [], stateSeqs: [], dealSeqs: [], seats: [], pos: 0, shownStateSeq: -1,
-                       lastLife: {}, playing: false, shownStack: [], holdUntil: 0 }); // a new game opens paused: press ▶ to start
+                       lastLife: {}, playing: false, shownStack: [], holdUntil: 0,
+                       rounds: { byTurn: new Map(), firstSeat: null, lastPlace: null, round: 0 } }); // a new game opens paused: press ▶ to start
   cancelCastAnimation();
   app.knownCards.clear();
   $("#log").innerHTML = "";
@@ -314,10 +315,29 @@ async function poll() {
   updateButtons();
 }
 
+// Rounds: a round is over once every player still in the game has had a turn.
+// Turns go around the table in seat order, starting with whoever went first.
+// So a new round starts when the turn comes back around past the first player:
+// the active player's place in that order is lower than the last one's. That
+// still works after a knockout (nobody waits for a player who's out), and an
+// extra turn (same player again) doesn't start a new round.
+function countRound(state) {
+  const r = app.rounds;
+  if (!state.turn || r.byTurn.has(state.turn)) return; // mulligans, or a turn we've seen
+  const seat = parseInt(state.active_player, 10) - 1; // player names look like "3-Nelly"
+  const seats = app.seats.length || 4;
+  if (r.firstSeat === null) r.firstSeat = seat;
+  const place = (seat - r.firstSeat + seats) % seats; // 0 = the player who went first
+  if (r.lastPlace === null) r.round = 1;
+  else if (place < r.lastPlace) r.round += 1;
+  r.lastPlace = place;
+  r.byTurn.set(state.turn, r.round);
+}
+
 function addEvent(ev) {
   if (ev.seq !== app.events.length) return; // already have it (or a gap: next poll fixes it)
   app.events.push(ev);
-  if (ev.state) app.stateSeqs.push(ev.seq);
+  if (ev.state) { app.stateSeqs.push(ev.seq); countRound(ev.state); }
   if (ev.kind.startsWith("deal_")) app.dealSeqs.push(ev.seq);
   if (ev.kind === "game_start") app.seats = ev.data.seats;
 }
@@ -417,7 +437,7 @@ function render() {
       const state = app.events[seq].state;
       const phase = PHASE_NAMES[state.phase] || state.phase || "";
       $("#turn-info").textContent = state.turn
-        ? `Turn ${state.turn} · ${state.active_player ?? "–"} · ${phase}`
+        ? `Round ${app.rounds.byTurn.get(state.turn) ?? "?"} · Turn ${state.turn} · ${state.active_player ?? "–"} · ${phase}`
         : "Opening hands (mulligans)";
       drawBoards(state);
       drawStack(state);
