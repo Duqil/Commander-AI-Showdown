@@ -106,7 +106,7 @@ python -m showdown.run_game --bots simple forge simple forge  # Forge's AI plays
 python -m showdown.run_game --decks zidane kuja --quiet    # 2 players, result only
 ```
 
-Decks: `zidane`, `anhelo`, `nelly`, `kuja`, `garnet`, `swarmlord`, `nahiri`, `zangief`. Bots: `simple` (our bot), `forge`
+Decks: `zidane`, `anhelo`, `nelly`, `kuja`, `garnet`, `swarmlord`, `nahiri`, `zangief`, `terra`. Bots: `simple` (our bot), `forge`
 (Forge's own AI), `random`, and `boy:<name>` (a learning bot, see section 6).
 
 ## 6. Train The Boys (learning bots)
