@@ -1,0 +1,37 @@
+# Builds the replay website (pages/) and publishes it on GitHub Pages.
+# It does nothing until Pages is switched on: Settings > Pages > Source: "GitHub Actions".
+# To remove the site, delete this file and the pages/ folder (see pages/README.md).
+name: Replay site
+
+on:
+  push:
+    branches: [main]
+    paths: ["pages/**", "showdown/viewer/static/**", ".github/workflows/replay-site.yml"]
+  workflow_dispatch:   # adds a "Run workflow" button on the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: replay-site
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pages.build_site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages/_site
+      - id: deploy
+        uses: actions/deploy-pages@v4
