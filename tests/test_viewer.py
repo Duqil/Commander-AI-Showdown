@@ -215,6 +215,57 @@ class SessionStopTest(unittest.TestCase):
         self.assertEqual(session.status, "stopped")
 
 
+class SessionLoadingTest(unittest.TestCase):
+    def test_a_bot_that_cannot_be_made_shows_an_error_instead_of_hanging(self):
+        from unittest import mock
+        import showdown.viewer.session as session_module
+        from showdown.viewer.session import GameConfig
+
+        def broken_bot(*args, **kwargs):
+            raise ValueError("brain file is broken")
+
+        session = GameSession(GameConfig(["a", "b"], ["boy:X", "boy:Y"]), "test")
+        with mock.patch.object(session_module, "make_bot", broken_bot), mock.patch("traceback.print_exc"):
+            session._run()
+        self.assertEqual(session.status, "error")  # before, the status stayed "starting" forever
+        self.assertIn("brain file is broken", session.events[-1]["text"])
+
+    def test_the_clock_moves_the_bar_between_steps_but_never_to_100(self):
+        from showdown.viewer.session import GameConfig
+        session = GameSession(GameConfig(["a", "b"], ["random", "random"]), "test")
+        session.loading = {"percent": 5, "text": "Loading card rules"}
+        session._expected_seconds = 10
+        session._started_at -= 5  # 5 of about 10 seconds gone
+        self.assertEqual(session.summary()["loading"]["percent"], 50)
+        session._started_at -= 60  # much slower than last time
+        self.assertEqual(session.summary()["loading"]["percent"], 97)
+
+    def test_loading_progress_goes_forward_and_ends_with_the_first_table(self):
+        from unittest import mock
+        import showdown.viewer.session as session_module
+        from showdown.viewer.session import GameConfig
+        seen = []
+
+        def fake_run_game(seats, on_message=None, **kwargs):
+            on_message({"type": "loading", "percent": 50, "text": "Loading card rules"})
+            on_message({"type": "loading", "percent": 40, "text": "late message"})  # out of order: ignored
+            seen.append(session.summary()["loading"])
+            on_message({"type": "game_start", "seats": []})
+            on_message({"type": "event", "log": [], "state": {"turn": 0}})
+            seen.append(session.summary()["loading"])
+            raise session_module.GameStopped()
+
+        session = GameSession(GameConfig(["a", "b"], ["random", "random"]), "test")
+        with mock.patch.object(session_module, "run_game", fake_run_game), \
+                mock.patch.object(session_module, "expected_loading_seconds", lambda: None), \
+                mock.patch.object(session_module, "remember_loading_seconds") as remember:
+            session._run()
+        remember.assert_called_once()  # the next game's bar can use this game's time
+        self.assertEqual((seen[0]["percent"], seen[0]["text"]), (50, "Loading card rules"))
+        self.assertIn("seconds", seen[0])
+        self.assertIsNone(seen[1])  # the table is here: no more loading bar
+
+
 class StatsPageTest(unittest.TestCase):
     def test_groups_and_fair_share(self):
         from unittest import mock

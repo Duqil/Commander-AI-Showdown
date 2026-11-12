@@ -64,6 +64,7 @@ const app = {
   stepping: false,   // true while playback moves forward one event (not when jumping)
   shownStack: [],    // the stack drawn right now, to spot newly cast spells
   holdUntil: 0,      // playback waits until this time (performance.now()) for an animation
+  loading: null,     // before the first table: {percent, text, seconds} from the server
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -319,7 +320,9 @@ function resetPlayback() {
   $("#log").innerHTML = "";
   $("#boards").innerHTML = "";
   $("#stack").textContent = "empty";
-  $("#turn-info").textContent = "Loading rules…";
+  app.loading = null;
+  $("#turn-info").classList.remove("failed");
+  $("#turn-info").textContent = "Starting…";
   // The arrows live in their own layer on top of the page, not in #boards, so
   // clear them too. Otherwise the last game's attack arrows stay up until the
   // new game's first table arrives.
@@ -345,6 +348,7 @@ async function poll() {
       const data = await api(`/api/game/events?since=${app.events.length}`);
       app.status = data.status;
       app.config = data.config;
+      app.loading = data.loading;
       const hadState = app.stateSeqs.length > 0;
       for (const ev of data.events) addEvent(ev);
       // Paused at the very start and the first table snapshot just arrived:
@@ -359,10 +363,36 @@ async function poll() {
     console.warn("poll failed", e);
   }
   polling = false;
+  drawLoading();
   updateProgress();
   const finished = ["finished", "error", "stopped", "none"].includes(app.status);
   if (!finished) setTimeout(poll, 500);
   updateButtons();
+}
+
+// Before the first table arrives, the top line shows how far loading has got:
+// "Loading card rules… 42% · 12 s" and a thin bar. The percentages come from
+// Python (starting Java) and from Forge itself (LoadingProgress.java).
+function drawLoading() {
+  if (app.stateSeqs.length) return; // the table is here: render() owns the top line now
+  const info = $("#turn-info");
+  if (app.status === "error" || app.status === "stopped") {
+    // The game ended before the first table. Say why, and put the error in the
+    // log too: a new game opens paused, so playback would never reach it.
+    const error = [...app.events].reverse().find((ev) => ev.kind === "error");
+    info.classList.add("failed");
+    info.textContent = error ? error.text : "The game ended before it began.";
+    if (app.pos < app.events.length) goTo(app.events.length);
+    return;
+  }
+  const l = app.loading;
+  if (!l) return;
+  const bar = el("div", "load-bar");
+  bar.append(el("div"));
+  bar.firstChild.style.width = `${l.percent}%`;
+  // "expected" is how long the last games took to load on this computer (none the first time).
+  const time = l.expected ? ` · ${l.seconds} s of about ${l.expected} s` : ` · ${l.seconds} s`;
+  info.replaceChildren(el("span", "", `${l.text}… ${l.percent}%`), el("span", "muted small", time), bar);
 }
 
 // Rounds: a round is over once every player still in the game has had a turn.

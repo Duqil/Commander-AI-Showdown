@@ -81,10 +81,13 @@ def play(
     on_log: Callable[[str], None] | None = None,
     on_message: MessageCallback | None = None,
     deals: bool = False,
+    game_timeout: float | None = None,
 ) -> GameResult:
     """Drive a game over an already-open connection. Separate from run_game() so tests can use a fake Forge.
 
     With ``deals`` on, bots can make deals with each other (see showdown/deals.py).
+    ``game_timeout``: once the game has started, the longest wait for one message
+    (before that, the caller's shorter loading limit stays in place).
     """
     bots_by_name: dict[str, Bot] = {}
     decisions = 0
@@ -107,6 +110,8 @@ def play(
             on_message(msg)
         kind = msg["type"]
         if kind == "game_start":
+            if game_timeout is not None:
+                conn.settimeout(game_timeout)
             for seat in msg["seats"]:
                 bot = bots_by_seat[seat["seat"]]
                 if bot is not None:
@@ -176,6 +181,8 @@ class Forge:
     # Start a fresh Forge now and then anyway, in case Forge keeps a little
     # memory of every game it played. 25 games of ~40 s each is ~15 minutes.
     MAX_GAMES = 25
+    # The longest Forge may stay silent while it loads, in seconds.
+    LOADING_TIMEOUT = 180
 
     def __init__(self, forge_log: Path | None = None) -> None:
         self.forge_log = forge_log
@@ -204,7 +211,7 @@ class Forge:
         if self.conn is not None and self.games >= self.MAX_GAMES:
             self.close()
         if self.conn is None:
-            self._start(seats, seed, abort)
+            self._start(seats, seed, abort, on_message)
         else:
             # Forge is waiting after its last game: tell it what to play next.
             self.conn.send({"type": "next_game", "seed": seed,
@@ -223,8 +230,16 @@ class Forge:
                         return
             threading.Thread(target=watch, name="abort-watch", daemon=True).start()
         try:
-            self.conn.settimeout(timeout)  # no single message should take this long
-            result = play(self.conn, [s.bot for s in seats], on_log, on_message, deals=deals)
+            # Until the game starts, Forge reports its loading steps every few
+            # seconds, so a long silence means it is stuck: give up after
+            # LOADING_TIMEOUT. During the game, no single message should take
+            # longer than ``timeout``.
+            self.conn.settimeout(min(timeout, self.LOADING_TIMEOUT))
+            try:
+                result = play(self.conn, [s.bot for s in seats], on_log, on_message, deals=deals,
+                              game_timeout=timeout)
+            except socket.timeout:
+                raise TimeoutError("Forge stopped answering (see the Forge log file)") from None
             self.games += 1
             return result
         except BaseException:
@@ -253,9 +268,17 @@ class Forge:
         except OSError:
             pass  # a missing log mustn't hide the real error
 
-    def _start(self, seats: list[Seat], seed: int | None, abort: threading.Event | None) -> None:
+    def _start(self, seats: list[Seat], seed: int | None, abort: threading.Event | None,
+               on_message: MessageCallback | None = None) -> None:
+        def loading(percent: int, text: str) -> None:
+            # Same shape as Forge's own "loading" messages (LoadingProgress.java),
+            # so the viewer shows one progress bar from start to deal.
+            if on_message:
+                on_message({"type": "loading", "percent": percent, "text": text})
+
         server = listen()
         try:
+            loading(0, "Starting Java")
             self.process = start_forge(
                 server.getsockname()[1],
                 [(s.deck, "forge" if s.bot is None else "python") for s in seats],
@@ -279,6 +302,7 @@ class Forge:
                         raise TimeoutError("Forge didn't connect within 2 minutes (see the Forge log file)")
             self.conn = BridgeConnection(sock)
             self.games = 0
+            loading(3, "Java started, waiting for Forge")
         except BaseException:
             self.close(kill=True)
             raise
