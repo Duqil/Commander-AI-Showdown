@@ -24,7 +24,7 @@ first Python exercise.
 from __future__ import annotations
 
 from showdown.bots.base import Bot, Decision
-from showdown.boys import threat
+from showdown.boys import colors, threat
 from showdown.boys.threat import game_round
 
 MAIN_PHASES = {"MAIN1", "MAIN2"}
@@ -68,7 +68,10 @@ class SimpleBot(Bot):
         options = decision["options"]
         lands = [o for o in options if o["is_land"]]
         if lands:
-            return lands[0]["index"]
+            # The land whose colors help most (a first Swamp for a hand of
+            # black spells). max() keeps the first one on a tie.
+            me = self.me(decision)
+            return max(lands, key=lambda o: colors.land_value(o["card"], me))["index"]
 
         # Abilities (not spells, not land drops) that Forge's own AI would use
         # right now. "forge_would_play" is Forge's hint: it knows when an
@@ -90,6 +93,15 @@ class SimpleBot(Bot):
         if abilities:
             return abilities[0]["index"]
         return None
+
+    def choose_fetch(self, decision: Decision) -> int | None:
+        """Fetch the land whose colors my cards need most (see colors.land_value)."""
+        me = self.me(decision)
+        candidates = decision["candidates"]
+        scores = [colors.land_value(c, me) for c in candidates]
+        if not candidates or max(scores) == 0:
+            return None  # no color matters right now: Forge's pick is fine
+        return candidates[scores.index(max(scores))]["index"]
 
     def declare_attackers(self, decision: Decision) -> dict[str, int]:
         players = {p["name"]: p for p in decision["state"]["players"]}

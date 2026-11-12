@@ -163,6 +163,34 @@ public final class StateSnapshot {
         }
     }
 
+    /**
+     * Colors, for decks with several of them:
+     *   cost      the mana cost, e.g. "{1}{U}{R}" (what colors this card needs)
+     *   produces  the colors its mana abilities can make, e.g. "UB" for Sulfurous
+     *             Springs's colors, "WUBRG" for Command Tower-like "any color"
+     */
+    private static void addMana(JsonObject cj, Card c) {
+        try {
+            if (c.getManaCost() != null && !c.getManaCost().isNoCost()) {
+                cj.addProperty("cost", c.getManaCost().toString());
+            }
+            StringBuilder produces = new StringBuilder();
+            for (String color : new String[] {"W", "U", "B", "R", "G"}) {
+                for (SpellAbility ma : c.getManaAbilities()) {
+                    if (ma.getManaPart() != null && ma.getManaPart().canProduce(color, ma)) {
+                        produces.append(color);
+                        break;
+                    }
+                }
+            }
+            if (produces.length() > 0) {
+                cj.addProperty("produces", produces.toString());
+            }
+        } catch (RuntimeException e) {
+            // optional, like the graveyard hints
+        }
+    }
+
     public static JsonObject card(Card c) {
         JsonObject cj = new JsonObject();
         cj.addProperty("id", c.getId());
@@ -170,6 +198,7 @@ public final class StateSnapshot {
         cj.addProperty("cmc", c.getCMC());
         cj.addProperty("type", c.getType().toString());
         cj.addProperty("tapped", c.isTapped());
+        addMana(cj, c);
         if (c.isCreature()) {
             cj.addProperty("power", c.getNetPower());
             cj.addProperty("toughness", c.getNetToughness());

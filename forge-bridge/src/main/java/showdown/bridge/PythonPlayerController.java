@@ -15,6 +15,7 @@ import forge.game.card.Card;
 import forge.game.card.CardCollection;
 import forge.game.combat.Combat;
 import forge.game.combat.CombatUtil;
+import forge.game.player.DelayedReveal;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
 import forge.game.zone.ZoneType;
@@ -41,6 +42,7 @@ import java.util.Map;
  *   2. choose_play    - with priority: which spell/ability/land to play, or pass
  *      choose_targets - the targets of the play Python just chose
  *   3. attack         - which creatures attack which player
+ *   4. fetch_land     - which land to fetch from the library (Evolving Wilds, ...)
  *
  * Other details of a chosen play (X, modes, how to pay mana) and the targets
  * of triggered abilities are still filled in by Forge's AI. Moving more decisions to Python later means overriding more
@@ -494,6 +496,58 @@ public class PythonPlayerController extends PlayerControllerAi {
             combat.clearAttackers();
             super.declareAttackers(attacker, combat);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // 4. Fetching a land (Evolving Wilds, Myriad Landscape, ...)
+    // ------------------------------------------------------------------
+
+    /**
+     * Searching the library for a land. Forge's AI fills in a suggestion (it
+     * only fixes colors when it has no land in hand and can't cast anything,
+     * so a three-color deck can end up fetching Island after Island). Python
+     * picks one. Cards that fetch several lands ask once per land.
+     * Other library searches (tutors) still go to Forge's AI.
+     */
+    @Override
+    public Card chooseSingleCardForZoneChange(ZoneType destination, List<ZoneType> origin, SpellAbility sa,
+            CardCollection fetchList, DelayedReveal delayedReveal, String selectPrompt, boolean isOptional,
+            Player decider) {
+        Card suggestion = super.chooseSingleCardForZoneChange(destination, origin, sa, fetchList,
+                delayedReveal, selectPrompt, isOptional, decider);
+        boolean landSearch = origin != null && origin.contains(ZoneType.Library) && !fetchList.isEmpty()
+                && fetchList.stream().allMatch(Card::isLand) && decider == getPlayer();
+        if (!landSearch) {
+            return suggestion;
+        }
+        JsonArray candJson = new JsonArray();
+        int suggested = -1;
+        for (int i = 0; i < fetchList.size(); i++) {
+            JsonObject cj = StateSnapshot.card(fetchList.get(i));
+            cj.addProperty("index", i);
+            candJson.add(cj);
+            if (fetchList.get(i) == suggestion) {
+                suggested = i;
+            }
+        }
+        JsonObject extra = new JsonObject();
+        extra.add("source", StateSnapshot.card(sa.getHostCard()));
+        extra.add("candidates", candJson);
+        extra.addProperty("suggested", suggested); // what Forge's AI would pick (-1: nothing)
+        extra.addProperty("optional", isOptional);
+        JsonElement choice = ask("fetch_land", extra).get("choice");
+        if (isNull(choice)) {
+            return suggestion;
+        }
+        int i = choice.getAsInt();
+        if (i < 0) {
+            return isOptional ? null : suggestion; // "find nothing" is only allowed when optional
+        }
+        if (i >= fetchList.size()) {
+            System.err.println("[bridge] Ignoring illegal fetch choice " + i);
+            return suggestion;
+        }
+        return fetchList.get(i);
     }
 
     /**

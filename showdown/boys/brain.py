@@ -63,7 +63,7 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
 # At full speed Yugi's mulligan weights wandered until he threw away good hands.
 KIND_RATE = {"mulligan": 0.25}
 
-DECISION_KINDS = ("mulligan", "play", "attack", "target", "offer_whether", "offer", "answer")
+DECISION_KINDS = ("mulligan", "play", "attack", "target", "fetch", "offer_whether", "offer", "answer")
 
 
 @dataclass

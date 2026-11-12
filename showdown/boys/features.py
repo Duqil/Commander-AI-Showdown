@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
-from showdown.boys import threat
+from showdown.boys import colors, threat
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -65,6 +65,12 @@ def mulligan_options(decision: Decision) -> list[Features]:
         "mulligan_deeper": (to_bottom + costs_a_card) / 3,
         "simple_prior": _flag(not simple_keeps),
     }
+    # Colors: share of the spells in hand whose colors the lands in hand can make.
+    # A 3-Island hand full of black and red spells is worse than it looks.
+    spells = [c for c in hand if not colors.is_land(c) and colors.pips(c.get("cost"))]
+    hand_colors = set().union(*(colors.produces(c) for c in hand if colors.is_land(c)), set())
+    if spells:
+        keep["keep_color_coverage"] = sum(colors.castable_by(c, hand_colors) for c in spells) / len(spells)
     return [keep, mulligan]
 
 
@@ -101,6 +107,7 @@ def play_options(decision: Decision) -> list[Features]:
     simple_pick = _simple.choose_play(decision)  # an option "index", or None for pass
     xc = x_context(decision["options"])
     gy = graveyard_context(state, decision["options"])
+    missing = colors.missing(threat.me(state))  # colors my cards need that I can't make yet
 
     result = []
     for option in decision["options"]:
@@ -111,6 +118,8 @@ def play_options(decision: Decision) -> list[Features]:
         is_ability = not is_land and not is_spell
         result.append({
             "land_drop": _flag(is_land),
+            # A land that makes a color my cards need and I don't have yet.
+            "land_new_color": _flag(is_land and bool(colors.produces(card) & missing)),
             "spell": _flag(is_spell),
             "spell_cmc": (card.get("cmc", 0) + option.get("max_x", 0)) / 7 if is_spell else 0.0,
             "x_spell": _flag("max_x" in option),
@@ -321,6 +330,26 @@ def is_harmful(decision: Decision) -> bool:
         return params.get("Origin", "") == "Battlefield"       # exile or bounce from play
     text = decision.get("description", "").lower()
     return any(word in text for word in HARMFUL_WORDS)
+
+
+def fetch_options(decision: Decision) -> list[Features]:
+    """Which land to fetch from the library (Evolving Wilds, Myriad Landscape...)."""
+    me = threat.me(decision["state"])
+    missing = colors.missing(me)
+    have = colors.available(me)
+    simple = _simple.choose_fetch(decision)
+    suggested = decision.get("suggested", -1)
+    result = []
+    for cand in decision["candidates"]:
+        makes = colors.produces(cand)
+        result.append({
+            "simple_prior": _flag(cand["index"] == simple),
+            "forge_suggested": _flag(cand["index"] == suggested),
+            "fetch_new_color": _flag(bool(makes & missing)),        # a color I need and lack
+            "fetch_only_old_colors": _flag(bool(makes) and makes <= have),  # nothing new
+            "fetch_color_value": min(colors.land_value(cand, me), 4) / 4,
+        })
+    return result
 
 
 def target_options(decision: Decision) -> list[Features]:

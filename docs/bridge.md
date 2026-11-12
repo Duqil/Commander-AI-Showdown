@@ -19,6 +19,7 @@ a time, starting with the ones that matter most.
 | `choose_play` | You have priority and at least one legal play | option `index` | pass priority |
 | `choose_targets` | Right after you chose a play that targets, once per targeting part | list of candidate `index`es | keep Forge AI's `suggested` targets |
 | `attack` | Your declare-attackers step, if anything can attack | `{"<card id>": defender index}` | Forge AI attacks |
+| `fetch_land` | Searching your library for a land (Evolving Wilds; Myriad Landscape asks twice) | a candidate `index` (-1 = none, only if `optional`) | Forge AI's `suggested` land |
 
 Still answered by Forge's AI: targets and X values of a chosen play, mana
 payment, blocks, combat damage order, all "choose a card/mode/player" effects,
@@ -72,7 +73,8 @@ graveyard, exile and command zone, plus the `stack` (each item has an `id`, a
 `kind`: `spell`, `ability` or `trigger`, and its `targets` as `{"card": id}`,
 `{"player": name}` or `{"spell": stack id}`). Cards also say whether
 they are tapped, a token, a commander, attacking or blocking, what they are
-attached to, their counters, and their `owner` vs `controller`. Only
+attached to, their counters, their `owner` vs `controller`, their mana `cost`
+("{1}{U}{R}") and the colors they `produces` ("UB"). Only
 your own `hand` is included, so bots can't peek. `turns` counts each player's
 turn separately (4 players × 5 rounds = 20 turns).
 

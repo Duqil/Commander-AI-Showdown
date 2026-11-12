@@ -120,6 +120,13 @@ class BoyBot(Bot):
         picked = self._pick("target", features.target_options(decision))
         return [decision["candidates"][picked]["index"]]
 
+    def choose_fetch(self, decision: Decision) -> int | None:
+        self._observe(decision["state"])
+        if not decision["candidates"]:
+            return None
+        picked = self._pick("fetch", features.fetch_options(decision))
+        return decision["candidates"][picked]["index"]
+
     def declare_attackers(self, decision: Decision) -> dict[str, int]:
         self._observe(decision["state"])
         ctx = features.attack_context(decision)

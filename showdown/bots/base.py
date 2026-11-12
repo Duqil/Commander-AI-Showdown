@@ -59,6 +59,18 @@ class Bot:
         """
         return None
 
+    def choose_fetch(self, decision: Decision) -> int | None:
+        """Which land to take when searching the library (Evolving Wilds, ...).
+        Return a candidate index, or None to take what Forge's AI suggested.
+
+        decision["candidates"]: the lands you may fetch, each with "index" and
+            "produces" (the colors it makes, e.g. "UB").
+        decision["suggested"]: the index Forge's AI would pick (-1 for none).
+        decision["source"]: the card doing the search. Cards that fetch two
+            lands (Myriad Landscape) ask twice.
+        """
+        return None
+
     def declare_attackers(self, decision: Decision) -> dict[str, int] | None:
         """Combat. Return {card id (as text): defender index}. {} means no attack.
 
