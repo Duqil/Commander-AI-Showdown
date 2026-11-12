@@ -24,7 +24,7 @@ from __future__ import annotations
 import random
 
 from showdown.bots.base import Bot, Decision
-from showdown.boys import features
+from showdown.boys import critic, features, threat
 from showdown.boys.brain import Step
 from showdown.boys.reward import game_reward, mulligan_bonus, turn_bonus
 from showdown.boys.storage import load_brain, save_brain
@@ -43,6 +43,7 @@ class BoyBot(Bot):
         self.steps: list[Step] = []          # every choice made this game
         self.last_state: dict | None = None  # the table as we last saw it
         self.result: dict | None = None      # filled in by game_over()
+        self.deck: str | None = None         # our commander's name, as first seen (for the critic)
         # What happened on each of our own turns:
         #   {turn: [damage to opponents, knockouts, cards drawn, cards discarded to hand size]}
         self.turn_effects: dict[int, list[int]] = {}
@@ -91,6 +92,9 @@ class BoyBot(Bot):
     def _pick(self, kind: str, options: list[features.Features]) -> int:
         step = self.brain.choose(kind, options, self.rng, explore=self.explore)
         step.turn = self.last_state.get("turn", 0) if self.last_state else 0
+        if self.deck is None and self.last_state:
+            self.deck = critic.my_commander(threat.me(self.last_state))
+        step.situation = critic.situation(self.last_state, self.deck)
         self.steps.append(step)
         return step.picked
 
@@ -193,3 +197,4 @@ class BoyBot(Bot):
                        "drawn": sum(e[2] for e in self.turn_effects.values()),
                        "discarded": sum(e[3] for e in self.turn_effects.values())}
         self.steps = []
+        self.deck = None
