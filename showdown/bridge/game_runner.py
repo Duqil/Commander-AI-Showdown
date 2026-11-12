@@ -81,13 +81,10 @@ def play(
     on_log: Callable[[str], None] | None = None,
     on_message: MessageCallback | None = None,
     deals: bool = False,
-    game_timeout: float | None = None,
 ) -> GameResult:
     """Drive a game over an already-open connection. Separate from run_game() so tests can use a fake Forge.
 
     With ``deals`` on, bots can make deals with each other (see showdown/deals.py).
-    ``game_timeout``: once the game has started, the longest wait for one message
-    (before that, the caller's shorter loading limit stays in place).
     """
     bots_by_name: dict[str, Bot] = {}
     decisions = 0
@@ -110,8 +107,6 @@ def play(
             on_message(msg)
         kind = msg["type"]
         if kind == "game_start":
-            if game_timeout is not None:
-                conn.settimeout(game_timeout)
             for seat in msg["seats"]:
                 bot = bots_by_seat[seat["seat"]]
                 if bot is not None:
@@ -181,8 +176,6 @@ class Forge:
     # Start a fresh Forge now and then anyway, in case Forge keeps a little
     # memory of every game it played. 25 games of ~40 s each is ~15 minutes.
     MAX_GAMES = 25
-    # The longest Forge may stay silent while it loads, in seconds.
-    LOADING_TIMEOUT = 180
 
     def __init__(self, forge_log: Path | None = None) -> None:
         self.forge_log = forge_log
@@ -230,16 +223,14 @@ class Forge:
                         return
             threading.Thread(target=watch, name="abort-watch", daemon=True).start()
         try:
-            # Until the game starts, Forge reports its loading steps every few
-            # seconds, so a long silence means it is stuck: give up after
-            # LOADING_TIMEOUT. During the game, no single message should take
-            # longer than ``timeout``.
-            self.conn.settimeout(min(timeout, self.LOADING_TIMEOUT))
+            # No single message should take longer than ``timeout``. Loading counts
+            # too: on a slow disk, Forge can be silent for minutes while it
+            # indexes its ~34,000 card scripts (one Windows PC took 3 minutes).
+            self.conn.settimeout(timeout)
             try:
-                result = play(self.conn, [s.bot for s in seats], on_log, on_message, deals=deals,
-                              game_timeout=timeout)
+                result = play(self.conn, [s.bot for s in seats], on_log, on_message, deals=deals)
             except socket.timeout:
-                raise TimeoutError("Forge stopped answering (see the Forge log file)") from None
+                raise TimeoutError(f"Forge sent nothing for {timeout:.0f} seconds (see the Forge log file)") from None
             self.games += 1
             return result
         except BaseException:
