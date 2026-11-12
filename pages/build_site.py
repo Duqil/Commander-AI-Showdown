@@ -56,9 +56,8 @@ def build() -> Path:
         with gzip.open(file, "rt", encoding="utf-8") as f:
             game = json.load(f)
         (SITE / "replays" / f"{game_id}.json").write_text(json.dumps(game, separators=(",", ":")), encoding="utf-8")
-        over = next((e for e in reversed(game["events"]) if e["kind"] == "game_over"), None)
-        listing.append({"id": game_id, "title": game.get("title", game_id), "about": game.get("about", ""),
-                        "result": over["text"] if over else ""})
+        # No winner or game length in the list: that would spoil the game.
+        listing.append({"id": game_id, "title": game.get("title", game_id), "about": game.get("about", "")})
     (SITE / "replays" / "index.json").write_text(json.dumps(listing, indent=1), encoding="utf-8")
     print(f"Built {SITE} with {len(listing)} replays")
     return SITE

@@ -91,7 +91,7 @@
       #replays .replay { border-bottom: 1px solid var(--line); padding: 10px 0; display: grid;
                          grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; }
       #replays .replay b { font-size: 15px; }
-      #replays .replay button { grid-row: span 3; }
+      #replays .replay button { grid-row: span 2; }
       #replays .note { margin-top: 18px; }
       #replays a { color: var(--accent); }`;
     document.head.append(style);
@@ -128,10 +128,7 @@
         const about = document.createElement("span");
         about.className = "muted small";
         about.textContent = g.about;
-        const result = document.createElement("span");
-        result.className = "muted small";
-        result.textContent = g.result;
-        row.append(title, watch, about, result);
+        row.append(title, watch, about);
         listBox.append(row);
       }
     });
