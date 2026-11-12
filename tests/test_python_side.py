@@ -15,7 +15,7 @@ import unittest
 
 from showdown.bots.simple_bot import SimpleBot
 from showdown.bridge.connection import BridgeConnection, listen
-from showdown.bridge.game_runner import play
+from showdown.bridge.game_runner import ForgeGameError, play
 from showdown.decks.convert import parse_line
 
 
@@ -167,6 +167,35 @@ class FakeForgeTest(unittest.TestCase):
         t.join()
         server.close()
         self.assertEqual(seen, [0, 1, 2])
+
+    def test_game_that_broke_inside_forge_is_an_error_not_a_draw(self):
+        server = listen()
+        port = server.getsockname()[1]
+
+        class Learner(SimpleBot):
+            learned = False
+
+            def game_over(self, msg, player_name):
+                Learner.learned = True
+
+        def fake_forge():
+            s = socket.create_connection(("127.0.0.1", port))
+            w = s.makefile("w")
+            for msg in ({"type": "game_start", "seats": [{"seat": 0, "name": "1-Zidane"}]},
+                        {"type": "game_over", "draw": True, "turns": 7, "players": [],
+                         "error": "java.lang.StackOverflowError"}):
+                w.write(json.dumps(msg) + "\n")
+            w.flush()
+            s.close()
+
+        t = threading.Thread(target=fake_forge)
+        t.start()
+        sock, _ = server.accept()
+        with self.assertRaises(ForgeGameError):
+            play(BridgeConnection(sock), [Learner()])
+        t.join()
+        server.close()
+        self.assertFalse(Learner.learned)  # Boys mustn't learn from a broken game
 
 
 if __name__ == "__main__":
