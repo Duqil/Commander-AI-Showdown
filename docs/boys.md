@@ -105,9 +105,18 @@ had no land in hand and nothing to cast, so Anhelo could fetch Island after
 Island.
 
 **Commander and extra costs.** There's no rule about when to cast the
-commander. Boys see `cast_commander` and `commander_tax`; `cast_commander`
-starts at weight 1.0 (a mild liking, since SimpleBot's "biggest spell first"
-almost never picks a 3-mana commander), and training moves it from there. Optional extra costs while casting (casualty, offspring...)
+commander, and no single "commander" weight either: commanders differ too
+much. `showdown/boys/commander.py` reads each commander's *traits* from its
+card (cheap, big body, spell engine and which spells feed it, draws cards,
+makes tokens, attack trigger, grows when recast, gets cheaper) and crosses
+them with the situation for the option "cast my commander": `cmdr_engine_fuel`
+(an engine x the spells in hand it would power up), `cmdr_big_late`,
+`cmdr_big_open_board`, `cmdr_cheap_early`, `cmdr_draws_low_hand`,
+`cmdr_grows_recast` and more. Once it's out, other spells get
+`feeds_my_commander` (an instant with Anhelo out). On top, `cmdr_is_<name>` is
+a small learned adjustment for that one commander (it starts at 0; it's
+learned, never a rule). `cast_commander` starts at 1.0, `commander_tax` at 0.
+Optional extra costs while casting (casualty, offspring...)
 are a decision too (`keyword_cost`): Forge's AI pays whenever it can, SimpleBot
 only refuses to sacrifice its commander, and Boys see what they'd sacrifice
 (`sac_token`, `sac_comes_back` for Bloodghast-like cards, `sac_cheapest_cmc`,

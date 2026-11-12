@@ -25,7 +25,7 @@ import re
 from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
-from showdown.boys import colors, threat
+from showdown.boys import colors, commander, threat
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -145,6 +145,9 @@ def play_options(decision: Decision) -> list[Features]:
             "ability_forge_would_play": _flag(is_ability and option.get("forge_would_play", False)),
             "respond_to_stack": _flag(stack),
             "simple_prior": _flag(simple_pick == option["index"]),
+            # My commander: what it's good for, crossed with the situation (commander.py).
+            **(commander.cast_features(card, state) if is_spell and card.get("commander") else {}),
+            **(commander.engine_features(card, state) if is_spell and not card.get("commander") else {}),
         })
     result.append({
         "pass": 1.0,
