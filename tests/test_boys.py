@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 from showdown.bots.boy_bot import BoyBot
-from showdown.boys import features, storage, threat
+from showdown.boys import critic, features, storage, threat
 from showdown.boys.brain import Brain
 from showdown.boys.reward import game_reward, turn_bonus
 
@@ -259,6 +259,68 @@ class BrainTest(unittest.TestCase):
         again = Brain.from_dict(brain.to_dict())
         self.assertEqual(again.games, 3)
         self.assertEqual(again.weights["attack"]["target_is_leader"], 0.7)
+
+
+class CriticTest(unittest.TestCase):
+    def test_bias_alone_is_the_old_running_average(self):
+        """With only the bias, the critic must learn exactly like the old baseline did."""
+        weights, baseline = {"bias": 0.5}, 0.5
+        for reward in (1.0, 0.0, 0.25, 1.5):
+            critic.learn(weights, [{"bias": 1.0}] * 7, reward)
+            baseline += 0.05 * (reward - baseline)
+        self.assertAlmostEqual(weights["bias"], baseline)
+
+    def test_situation_reads_the_table(self):
+        state = table()
+        state["players"][0]["command"] = [{"name": "Kuja", "commander": True, "type": "Creature"}]
+        s = critic.situation(state)
+        self.assertEqual(s["deck:Kuja"], 1.0)
+        self.assertAlmostEqual(s["my_life"], 30 / 40)
+        self.assertAlmostEqual(s["rivals_left"], 1.0)
+        for name, value in s.items():
+            self.assertTrue(0.0 <= value <= 1.0, name)
+        self.assertEqual(critic.situation(None), {"bias": 1.0})
+
+    def test_transformed_commander_is_still_the_same_deck(self):
+        state = table()
+        state["players"][0]["battlefield"].append({"name": "Trance Kuja", "commander": True, "type": "Creature"})
+        self.assertIn("deck:Trance Kuja", critic.situation(state))
+        s = critic.situation(state, deck="Kuja")
+        self.assertIn("deck:Kuja", s)
+        self.assertNotIn("deck:Trance Kuja", s)
+
+    def test_learns_that_one_deck_is_weaker(self):
+        weights: dict[str, float] = {}
+        weak, strong = {"bias": 1.0, "deck:Weak": 1.0}, {"bias": 1.0, "deck:Strong": 1.0}
+        for _ in range(400):
+            critic.learn(weights, [weak], 0.1)
+            critic.learn(weights, [strong], 0.9)
+        self.assertAlmostEqual(critic.expected(weights, weak), 0.1, places=2)
+        self.assertAlmostEqual(critic.expected(weights, strong), 0.9, places=2)
+
+    def test_old_brain_moves_over_unchanged(self):
+        """A brain saved before the critic starts with its average as the bias,
+        so its first game learns exactly like it would have before."""
+        old = Brain("t", games=50, baseline=0.6).to_dict()
+        del old["critic"]
+        brain = Brain.from_dict(old)
+        step = brain.choose("attack", [{"x": 1.0}, {}], random.Random(0), explore=False)
+        step.situation = {"bias": 1.0, "my_life": 0.5}
+        self.assertAlmostEqual(brain.learn([step], reward=1.0), 0.4)
+        self.assertGreater(brain.critic["bias"], 0.6)
+        self.assertIn("my_life", brain.critic)
+
+    def test_bad_spot_is_not_blamed_on_the_choice(self):
+        """When the critic already expects a bad game, losing it teaches nothing."""
+        brain = Brain("t", games=50, baseline=0.5, critic={"bias": 0.5, "my_life": 0.0, "low": -0.5})
+        step = brain.choose("attack", [{"x": 1.0}, {}], random.Random(0), explore=False)
+        step.situation = {"bias": 1.0, "low": 1.0}
+        brain.learn([step], reward=0.0)
+        self.assertAlmostEqual(brain.weights["attack"].get("x", 0.0), 0.0)
+
+    def test_critic_is_saved(self):
+        brain = Brain("t", critic={"bias": 0.4, "deck:Kuja": 0.1})
+        self.assertEqual(Brain.from_dict(brain.to_dict()).critic, {"bias": 0.4, "deck:Kuja": 0.1})
 
 
 class RewardTest(unittest.TestCase):

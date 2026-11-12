@@ -55,9 +55,22 @@ brain.py      score = sum of weight × number; softmax turns scores into chances
 reward.py     win = +1, plus +0.5 × share of opponents you outlived
    │
    ▼
-brain.py      REINFORCE: after a better-than-usual game, strengthen the
+critic.py     what reward did we *expect* from the spot each choice was made in?
+   │
+   ▼
+brain.py      REINFORCE: after a better-than-expected game, strengthen the
               features of the options you picked; after a worse one, weaken them
 ```
+
+**The critic** (`showdown/boys/critic.py`) guesses the reward from a few
+numbers about the table: turn, my life, my hand, my lands, opponents left,
+their average life, my share of the table's hitting power, and which deck
+I'm playing (`deck:<commander>`). It is a weighted sum like the brain's
+scores and learns after every game. Choices get credit for doing better
+than expected *from that spot*, so losing on a weak deck or from 8 life
+isn't blamed on the choices. Its weights are saved under `"critic"` in each
+Boy's file; `bias` is the average reward, and old brains start with their
+old average there, so they carry on unchanged.
 
 **Threat assessment** (`showdown/boys/threat.py`) gives the attack features
 their meaning: who is the leader (biggest board, most cards, most life), who
@@ -113,7 +126,10 @@ python -m showdown.boys.storage forget Yugi mulligan
 
 ## Reading a brain
 
-Open `boys/Kaiba.json`. Weights are listed strongest first for each kind of
+Open `boys/Kaiba.json`. The `"critic"` block says what the Boy expects:
+for example `"deck:Swarmlord": -0.2` means games on Swarmlord usually go 0.2
+worse than average, and a positive `my_power_share` means having the
+biggest board usually pays off. Weights are listed strongest first for each kind of
 decision. A positive weight means "I like options that have this", negative
 means "I avoid them". For example, after training you might see:
 
