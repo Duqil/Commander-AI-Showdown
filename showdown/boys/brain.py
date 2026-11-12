@@ -14,10 +14,11 @@ certain, so the Boy keeps trying other things now and then. That is called
 How it learns (the REINFORCE algorithm)
 ---------------------------------------
 During a game the brain remembers every choice: the options' features, their
-probabilities, and which one it picked. After the game it gets a reward
-(reward.py) and compares it with what it usually gets (the *baseline*):
+probabilities, which one it picked, and the situation it was in. After the game
+it gets a reward (reward.py) and compares it with what its *critic* expected
+from that situation (critic.py):
 
-    advantage = reward - baseline
+    advantage = reward - expected reward
 
 For every remembered choice, each weight is nudged by
 
@@ -41,6 +42,8 @@ import math
 import random
 import threading
 from dataclasses import dataclass, field
+
+from showdown.boys import critic
 
 Features = dict[str, float]
 
@@ -76,6 +79,7 @@ class Step:
     turn: int = 0
     bonus: float = 0.0   # reward for what happened in this step's turn (see reward.py)
     pregame: bool = False  # made before turn 1 (mulligans): its bonus isn't a turn's bonus
+    situation: dict[str, float] | None = None  # what the critic looks at (critic.situation)
 
 
 @dataclass
@@ -83,7 +87,8 @@ class Brain:
     name: str
     weights: dict[str, dict[str, float]] = field(
         default_factory=lambda: {k: {} for k in DECISION_KINDS})
-    baseline: float = 0.0           # running average reward
+    baseline: float = 0.0           # running average reward (kept for reports)
+    critic: dict[str, float] = field(default_factory=dict)  # expected-reward weights (critic.py)
     bonus_baseline: float = 0.0     # running average turn bonus per choice
     games: int = 0                  # games learned from
     learning_rate: float = 0.1
@@ -120,12 +125,18 @@ class Brain:
     # --- learning -------------------------------------------------------------
 
     def learn(self, steps: list[Step], reward: float) -> float:
-        """Update the weights from one finished game. Returns the advantage used."""
+        """Update the weights from one finished game. Returns the average advantage used."""
         with self._lock:
             # The first game has no history, so the baseline starts at its reward.
             if self.games == 0:
                 self.baseline = reward
-            advantage = max(-2.0, min(2.0, reward - self.baseline))
+            if "bias" not in self.critic:
+                # A new critic starts out guessing the old running average,
+                # so a brain from before the critic behaves just like before.
+                self.critic["bias"] = self.baseline
+            situations = [s.situation or {"bias": 1.0} for s in steps]
+            advantages = [max(-2.0, min(2.0, reward - critic.expected(self.critic, sit)))
+                          for sit in situations]
             # Each choice also gets its own turn's bonus, compared with the usual bonus.
             bonuses = [s.bonus for s in steps if not s.pregame]
             mean_bonus = sum(bonuses) / len(bonuses) if bonuses else 0.0
@@ -137,7 +148,7 @@ class Brain:
             per_kind: dict[str, int] = {}
             for step in steps:
                 per_kind[step.kind] = per_kind.get(step.kind, 0) + 1
-            for step in steps:
+            for step, advantage in zip(steps, advantages):
                 if len(step.options) < 2:
                     continue  # no real choice, nothing to learn
                 # Turn choices are compared with the usual turn bonus. Mulligans
@@ -153,11 +164,14 @@ class Brain:
                     gradient = step.options[step.picked].get(name, 0.0) - average
                     if gradient:
                         w[name] = w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) + rate * gradient
+            # The critic learns from this game too, *after* it was used, so a
+            # game is never judged by a guess that already knew its result.
+            critic.learn(self.critic, situations, reward)
             # Move the baseline 5% of the way towards this reward.
             self.baseline += 0.05 * (reward - self.baseline)
             self.bonus_baseline += 0.05 * (mean_bonus - self.bonus_baseline)
             self.games += 1
-            return advantage
+            return sum(advantages) / len(advantages) if advantages else 0.0
 
     # --- saving ----------------------------------------------------------------
 
@@ -170,6 +184,9 @@ class Brain:
                 "bonus_baseline": round(self.bonus_baseline, 4),
                 "learning_rate": self.learning_rate,
                 "temperature": self.temperature,
+                # Expected reward: "bias" is the average, the rest add or subtract.
+                "critic": dict(sorted(((k, round(v, 4)) for k, v in self.critic.items()),
+                                      key=lambda kv: -abs(kv[1]))),
                 # Sorted with the strongest opinions first, so the file is easy to read.
                 "weights": {kind: dict(sorted(((k, round(v, 4)) for k, v in w.items()),
                                               key=lambda kv: -abs(kv[1])))
@@ -182,6 +199,7 @@ class Brain:
             name=data["name"],
             weights={k: dict(v) for k, v in data["weights"].items()},
             baseline=data.get("baseline", 0.0),
+            critic=dict(data.get("critic", {})),
             bonus_baseline=data.get("bonus_baseline", 0.0),
             games=data.get("games", 0),
             learning_rate=data.get("learning_rate", 0.1),
