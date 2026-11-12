@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import forge.GuiDesktop;
+import forge.ai.AiCache;
 import forge.deck.Deck;
 import forge.deck.io.DeckSerializer;
 import forge.game.Game;
@@ -81,8 +82,18 @@ public final class BridgeMain {
             // This is the slow part, and it happens only once per Forge.
             GuiBase.setInterface(new GuiDesktop());
             FModel.initialize(null, null);
+            // Forge's own crash handler tries to open a bug-report window, which
+            // can't work without a screen, so a crash used to vanish without a
+            // trace. Print it to the log instead.
+            Thread.setDefaultUncaughtExceptionHandler((thread, e) -> {
+                System.err.println("Uncaught error in thread " + thread.getName() + ":");
+                e.printStackTrace();
+            });
             while (true) {
-                runGame(bridge, seats, seed);
+                boolean healthy = runGame(bridge, seats, seed);
+                if (!healthy) {
+                    break; // out of memory: quit, so Python starts a fresh Forge
+                }
                 JsonObject next = bridge.receive();
                 if (next == null || !"next_game".equals(next.get("type").getAsString())) {
                     break;
@@ -99,7 +110,7 @@ public final class BridgeMain {
         }
     }
 
-    private static int runGame(BridgeConnection bridge, List<Seat> seats, Long seed) {
+    private static boolean runGame(BridgeConnection bridge, List<Seat> seats, Long seed) {
         if (seed != null) {
             MyRandom.setRandom(new Random(seed));
         }
@@ -143,11 +154,20 @@ public final class BridgeMain {
         Game game = match.createGame();
         game.setNoGUIUser();
         game.subscribeToEvents(new SpectatorFeed(game, bridge, log)); // live feed for the viewer
+        String error = null;
+        boolean healthy = true;
         try {
             match.startGame(game); // runs the whole game on this thread
-        } catch (RuntimeException e) {
+        } catch (Throwable e) {
+            // Not just RuntimeException: Forge's AI can also throw Errors (e.g.
+            // StackOverflowError), and those used to end the whole program.
+            System.err.println("Game crashed:");
             e.printStackTrace();
-            game.setGameOver(GameEndReason.Draw);
+            error = e.toString();
+            healthy = !(e instanceof OutOfMemoryError);
+            if (!game.isGameOver()) {
+                game.setGameOver(GameEndReason.Draw);
+            }
         }
 
         log.flush(game, bridge);
@@ -156,6 +176,9 @@ public final class BridgeMain {
         GameOutcome outcome = game.getOutcome();
         boolean draw = outcome == null || outcome.isDraw();
         over.addProperty("draw", draw);
+        if (error != null) {
+            over.addProperty("error", error); // Python counts this game as crashed, not as a draw
+        }
         over.addProperty("winner", draw ? null : outcome.getWinningLobbyPlayer().getName());
         over.addProperty("turns", outcome == null ? game.getPhaseHandler().getTurn() : outcome.getLastTurnNumber());
         JsonArray life = new JsonArray();
@@ -168,6 +191,7 @@ public final class BridgeMain {
         }
         over.add("players", life);
         bridge.send(over);
-        return 0;
+        AiCache.clear(); // don't carry this game's cached AI answers into the next game
+        return healthy;
     }
 }

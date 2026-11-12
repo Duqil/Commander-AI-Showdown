@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import forge.LobbyPlayer;
+import forge.ai.AiCache;
 import forge.ai.ComputerUtilAbility;
 import forge.ai.ComputerUtilCost;
 import forge.ai.ComputerUtilMana;
@@ -188,6 +189,13 @@ public class PythonPlayerController extends PlayerControllerAi {
 
     @Override
     public List<SpellAbility> chooseSpellAbilityToPlay() {
+        // Forge's AI keeps a shared cache of answers (AiCache) and empties it
+        // each time *its* players choose a play. With Python choosing instead,
+        // nobody emptied it: it grew all game long, held on to every finished
+        // game, slowed down lookups (they scan the whole list) and in the end
+        // ran Java out of memory, which killed the game. Empty it here, the
+        // same spot Forge's AI does.
+        AiCache.clear();
         List<SpellAbility> plays = legalPlays();
         if (plays.isEmpty()) {
             return null; // nothing to do: pass priority without bothering Python

@@ -14,6 +14,7 @@ answers (as {"type": "answer", ...}). The browser viewer
 
 from __future__ import annotations
 
+import shutil
 import socket
 import subprocess
 import threading
@@ -64,6 +65,10 @@ def answer_decision(bot: Bot, decision: Decision):
 
 class GameAborted(Exception):
     """The game was ended on purpose before it finished (see run_game's abort)."""
+
+
+class ForgeGameError(RuntimeError):
+    """Forge hit an error inside the game itself (the Forge log has the details)."""
 
 
 # The type of the on_message callback: it gets one message dict, returns nothing.
@@ -135,6 +140,9 @@ def play(
                 on_message({"type": "answer", "decision": msg, "choice": choice,
                             "bot": bot.name if bot else None})
         elif kind == "game_over":
+            if msg.get("error"):
+                # A broken game isn't a real draw: nobody should learn from it.
+                raise ForgeGameError(f"{msg['error']} (see the Forge log file)")
             for player_name, bot in bots_by_name.items():
                 bot.game_over(msg, player_name)  # learning bots learn here
             return GameResult(
@@ -225,9 +233,25 @@ class Forge:
             self.close(kill=True)
             if abort is not None and abort.is_set():
                 raise GameAborted("stopped by the user")
+            self._keep_crash_log()
             raise
         finally:
             game_done.set()
+
+    def _keep_crash_log(self) -> None:
+        """Copy the Forge log aside after a crash.
+
+        The next game starts a fresh Forge, which writes the log file from
+        scratch. Without this copy, the reason for the crash would be gone.
+        """
+        if self.forge_log is None or not self.forge_log.exists():
+            return
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        crash_log = self.forge_log.with_name(f"{self.forge_log.stem}-crash-{stamp}.log")
+        try:
+            shutil.copyfile(self.forge_log, crash_log)
+        except OSError:
+            pass  # a missing log mustn't hide the real error
 
     def _start(self, seats: list[Seat], seed: int | None, abort: threading.Event | None) -> None:
         server = listen()
