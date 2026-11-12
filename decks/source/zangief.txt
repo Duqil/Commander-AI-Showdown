@@ -1,0 +1,88 @@
+1 Zangief, the Red Cyclone (SLD) 435 *F*
+1 Arcane Signet (WHO) 239
+1 Arcbond (FRF) 91
+1 Barroom Brawl (CLB) 217
+1 Bear Umbra (WOC) 121
+1 Beorn the Fierce (HOB) 119
+1 Boxing Ring (NCC) 91
+1 Brash Taunter (MKC) 148
+1 Bushwhack (BRO) 174
+1 Chandra's Ignition (LCC) 220
+1 Cinder Glade (C19) 236
+1 Collective Resistance (MH3) 147
+1 Colossal Majesty (CLU) 160
+1 Command Tower (WHO) 264
+1 Contest of Claws (LCC) 24
+1 Dig Up (VOW) 197
+1 Domri, Anarch of Bolas (WAR) 191
+1 Evolving Wilds (PLST) C18-245
+1 Exotic Orchard (CM2) 250
+1 Falthis, Shadowcat Familiar (CMR) 126
+1 Fanatic of Rhonas (MH3) 152
+1 Farseek (LCC) 242
+1 Fiendlash (CMM) 221
+1 Fiery Emancipation (WOT) 42
+1 Fight Rigging (PSNC) 145p
+5 Forest (BBD) 254
+1 General Marhault Elsdragon (DMC) 31
+1 Gimli's Reckless Might (LTC) 494
+1 Goblin Anarchomancer (MH2) 200
+1 Goreclaw, Terror of Qal Sisma (PLST) M19-186
+1 Gruul Turf (MKC) 265
+1 Guardian Augmenter (C21) 389
+1 Herd Heirloom (TDM) 144
+1 Hog-Monkey Rampage (TLE) 255
+1 Hunter's Bow (ACR) 41
+1 Hunter's Talent (BLB) 179
+1 Ignoble Hierarch (MH2) 166
+1 Ilysian Caryatid (THB) 174
+1 Inscription of Abundance (LTC) 251
+1 Kediss, Emberclaw Familiar (CMR) 188
+1 Kessig Wolf Run (MKC) 269
+1 Khalni Ambush / Khalni Territory (ZNR) 192
+1 Kodama's Reach (MOC) 306
+1 Kogla, the Titan Ape (PIKO) 162★ *F*
+1 Livaan, Cultist of Tiamat (CLB) 188
+1 Maximum Overdrive (DFT) 96
+1 Mazirek, Kraul Death Priest (CMA) 185
+1 Mishra, Tamer of Mak Fawa (BRO) 217
+1 Mosswort Bridge (C13) 307
+5 Mountain (BBD) 253
+1 Mr. Orfeo, the Boulder (SNC) 320
+1 Neyith of the Dire Hunt (JMP) 30
+1 Novel Nunchaku (TMT) 127
+1 Outmuscle (PLST) ELD-170
+1 Primal Might (M21) 197
+1 Prizefight (SNC) 154
+1 Rancor (GVL) 15
+1 Revitalizing Repast / Old-Growth Grove (MH3) 256
+1 Rhino's Rampage (SPM) 141
+1 Rishkar's Expertise (WOC) 130
+1 Riveteers Overlook (SNC) 255
+1 Rockfall Vale (MID) 266
+1 Rogue's Passage (MKC) 284
+1 Rootbound Crag (WHO) 300
+1 Round Two (SLD) 480
+1 Savage Lands (C13) 317
+1 Savage Punch (J22) 723
+1 Signature Slam (MH3) 168
+1 Silken Strength (DFT) 180
+1 Skarrg, the Rage Pits (PLST) PCA-127
+1 Smoldering Marsh (C20) 314
+1 Stump Stomp / Burnwillow Clearing (MH3) 259
+1 Sulfurous Springs (LTC) 334
+1 Suplex (FIN) 164
+4 Swamp (BBD) 252
+1 Tail Swipe (DMU) 182
+1 Tamiyo's Safekeeping (NEO) 211
+1 Tergrid, God of Fright / Tergrid's Lantern (KHM) 112
+1 Terramorphic Expanse (TSR) 285
+1 The Last Agni Kai (TLA) 144
+1 Thickest in the Thicket (BLC) 34
+1 Tifa's Limit Break (FIN) 207
+1 Toralf, God of Fury / Toralf's Hammer (KHM) 154
+1 Two-Handed Axe / Sweeping Cleave (PLST) CLB-203
+1 Tyvar's Stand (ONE) 190
+1 Ulvenwald Tracker (MM3) 144
+1 Wastewood Verge (DFT) 268
+1 Wilson, Refined Grizzly (CLB) 261
