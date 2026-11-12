@@ -58,7 +58,12 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "attack_breaks_deal": -1.0, "attack_grudge": 1.0,
                    "mulligan_deeper": -2.0, "hurt_damage_dealer": 2.0}
 
-DECISION_KINDS = ("mulligan", "play", "attack", "target", "offer_whether", "offer", "answer")
+# Some decisions learn slower. A mulligan happens once or twice a game, so each
+# game moves it a lot, and whether we won is mostly noise for that one choice.
+# At full speed Yugi's mulligan weights wandered until he threw away good hands.
+KIND_RATE = {"mulligan": 0.25}
+
+DECISION_KINDS = ("mulligan", "play", "attack", "target", "pick_card", "offer_whether", "offer", "answer")
 
 
 @dataclass
@@ -70,6 +75,7 @@ class Step:
     picked: int
     turn: int = 0
     bonus: float = 0.0   # reward for what happened in this step's turn (see reward.py)
+    pregame: bool = False  # made before turn 1 (mulligans): its bonus isn't a turn's bonus
 
 
 @dataclass
@@ -121,7 +127,7 @@ class Brain:
                 self.baseline = reward
             advantage = max(-2.0, min(2.0, reward - self.baseline))
             # Each choice also gets its own turn's bonus, compared with the usual bonus.
-            bonuses = [s.bonus for s in steps]
+            bonuses = [s.bonus for s in steps if not s.pregame]
             mean_bonus = sum(bonuses) / len(bonuses) if bonuses else 0.0
             if self.bonus_baseline == 0.0:
                 self.bonus_baseline = mean_bonus  # first game with turn bonuses
@@ -134,8 +140,12 @@ class Brain:
             for step in steps:
                 if len(step.options) < 2:
                     continue  # no real choice, nothing to learn
-                step_advantage = max(-2.0, min(2.0, advantage + step.bonus - self.bonus_baseline))
-                rate = self.learning_rate * step_advantage / math.sqrt(per_kind[step.kind])
+                # Turn choices are compared with the usual turn bonus. Mulligans
+                # have no turn, so only their own bonus (cards lost) counts.
+                usual = 0.0 if step.pregame else self.bonus_baseline
+                step_advantage = max(-2.0, min(2.0, advantage + step.bonus - usual))
+                rate = (self.learning_rate * KIND_RATE.get(step.kind, 1.0) * step_advantage
+                        / math.sqrt(per_kind[step.kind]))
                 w = self.weights.setdefault(step.kind, {})
                 names = set().union(*step.options)
                 for name in names:

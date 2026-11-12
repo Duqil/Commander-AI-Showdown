@@ -57,6 +57,8 @@ def answer_decision(bot: Bot, decision: Decision):
         return bot.choose_targets(decision)
     if kind == "attack":
         return bot.declare_attackers(decision)
+    if kind == "pick_card":
+        return bot.choose_card(decision)
     return None  # a kind this bot doesn't know: let Forge decide
 
 
@@ -84,6 +86,7 @@ def play(
     log: list[str] = []
     book: DealBook | None = None
     damage = DamageTracker()  # who hit whom lately (bots see it in the state)
+    mulligans: dict[str, int] = {}  # player -> mulligans taken (the first one is free)
 
     def deal_messages(messages: list[dict]) -> None:
         # Deals aren't in Forge's log, so we add them to ours (and the viewer's).
@@ -115,10 +118,14 @@ def play(
             bot = bots_by_name.get(msg["player"])
             if "state" in msg:
                 damage.annotate(msg["state"])
+            if msg.get("kind") == "mulligan":
+                msg["mulligans_so_far"] = mulligans.get(msg["player"], 0)
             if book is not None and "state" in msg:
                 deal_messages(book.offer_phase(msg["state"], bots_by_name))  # start of a new turn?
                 msg["deals"] = book.view_for(msg["player"], msg["state"])
             choice = answer_decision(bot, msg) if bot else None
+            if msg.get("kind") == "mulligan" and choice is False:
+                mulligans[msg["player"]] = mulligans.get(msg["player"], 0) + 1
             if book is not None and msg.get("kind") == "attack":
                 deal_messages(book.check_attack(msg["player"], msg, choice))
             conn.answer(msg["id"], choice)

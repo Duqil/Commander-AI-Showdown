@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
-from showdown.boys import threat
+from showdown.boys import colors, threat
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -46,6 +46,9 @@ def mulligan_options(decision: Decision) -> list[Features]:
     lands = sum(1 for c in hand if "Land" in c.get("type", ""))
     to_bottom = decision.get("cards_to_bottom_if_kept", 0)
     simple_keeps = _simple.keep_hand(decision)
+    # Commander's first mulligan is free; every one after that costs a card.
+    # (game_runner counts mulligans for us in "mulligans_so_far".)
+    costs_a_card = decision.get("mulligans_so_far", 0) > 0
 
     keep = {
         "keep": 1.0,
@@ -58,9 +61,16 @@ def mulligan_options(decision: Decision) -> list[Features]:
         "mulligan": 1.0,
         # Cards we'd have to put back if we mulligan again and then keep. Starts
         # with a negative weight, so going deeper gets less and less tempting.
-        "mulligan_deeper": (to_bottom + 1) / 3,
+        # 0 for the free first mulligan.
+        "mulligan_deeper": (to_bottom + costs_a_card) / 3,
         "simple_prior": _flag(not simple_keeps),
     }
+    # Colors: share of the spells in hand whose colors the lands in hand can make.
+    # A 3-Island hand full of black and red spells is worse than it looks.
+    spells = [c for c in hand if not colors.is_land(c) and colors.pips(c.get("cost"))]
+    hand_colors = set().union(*(colors.produces(c) for c in hand if colors.is_land(c)), set())
+    if spells:
+        keep["keep_color_coverage"] = sum(colors.castable_by(c, hand_colors) for c in spells) / len(spells)
     return [keep, mulligan]
 
 
@@ -97,6 +107,7 @@ def play_options(decision: Decision) -> list[Features]:
     simple_pick = _simple.choose_play(decision)  # an option "index", or None for pass
     xc = x_context(decision["options"])
     gy = graveyard_context(state, decision["options"])
+    missing = colors.missing(threat.me(state))  # colors my cards need that I can't make yet
 
     result = []
     for option in decision["options"]:
@@ -107,6 +118,8 @@ def play_options(decision: Decision) -> list[Features]:
         is_ability = not is_land and not is_spell
         result.append({
             "land_drop": _flag(is_land),
+            # A land that makes a color my cards need and I don't have yet.
+            "land_new_color": _flag(is_land and bool(colors.produces(card) & missing)),
             "spell": _flag(is_spell),
             "spell_cmc": (card.get("cmc", 0) + option.get("max_x", 0)) / 7 if is_spell else 0.0,
             "x_spell": _flag("max_x" in option),
@@ -317,6 +330,41 @@ def is_harmful(decision: Decision) -> bool:
         return params.get("Origin", "") == "Battlefield"       # exile or bounce from play
     text = decision.get("description", "").lower()
     return any(word in text for word in HARMFUL_WORDS)
+
+
+def pick_options(decision: Decision) -> list[Features]:
+    """Which card to pick for myself: a land from a library search (any fetch
+    land) or a card from "look at the top N" (Drawn from Dreams, Impulse...)."""
+    me = threat.me(decision["state"])
+    missing = colors.missing(me)
+    have = colors.available(me)
+    # Colors I can make now or with the lands already in my hand.
+    reachable = have | set().union(*(colors.produces(c) for c in me.get("hand", []) if colors.is_land(c)), set())
+    my_lands = sum(colors.is_land(c) for c in me.get("battlefield", []) + me.get("hand", []))
+    short_on_lands = max(0, 5 - my_lands) / 5   # 1.0 with no lands, 0 at 5+
+    simple = _simple.choose_card(decision)
+    suggested = decision.get("suggested", -1)
+    if simple is None:
+        simple = suggested  # SimpleBot keeps Forge's pick
+    result = []
+    for cand in decision["candidates"]:
+        land = colors.is_land(cand)
+        makes = colors.produces(cand)
+        f: Features = {
+            "simple_prior": _flag(cand["index"] == simple),
+            "forge_suggested": _flag(cand["index"] == suggested),
+            "pick_land": _flag(land),
+            "pick_land_when_short": short_on_lands if land else 0.0,
+        }
+        if land:
+            f["pick_land_new_color"] = _flag(bool(makes & missing))          # a color I need and lack
+            f["pick_land_only_old_colors"] = _flag(bool(makes) and makes <= have)
+            f["pick_land_color_value"] = min(colors.land_value(cand, me), 4) / 4
+        else:
+            f["pick_castable"] = _flag(colors.castable_by(cand, reachable))  # I have its colors
+            f["pick_cmc"] = cand.get("cmc", 0) / 7
+        result.append(f)
+    return result
 
 
 def target_options(decision: Decision) -> list[Features]:

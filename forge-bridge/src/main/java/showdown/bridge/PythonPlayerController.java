@@ -15,6 +15,7 @@ import forge.game.card.Card;
 import forge.game.card.CardCollection;
 import forge.game.combat.Combat;
 import forge.game.combat.CombatUtil;
+import forge.game.player.DelayedReveal;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
 import forge.game.zone.ZoneType;
@@ -41,6 +42,8 @@ import java.util.Map;
  *   2. choose_play    - with priority: which spell/ability/land to play, or pass
  *      choose_targets - the targets of the play Python just chose
  *   3. attack         - which creatures attack which player
+ *   4. pick_card      - cards you pick for yourself: lands from a library search
+ *                       (any fetch land), or "look at the top N" (Drawn from Dreams)
  *
  * Other details of a chosen play (X, modes, how to pay mana) and the targets
  * of triggered abilities are still filled in by Forge's AI. Moving more decisions to Python later means overriding more
@@ -494,6 +497,109 @@ public class PythonPlayerController extends PlayerControllerAi {
             combat.clearAttackers();
             super.declareAttackers(attacker, combat);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // 4. Picking cards for yourself (land searches, "look at the top N")
+    // ------------------------------------------------------------------
+
+    /**
+     * Searching your library for lands, with ANY card that does it (Evolving
+     * Wilds, Terramorphic Expanse, Myriad Landscape, ...). Forge's AI only
+     * fixes colors when it has no land in hand and can't cast anything, so a
+     * three-color deck could fetch Island after Island. Cards that fetch
+     * several lands ask once per land. Other library searches (tutors for
+     * any card) still go to Forge's AI.
+     */
+    @Override
+    public Card chooseSingleCardForZoneChange(ZoneType destination, List<ZoneType> origin, SpellAbility sa,
+            CardCollection fetchList, DelayedReveal delayedReveal, String selectPrompt, boolean isOptional,
+            Player decider) {
+        Card suggestion = super.chooseSingleCardForZoneChange(destination, origin, sa, fetchList,
+                delayedReveal, selectPrompt, isOptional, decider);
+        boolean landSearch = origin != null && origin.contains(ZoneType.Library) && !fetchList.isEmpty()
+                && fetchList.stream().allMatch(Card::isLand) && decider == getPlayer();
+        if (!landSearch) {
+            return suggestion;
+        }
+        return askPick(new ArrayList<>(fetchList), suggestion, sa, isOptional, "library_search");
+    }
+
+    /**
+     * "Look at the top N cards, put some into your hand" (Drawn from Dreams,
+     * Impulse, ...): every Dig effect that puts the cards you pick into your
+     * hand or onto the battlefield. Python picks one card at a time.
+     * Everything else that uses this question (sacrifice a creature, pick an
+     * opponent's card, ...) still goes to Forge's AI.
+     */
+    @Override
+    public <T extends GameEntity> T chooseSingleEntityForEffect(forge.util.collect.FCollectionView<T> optionList,
+            DelayedReveal delayedReveal, SpellAbility sa, String title, boolean isOptional, Player targetedPlayer,
+            Map<String, Object> params) {
+        T suggestion = super.chooseSingleEntityForEffect(optionList, delayedReveal, sa, title, isOptional,
+                targetedPlayer, params);
+        if (!isDigForMe(sa, optionList)) {
+            return suggestion;
+        }
+        List<Card> cards = new ArrayList<>();
+        for (T e : optionList) {
+            cards.add((Card) e);
+        }
+        Card picked = askPick(cards, (Card) suggestion, sa, isOptional, "look_at_top");
+        @SuppressWarnings("unchecked")
+        T result = (T) picked;
+        return result;
+    }
+
+    private <T extends GameEntity> boolean isDigForMe(SpellAbility sa, Iterable<T> options) {
+        if (sa == null || sa.getApi() != forge.game.ability.ApiType.Dig) {
+            return false;
+        }
+        String dest = sa.hasParam("DestinationZone") ? sa.getParam("DestinationZone") : "Hand";
+        if (!dest.equals("Hand") && !dest.equals("Battlefield")) {
+            return false; // e.g. "put one on top of your library": not a pick for your hand
+        }
+        boolean any = false;
+        for (T e : options) {
+            if (!(e instanceof Card c) || c.getOwner() != getPlayer()) {
+                return false;
+            }
+            any = true;
+        }
+        return any;
+    }
+
+    /** Ask Python to pick one of ``cards``. Falls back to Forge's suggestion. */
+    private Card askPick(List<Card> cards, Card suggestion, SpellAbility sa, boolean isOptional, String how) {
+        JsonArray candJson = new JsonArray();
+        int suggested = -1;
+        for (int i = 0; i < cards.size(); i++) {
+            JsonObject cj = StateSnapshot.card(cards.get(i));
+            cj.addProperty("index", i);
+            candJson.add(cj);
+            if (cards.get(i) == suggestion) {
+                suggested = i;
+            }
+        }
+        JsonObject extra = new JsonObject();
+        extra.add("source", StateSnapshot.card(sa.getHostCard()));
+        extra.addProperty("how", how);             // "library_search" or "look_at_top"
+        extra.add("candidates", candJson);
+        extra.addProperty("suggested", suggested); // what Forge's AI would pick (-1: nothing)
+        extra.addProperty("optional", isOptional);
+        JsonElement choice = ask("pick_card", extra).get("choice");
+        if (isNull(choice)) {
+            return suggestion;
+        }
+        int i = choice.getAsInt();
+        if (i < 0) {
+            return isOptional ? null : suggestion; // "take nothing" is only allowed when optional
+        }
+        if (i >= cards.size()) {
+            System.err.println("[bridge] Ignoring illegal pick " + i);
+            return suggestion;
+        }
+        return cards.get(i);
     }
 
     /**

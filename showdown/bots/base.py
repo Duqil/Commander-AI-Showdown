@@ -59,6 +59,22 @@ class Bot:
         """
         return None
 
+    def choose_card(self, decision: Decision) -> int | None:
+        """Pick a card for yourself. Return a candidate index, or None to take
+        what Forge's AI suggested. Two situations ask this:
+
+        decision["how"] == "library_search": searching your library for a land,
+            with any card that does it (Evolving Wilds, Terramorphic Expanse...).
+        decision["how"] == "look_at_top": "look at the top N cards, put some
+            into your hand" (Drawn from Dreams, Impulse, ...).
+
+        decision["candidates"]: the cards, each with "index", "cost" and
+            "produces" (the colors it makes, e.g. "UB").
+        decision["suggested"]: the index Forge's AI would pick (-1 for none).
+        decision["source"]: the card doing it. Picking two cards asks twice.
+        """
+        return None
+
     def declare_attackers(self, decision: Decision) -> dict[str, int] | None:
         """Combat. Return {card id (as text): defender index}. {} means no attack.
 

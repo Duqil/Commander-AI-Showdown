@@ -137,6 +137,37 @@ class FakeForgeTest(unittest.TestCase):
         self.assertEqual(result.decisions, 2)
         self.assertEqual(result.log, ["Turn 1 (1-Zidane)"])
 
+    def test_mulligans_are_counted(self):
+        """The game loop tells bots how many mulligans they took (the first is free)."""
+        server = listen()
+        port = server.getsockname()[1]
+        seen = []
+
+        class Counter(SimpleBot):
+            def keep_hand(self, decision):
+                seen.append(decision["mulligans_so_far"])
+                return len(seen) >= 3   # mulligan twice, then keep
+
+        def fake_forge():
+            s = socket.create_connection(("127.0.0.1", port))
+            r, w = s.makefile("r"), s.makefile("w")
+            send = lambda msg: (w.write(json.dumps(msg) + "\n"), w.flush())
+            send({"type": "game_start", "seats": [{"seat": 0, "name": "1-Zidane", "controller": "python"}]})
+            for i in range(3):
+                send({"type": "decision", "id": i, "kind": "mulligan", "player": "1-Zidane",
+                      "state": make_state(), "cards_to_bottom_if_kept": max(0, i - 1)})
+                r.readline()
+            send({"type": "game_over", "winner": "1-Zidane", "draw": False, "turns": 1, "players": []})
+            s.close()
+
+        t = threading.Thread(target=fake_forge)
+        t.start()
+        sock, _ = server.accept()
+        play(BridgeConnection(sock), [Counter()])
+        t.join()
+        server.close()
+        self.assertEqual(seen, [0, 1, 2])
+
 
 if __name__ == "__main__":
     unittest.main()

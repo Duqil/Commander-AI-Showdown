@@ -80,6 +80,37 @@ it. So a new Boy picks SimpleBot's move about two times in three and
 something else the rest of the time. If you improve SimpleBot, every Boy's
 starting instinct improves with it.
 
+**Mulligans.** Commander's first mulligan is free; every one after that puts
+a card on the bottom. The game loop counts mulligans (`mulligans_so_far` in
+the decision), a mulligan that costs a card gets a bonus of -0.1, and
+`mulligan_deeper` is 0 for the free one. Mulligans also learn at a quarter of
+the normal speed: they happen once a game, and at full speed Yugi's weights
+wandered until he threw away good 3-land hands 70% of the time.
+
+**Colors.** The bridge sends each card's mana `cost` ("{1}{U}{R}") and the
+colors it `produces` ("UB"). `showdown/boys/colors.py` works out which colors
+my hand and commander need and which my permanents make. Boys see
+`keep_color_coverage` (mulligan: how many spells the lands in hand can pay
+for), `land_new_color` (a land drop that adds a missing color) and a new
+decision kind, `pick_card`: cards you pick for yourself. That is any search
+of your library for lands (Evolving Wilds, Terramorphic Expanse, Cultivate,
+Myriad Landscape: no card names in the code, only "searching my library and
+every option is a land") and any "look at the top N, put some into your hand"
+(Drawn from Dreams, Impulse). Features: `pick_land_new_color`,
+`pick_land_only_old_colors`, `pick_land_color_value`, `pick_land_when_short`,
+`pick_castable` (a spell my colors can pay for) and `pick_cmc`. When the pick
+is a land, SimpleBot takes the one whose colors its cards want most; it also
+plays the most useful land from hand. Forge's own AI only fixed colors when it
+had no land in hand and nothing to cast, so Anhelo could fetch Island after
+Island.
+
+**Fixing a bad habit.** To reset one kind of decision for a Boy (back to the
+starting weights, everything else kept):
+
+```
+python -m showdown.boys.storage forget Yugi mulligan
+```
+
 ## Reading a brain
 
 Open `boys/Kaiba.json`. Weights are listed strongest first for each kind of

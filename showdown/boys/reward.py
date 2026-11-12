@@ -46,6 +46,18 @@ CARD_DRAWN = 0.01
 DISCARDED = -0.03
 
 
+# A card lost to a mulligan (Commander's first mulligan is free, every one
+# after that puts a card on the bottom). Bigger than a discard on purpose:
+# a mulligan is one choice per game, so its signal must stand out from the
+# noise of winning and losing.
+MULLIGAN_CARD = -0.1
+
+
+def mulligan_bonus(cards_lost: int) -> float:
+    """Bonus for one mulligan choice: negative for each card it cost."""
+    return MULLIGAN_CARD * cards_lost
+
+
 def turn_bonus(damage: int, knockouts: int, drawn: int = 0, discarded: int = 0) -> float:
     """Bonus for one of your own turns."""
     return DAMAGE * damage + KNOCKOUT * knockouts + CARD_DRAWN * drawn + DISCARDED * discarded
