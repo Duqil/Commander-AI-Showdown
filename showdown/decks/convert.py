@@ -92,29 +92,48 @@ def forge_card_names() -> set[str]:
     """Every card name Forge knows (empty if Forge isn't set up yet).
 
     Each card is a small text file in Forge's cardsfolder whose first line
-    is "Name:<card name>". Reading ~35,000 files takes a few seconds, so we
-    do it once and keep the result.
+    is "Name:<card name>". Split cards such as Wear // Tear keep both halves
+    in one file (the second half after an "ALTERNATE" line), and Forge's deck
+    files name them "Wear // Tear", so for those we store the joined name.
+    Reading ~35,000 files takes a few seconds, so we do it once and keep it.
     """
     global _forge_names
     if _forge_names is None:
         _forge_names = set()
         for f in CARDS_FOLDER.rglob("*.txt"):
-            with open(f, encoding="utf-8", errors="ignore") as fh:
-                first = fh.readline()
-            if first.startswith("Name:"):
-                _forge_names.add(first[5:].strip())
+            text = f.read_text(encoding="utf-8", errors="ignore")
+            if not text.startswith("Name:"):
+                continue
+            names = [l[5:].strip() for l in text.splitlines() if l.startswith("Name:")]
+            if "AlternateMode:Split" in text and len(names) >= 2:
+                _forge_names.add(f"{names[0]} // {names[1]}")
+            else:
+                _forge_names.add(names[0])
     return _forge_names
+
+
+def split_card_name(front: str) -> str | None:
+    """'Wear' -> 'Wear // Tear' if Forge has it as a split card, else None."""
+    for name in forge_card_names():
+        if name.startswith(front + " // "):
+            return name
+    return None
 
 
 def forge_name(line: DeckLine, cache: dict[str, str]) -> str:
     # Double-faced cards are written "Front / Back"; Forge wants just the front.
+    # Split cards (Wear / Tear) are the exception: Forge wants "Wear // Tear".
     name = line.name.split(" / ")[0]
     known = forge_card_names()
     # Flavor-name printings (all of set FCA, and some others such as
     # "Paradise Chocobo" = Birds of Paradise) carry a name Forge doesn't know.
     # Ask Scryfall for the real name by set + collector number.
+    if known and name not in known and (split := split_card_name(name)):
+        return split
     if line.set_code == "fca" or (known and name not in known):
         name = scryfall_name(line.set_code, line.number, cache).split(" // ")[0]
+        if known and name not in known:
+            name = split_card_name(name) or name
     return name
 
 
@@ -158,7 +177,7 @@ def check(source: Path) -> list[str]:
     for l in lines:
         ours = forge_name(l, cache)
         real = scryfall_name(l.set_code, l.number, cache).split(" // ")[0]
-        if ours != real:
+        if ours.split(" // ")[0] != real:
             problems.append(f"{l.name}: converted to '{ours}' but the printing is '{real}'")
         if known and ours not in known:
             problems.append(f"Forge doesn't have '{ours}'")
