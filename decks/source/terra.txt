@@ -1,0 +1,90 @@
+1 Terra, Magical Adept / Esper Terra (FIN) 245
+1 Ancient Ziggurat (ECC) 144
+1 Anikthea, Hand of Erebos (CMM) 705 *F*
+1 Arcane Signet (FIC) 333
+1 Bountiful Landscape (TDC) 342
+1 Clash of the Eikons (FIN) 341
+1 Command Tower (MKC) 256
+1 Contaminated Landscape (MH3) 218
+1 Crystal Fragments / Summon: Alexander (FIN) 357
+1 Crystal of Altar Cave (FCA) 61
+1 Cultivate (FIC) 300
+1 Deceptive Landscape (TDC) 356
+1 Esper Origins / Summon: Esper Maduin (FIN) 370
+1 Estrid's Invocation (MH3) 269
+1 Evolving Wilds (C15) 283
+1 Exotic Orchard (MIC) 173
+1 Faeburrow Elder (BLC) 252
+1 Fain, the Broker (OTC) 133
+1 Foreboding Landscape (MH3) 221
+4 Forest (M19) 278
+1 Frostcliff Siege (PTDM) 187p
+1 Garnet, Princess of Alexandria (FIN) 222
+1 Gemstone Mine (DMR) 247
+1 Gratuitous Violence (BLC) 197
+1 Highland Forest (CLB) 896
+1 Idyllic Tutor (PTHB) 24p
+1 Invigorating Hot Spring (NEO) 223
+3 Island (MKM) 280
+1 Jegantha, the Wellspring (ECC) 125
+1 Karn's Bastion (CMM) 1007
+1 Moonmist (ISD) 195
+3 Mountain (M21) 271
+1 Mutational Advantage (PIP) 111
+1 Nesting Grounds (MH3) 302
+1 O'aka, Traveling Merchant (FIC) 39
+1 Ondu Spiritdancer (DSC) 101
+1 Path of Ancestry (CMR) 353
+1 Perilous Landscape (MH3) 223
+3 Plains (MH3) 311
+1 Prismatic Omen (WOT) 60
+1 Redress Fate (DSC) 9
+1 Rhys, the Evermore (ECL) 32
+1 Rikku, Resourceful Guardian (FIC) 41
+1 Rydia, Summoner of Mist (FIN) 239
+1 Scholar of New Horizons (FIC) 252
+1 Search for Glory (KHM) 27
+1 Shattered Landscape (TDC) 390
+1 Sheltering Landscape (MH3) 227
+1 Soul Diviner (WAR) 218
+1 Summon: Anima (FIN) 364
+1 Summon: Bahamut (FIN) 356
+1 Summon: Brynhildr (FIN) 366
+1 Summon: Choco/Mog (FIN) 358
+1 Summon: Esper Valigarmanda (FIC) 198
+1 Summon: Fat Chocobo (FIN) 371
+1 Summon: Fenrir (FIN) 372
+1 Summon: G.F. Cerberus (FIN) 368
+1 Summon: G.F. Ifrit (FIN) 369
+1 Summon: Good King Mog XII (FIC) 194
+1 Summon: Ixion (FIC) 195
+1 Summon: Knights of Round (FIN) 359
+1 Summon: Kujata (FIC) 199
+1 Summon: Leviathan (FIN) 361
+1 Summon: Magus Sisters (FIC) 200
+1 Summon: Primal Garuda (FIN) 360
+1 Summon: Primal Odin (FIN) 365
+1 Summon: Shiva (FIN) 362
+1 Summon: Titan (FIN) 373
+1 Summon: Valefor (FIC) 197
+1 Summon: Yojimbo (FIC) 196
+1 Summoner's Grimoire (FIN) 205
+2 Swamp (DFT) 285
+1 Tekuthal, Inquiry Dominus (EOC) 78
+1 Terramorphic Expanse (CM2) 273
+1 Tidus, Yuna's Guardian (FIC) 5
+1 Time of Need (CHK) 247
+1 Tom Bombadil (LTR) 234
+1 Tranquil Landscape (MH3) 231
+1 Twisted Landscape (MH3) 232
+1 Vivid Crag (C13) 333
+1 Vivid Creek (C13) 334
+1 Vivid Grove (MMA) 227
+1 Vivid Marsh (MMA) 228
+1 Vivid Meadow (CMA) 283
+1 Volt Charge (ONE) 155
+1 Weaver of Harmony (NEO) 213
+1 Yenna, Redtooth Regent (PWOE) 219p
+1 Yuna, Grand Summoner (FIC) 8
+1 Yuna, Hope of Spira (FIN) 250
+1 Zur, Eternal Schemer (DMU) 228
