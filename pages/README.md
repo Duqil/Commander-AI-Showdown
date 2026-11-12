@@ -13,6 +13,7 @@ Everything for it lives in two places, so it's easy to remove:
 | `pages/replay.js` | Stands in for the Python server, so the viewer can run as plain files |
 | `pages/build_site.py` | Copies the viewer + `replay.js` + replays into `pages/_site/` |
 | `pages/export_replay.py` | Turns a game from `games/` into a replay (adds card picture URLs) |
+| `pages/publish.py` | The viewer's "Put on website" button: commits and pushes one replay |
 | `.github/workflows/replay-site.yml` | On GitHub: builds the site and publishes it on every change |
 
 The viewer itself (`showdown/viewer/`) isn't changed, so viewer improvements
@@ -37,17 +38,24 @@ After a minute the site is at `https://duqil.github.io/Commander-AI-Showdown/`.
 From then on it rebuilds by itself whenever `pages/` or the viewer changes on `main`.
 The repo must be public for Pages on a free GitHub plan.
 
-## Add a game
+## Add or remove a game (one click)
 
-1. Play a game in the viewer (or tick "Save games for replay" in Run many games).
-   It's saved in `games/`.
-2. Export it:
-   ```bash
-   python -m pages.export_replay games/<file>.json.gz --title "A short title" --about "Kaiba (Kuja), Tristan (Garnet), ..."
-   ```
-3. Commit the new file in `pages/replays/` and push.
+1. Watch a game in the viewer (`python -m showdown.viewer`) and let it finish,
+   or tick "Save games for replay" in Run many games.
+2. Open **Saved games** and press **Put on website** next to the game.
+   After about a minute it says **On website ✓**, and a minute later the site has it.
+3. To take it off, press **On website ✓** and confirm.
 
-To take a game off the site, delete its file in `pages/replays/`.
+The title and description are made from the decks and bots, e.g.
+"Kaiba (Kuja), Tristan (Garnet), ...". No winner is shown, so nothing is spoiled.
+
+Behind the button (`pages/publish.py`): it makes the replay, commits only that
+one file to GitHub's `main` and pushes, using your normal GitHub login. It never
+changes your files or the branch you're on. `git pull` on main later brings the
+replay files to your folder too.
+
+By hand, if you prefer: `python -m pages.export_replay games/<file>.json.gz`
+(optional `--title "..." --about "..."`), then commit `pages/replays/` and push.
 
 ## Remove the website completely
 
@@ -56,4 +64,5 @@ To take a game off the site, delete its file in `pages/replays/`.
    The site goes offline.
 2. Delete the `pages/` folder and `.github/workflows/replay-site.yml`, commit and push.
 
-Nothing else in the project uses these files.
+The viewer then simply stops showing the website buttons (it only shows them
+when `pages/` is there). No other code needs changing.

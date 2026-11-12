@@ -13,6 +13,7 @@ What the browser can ask for (an "API"):
     POST /api/game/stop             stop the running game
     GET  /api/saved                 saved games in games/
     POST /api/saved/load            watch a saved game again. Body: {"id": "..."}
+    POST /api/saved/website         put a saved game on the website or take it off. Body: {"id": "...", "on": true}
     GET  /api/card-image?name=X     a card picture (tokens: &token=1, and &colors=W&pt=2/2&oracle=...)
     POST /api/batch/start           run many games without watching. Body: {"decks", "bots",
                                     "games": 20, "parallel": 1, "seed", "save_games", "learn", "deals"}
@@ -39,6 +40,11 @@ from showdown.viewer.batch_job import BatchJob
 from showdown.viewer.card_images import CardImages
 from showdown.viewer import stats_page
 from showdown.viewer.session import GAMES_DIR, GameConfig, GameSession, list_saved_games, new_game_id
+
+try:  # The replay website (pages/) is optional: without that folder these buttons just don't show.
+    from pages.publish import Publisher, published_ids
+except ImportError:
+    Publisher = published_ids = None
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -81,6 +87,7 @@ class ViewerState:
         self.session: GameSession | None = None
         self.batch: BatchJob | None = None
         self.images = CardImages()
+        self.publisher = Publisher() if Publisher else None  # "Put on website" jobs
         self.lock = threading.Lock()
 
     def start_game(self, config: GameConfig) -> GameSession:
@@ -146,7 +153,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"events": STATE.session.events_since(since),
                                    **STATE.session.summary()})
         if path == "/api/saved":
-            return self.send_json({"games": list_saved_games()})
+            website = None
+            if STATE.publisher:
+                website = {"published": sorted(published_ids()), "jobs": STATE.publisher.status()}
+            return self.send_json({"games": list_saved_games(), "website": website})
         if path == "/api/card-image":
             name = query.get("name", [""])[0]
             token = query.get("token", ["0"])[0] == "1"
@@ -196,6 +206,15 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/game/stop":
             if STATE.session:
                 STATE.session.stop()
+            return self.send_json({"ok": True})
+        if path == "/api/saved/website":
+            game_id = Path(body.get("id", "")).name  # .name blocks "../" tricks
+            file = GAMES_DIR / f"{game_id}.json.gz"
+            if not STATE.publisher:
+                return self.send_json({"error": "The website files (pages/) aren't here"}, 400)
+            if body.get("on") and not file.exists():
+                return self.send_json({"error": "no such saved game"}, 404)
+            STATE.publisher.start(game_id, file if body.get("on") else None)
             return self.send_json({"ok": True})
         if path == "/api/saved/load":
             file = GAMES_DIR / f"{Path(body.get('id', '')).name}.json.gz"  # .name blocks "../" tricks

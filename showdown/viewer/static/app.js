@@ -274,8 +274,9 @@ function renderBatch(b) {
   if (b.status !== "running" && b.status !== "stopping") loadSavedList(); // new saved games may be there
 }
 
+let savedTimer = null;
 async function loadSavedList() {
-  const { games } = await api("/api/saved");
+  const { games, website } = await api("/api/saved");
   const box = $("#saved");
   if (!games.length) return;
   box.innerHTML = "";
@@ -291,9 +292,35 @@ async function loadSavedList() {
                el("span", "muted small", number ? `batch game ${Number(number) + 1}` : ""));
     const watch = el("button", "", "Watch");
     watch.onclick = async () => { await api("/api/saved/load", { id: g.id }); enterGame(); };
-    row.append(watch);
+    row.append(watch, website ? websiteButton(g.id, website) : el("span"));
     box.append(row);
   }
+  // While a game is being put on (or taken off) the website, check again every few seconds.
+  clearTimeout(savedTimer);
+  const busy = website && Object.values(website.jobs).some((j) => j === "adding" || j === "removing");
+  if (busy) savedTimer = setTimeout(loadSavedList, 3000);
+}
+
+/** "Put on website" / "Remove from website" for one saved game (pages/publish.py does the work). */
+function websiteButton(id, website) {
+  const job = website.jobs[id];
+  if (job === "adding" || job === "removing") {
+    return el("span", "muted small", job === "adding" ? "Publishing… (about a minute)" : "Removing…");
+  }
+  const on = website.published.includes(id);
+  const b = el("button", on ? "on" : "", on ? "On website ✓" : "Put on website");
+  b.title = on ? "Click to remove this game from the website" : "Publish this replay on the GitHub Pages website";
+  if (job) {   // the last attempt failed: hover to see why
+    b.textContent = on ? "Remove failed, retry" : "Failed, retry";
+    b.title = job;
+    b.classList.add("failed");
+  }
+  b.onclick = async () => {
+    if (on && !confirm("Remove this game from the website?")) return;
+    await api("/api/saved/website", { id, on: !on });
+    loadSavedList();
+  };
+  return b;
 }
 
 $("#start").onclick = async () => {

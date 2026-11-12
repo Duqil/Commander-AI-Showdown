@@ -10,8 +10,11 @@ website needs, because there is no Python server behind it:
 
 Usage (from the project folder):
 
-    python -m pages.export_replay games/2026-11-12_140000_kuja-garnet-anhelo-swarmlord.json.gz \\
-        --title "The Boys, with deals" --about "Kaiba (Kuja), Tristan (Garnet), ..."
+    python -m pages.export_replay games/2026-11-12_140000_kuja-garnet-anhelo-swarmlord.json.gz
+
+The title and description are made from the decks and bots, or give your own
+with --title "..." --about "...". Easier: the "Put on website" button in the
+viewer's Saved games tab does this and publishes it (pages/publish.py).
 
 Python concepts used here:
   * ``gzip.open``     - read and write compressed files as if they were normal text.
@@ -94,17 +97,41 @@ def find_image_urls(events: list[dict]) -> dict[str, str]:
     return urls
 
 
-def export(game_file: Path, title: str, about: str) -> Path:
+def player_name(bot: str, deck: str) -> str:
+    """ "boy:Kaiba" + "kuja" -> "Kaiba (Kuja)", "simple" + "zidane" -> "SimpleBot (Zidane)"."""
+    who = bot.removeprefix("boy:") if bot.startswith("boy:") else {
+        "simple": "SimpleBot", "random": "RandomBot", "forge": "Forge AI"}.get(bot, bot)
+    return f"{who} ({deck.title()})"
+
+
+def default_texts(config: dict | None) -> tuple[str, str]:
+    """A title and description made from the game's decks and bots (no winner: no spoilers)."""
+    if not config:
+        return "A recorded game", ""
+    title = " vs ".join(d.title() for d in config["decks"])
+    about = ", ".join(player_name(b, d) for b, d in zip(config["bots"], config["decks"]))
+    if config.get("deals"):
+        about += ". Bots may make deals."
+    return title, about
+
+
+def make_replay(game_file: Path, title: str | None = None, about: str | None = None) -> bytes:
+    """The replay file's contents (compressed), ready to save in pages/replays/."""
     with gzip.open(game_file, "rt", encoding="utf-8") as f:
         game = json.load(f)
     print(f"Looking up card pictures for {game_file.name}...")
-    game["title"] = title
-    game["about"] = about
+    auto_title, auto_about = default_texts(game.get("config"))
+    game["title"] = title or auto_title
+    game["about"] = about if about is not None else auto_about
     game["images"] = find_image_urls(game["events"])
+    # separators without spaces: a smaller file
+    return gzip.compress(json.dumps(game, separators=(",", ":")).encode("utf-8"))
+
+
+def export(game_file: Path, title: str | None, about: str | None) -> Path:
     REPLAY_DIR.mkdir(exist_ok=True)
     out = REPLAY_DIR / game_file.name
-    with gzip.open(out, "wt", encoding="utf-8") as f:
-        json.dump(game, f, separators=(",", ":"))  # no spaces: a smaller file
+    out.write_bytes(make_replay(game_file, title, about))
     print(f"Saved {out} ({out.stat().st_size // 1024} KB)")
     return out
 
@@ -112,8 +139,8 @@ def export(game_file: Path, title: str, about: str) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("game", type=Path, help="a saved game from games/")
-    parser.add_argument("--title", required=True, help="short name shown in the replay list")
-    parser.add_argument("--about", default="", help="one line: who played which deck")
+    parser.add_argument("--title", help="short name shown in the replay list (default: the decks)")
+    parser.add_argument("--about", help="one line: who played which deck (default: made from the bots and decks)")
     args = parser.parse_args()
     export(args.game, args.title, args.about)
 

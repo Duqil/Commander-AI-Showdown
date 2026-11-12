@@ -224,9 +224,10 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
                    width: 2px; background: var(--text, #fff); opacity: .6; }
 
 /* ---------- Saved games tab ---------- */
-#saved .saved-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; border-bottom: 1px solid var(--line); }
+#saved .saved-row { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 10px; border-bottom: 1px solid var(--line); }
 .saved-when { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .saved-decks { text-transform: capitalize; }
+#saved button.failed { border-color: var(--danger); color: var(--danger); }
 
 /* ---------- deals ---------- */
 .deal-layer { position: fixed; inset: 0; pointer-events: none; z-index: 45; }
