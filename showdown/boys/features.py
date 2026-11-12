@@ -25,7 +25,7 @@ import re
 from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
-from showdown.boys import colors, commander, threat
+from showdown.boys import colors, combat, commander, threat
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -110,6 +110,7 @@ def play_options(decision: Decision) -> list[Features]:
     xc = x_context(decision["options"])
     gy = graveyard_context(state, decision["options"])
     missing = colors.missing(threat.me(state))  # colors my cards need that I can't make yet
+    fight = combat.view(state)  # who attacks whom, who got blocked (combat.py)
 
     result = []
     for option in decision["options"]:
@@ -148,14 +149,35 @@ def play_options(decision: Decision) -> list[Features]:
             # My commander: what it's good for, crossed with the situation (commander.py).
             **(commander.cast_features(card, state) if is_spell and card.get("commander") else {}),
             **(commander.engine_features(card, state) if is_spell and not card.get("commander") else {}),
+            **(combat_trick_features(fight, state, my_turn) if not is_land else {}),
         })
     result.append({
         "pass": 1.0,
         "pass_on_my_main": _flag(my_turn and main and not stack),
         "pass_with_stack": _flag(stack),
+        "pass_in_fight": _flag(fight.in_trick_window()),
         "simple_prior": _flag(simple_pick is None),
     })
     return result
+
+
+def combat_trick_features(fight: combat.CombatView, state: dict, my_turn: bool) -> Features:
+    """A spell or ability used mid-combat, once blocks are known (a "combat trick").
+
+    Only the situation is described here; the target features below say WHICH
+    creature the trick goes on. Together they let a Boy learn, for example,
+    "pump or card-draw on my unblocked attacker is great", for any card.
+    """
+    in_combat = state.get("phase") in combat.COMBAT_STEPS
+    if not in_combat:
+        return {}
+    return {
+        "play_in_combat": 1.0,
+        "trick_my_unblocked": _flag(my_turn and bool(fight.my_unblocked)),   # damage is sure to land
+        "trick_my_blocked": _flag(my_turn and bool(fight.my_blocked)),       # a fight to win
+        "trick_defending": _flag(not my_turn and bool(fight.attacking_me)),  # someone attacks me
+        "trick_unblocked_at_me": _flag(not my_turn and bool(fight.unblocked_at_me)),
+    }
 
 
 def sequencing_features(option: dict, card: dict, is_spell: bool, xc: dict) -> Features:
@@ -375,6 +397,13 @@ def is_harmful(decision: Decision) -> bool:
         return "M1M1" in params.get("CounterType", "")        # -1/-1 counters hurt
     if api in ("ChangeZone", "ChangeZoneAll"):
         return params.get("Origin", "") == "Battlefield"       # exile or bounce from play
+    # Who may be targeted says a lot: "creature you control" is almost always
+    # a gift (Hunter's Insight: "Creature.YouCtrl"), "opponent's creature" a threat.
+    valid = params.get("ValidTgts", "")
+    if "OppCtrl" in valid or "OppOwn" in valid:
+        return True
+    if "YouCtrl" in valid:
+        return False
     text = decision.get("description", "").lower()
     return any(word in text for word in HARMFUL_WORDS)
 
@@ -434,6 +463,22 @@ def pick_options(decision: Decision) -> list[Features]:
     return result
 
 
+def target_combat_features(cand: dict, harmful: bool, fight: combat.CombatView) -> Features:
+    """Where the target stands in the current fight (all 0 outside combat)."""
+    cid = None if cand.get("is_player") else cand.get("id")
+    if cid is None:
+        return {}
+    helps = not harmful
+    return {
+        "help_my_unblocked": _flag(helps and cid in fight.my_unblocked),    # pump / "draw per damage"
+        "help_my_blocked": _flag(helps and cid in fight.my_blocked),        # win the fight
+        "help_my_blocker": _flag(helps and cid in fight.my_blockers),
+        "hurt_blocker_of_mine": _flag(harmful and cid in fight.blocking_mine),   # clear the way
+        "hurt_attacker_at_me": _flag(harmful and cid in fight.attacking_me),
+        "hurt_unblocked_at_me": _flag(harmful and cid in fight.unblocked_at_me),
+    }
+
+
 def target_options(decision: Decision) -> list[Features]:
     state = decision["state"]
     you = state["you"]
@@ -443,6 +488,7 @@ def target_options(decision: Decision) -> list[Features]:
     suggested = set(decision.get("suggested", []))
     # Candidates are fresh card copies; the damage counts live on the state's battlefield cards.
     recent = {c.get("id"): c.get("recent_damage", 0) for p in state["players"] for c in p.get("battlefield", [])}
+    fight = combat.view(state)
 
     result = []
     for cand in decision["candidates"]:
@@ -466,6 +512,7 @@ def target_options(decision: Decision) -> list[Features]:
             "hurt_damage_dealer": min(recent.get(cand.get("id"), 0), 5) / 5 if harmful and not mine else 0.0,
             "target_commander": _flag(cand.get("commander", False)),
             "target_of_leader": _flag(owner == leader),
+            **target_combat_features(cand, harmful, fight),
         }
         if is_player and not mine:
             life = cand.get("life", threat.STARTING_LIFE)
