@@ -43,6 +43,7 @@ import java.util.Map;
  *   2. choose_play    - with priority: which spell/ability/land to play, or pass
  *      choose_targets - the targets of the play Python just chose
  *   3. attack         - which creatures attack which player
+ *      keyword_cost   - pay an optional extra cost (casualty, offspring...) or not
  *   4. pick_card      - cards you pick for yourself: lands from a library search
  *                       (any fetch land), or "look at the top N" (Drawn from Dreams)
  *
@@ -505,6 +506,47 @@ public class PythonPlayerController extends PlayerControllerAi {
             combat.clearAttackers();
             super.declareAttackers(attacker, combat);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // 2b. Optional extra costs on a spell (casualty, offspring, ...)
+    // ------------------------------------------------------------------
+
+    /**
+     * "As you cast this, you may pay an extra cost": casualty (sacrifice a
+     * creature to copy the spell), offspring, conspire... Forge's AI pays
+     * whenever it can, even if that means sacrificing its best creature.
+     * Python gets to say no, or pay fewer times. It can't pay more than Forge
+     * found payable. For sacrifice costs Python sees the creatures that could
+     * be sacrificed (Forge picks its least valuable one when paying).
+     */
+    @Override
+    public int chooseNumberForKeywordCost(SpellAbility sa, forge.game.cost.Cost cost,
+            forge.game.keyword.KeywordInterface keyword, String prompt, int max) {
+        int payable = super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max);
+        if (payable < 1) {
+            return payable; // nothing Python could choose
+        }
+        JsonObject extra = new JsonObject();
+        extra.addProperty("keyword", keyword.getOriginal()); // e.g. "Casualty:2"
+        extra.addProperty("cost", cost.toSimpleString());
+        extra.addProperty("max", payable);
+        extra.add("spell", StateSnapshot.card(sa.getHostCard()));
+        JsonArray sacrifice = new JsonArray();
+        for (forge.game.cost.CostPart part : cost.getCostParts()) {
+            if (part instanceof forge.game.cost.CostSacrifice sac) {
+                for (Card c : forge.game.card.CardLists.getValidCards(getPlayer().getCardsIn(ZoneType.Battlefield),
+                        sac.getType().split(";"), getPlayer(), sa.getHostCard(), sa)) {
+                    sacrifice.add(StateSnapshot.card(c));
+                }
+            }
+        }
+        extra.add("sacrifice_candidates", sacrifice);
+        JsonElement choice = ask("keyword_cost", extra).get("choice");
+        if (isNull(choice)) {
+            return payable;
+        }
+        return Math.max(0, Math.min(choice.getAsInt(), payable));
     }
 
     // ------------------------------------------------------------------

@@ -20,10 +20,12 @@ they mostly play like SimpleBot, and they drift away where that pays off.
 
 from __future__ import annotations
 
+import re
+
 from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
-from showdown.boys import colors, threat
+from showdown.boys import colors, commander, threat
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -118,6 +120,9 @@ def play_options(decision: Decision) -> list[Features]:
         is_ability = not is_land and not is_spell
         result.append({
             "land_drop": _flag(is_land),
+            # Casting my commander, and how much extra it costs after dying (/10).
+            "cast_commander": _flag(is_spell and card.get("commander", False)),
+            "commander_tax": card.get("commander_tax", 0) / 10 if is_spell and card.get("commander") else 0.0,
             # A land that makes a color my cards need and I don't have yet.
             "land_new_color": _flag(is_land and bool(colors.produces(card) & missing)),
             "spell": _flag(is_spell),
@@ -140,6 +145,9 @@ def play_options(decision: Decision) -> list[Features]:
             "ability_forge_would_play": _flag(is_ability and option.get("forge_would_play", False)),
             "respond_to_stack": _flag(stack),
             "simple_prior": _flag(simple_pick == option["index"]),
+            # My commander: what it's good for, crossed with the situation (commander.py).
+            **(commander.cast_features(card, state) if is_spell and card.get("commander") else {}),
+            **(commander.engine_features(card, state) if is_spell and not card.get("commander") else {}),
         })
     result.append({
         "pass": 1.0,
@@ -210,6 +218,41 @@ def graveyard_features(card: dict, is_land: bool, is_spell: bool, gy: dict) -> F
 # Attacks: one small choice per creature, "stay home" (option 0) or a defender
 # ----------------------------------------------------------------------------
 
+# "Whenever <who> attacks, ..." in rules text. <who> decides which attackers
+# set it off. Read from the text, so it works for any card, not a list of names.
+ATTACK_TRIGGER = re.compile(r"whenever ([^,.]*?) attacks?\b", re.IGNORECASE)
+
+
+def equipped(attacker: dict, mine: dict) -> bool:
+    """Does an Equipment of mine sit on this creature?"""
+    return any(c.get("attached_to") == attacker.get("id") and "Equipment" in c.get("type", "")
+               for c in mine.get("battlefield", []))
+
+
+def attack_triggers(attacker: dict, mine: dict) -> int:
+    """How many of my "whenever ... attacks" abilities this attacker would set off.
+
+    "Whenever an equipped creature you control attacks" (Nahiri) needs an
+    equipped attacker; "whenever <this card's name> attacks" only the card
+    itself; "whenever a creature you control attacks" any attacker.
+    """
+    count = 0
+    is_equipped = equipped(attacker, mine)
+    for card in mine.get("battlefield", []):
+        for who in ATTACK_TRIGGER.findall(card.get("oracle", "") or ""):
+            who = who.lower()
+            if "you attack" in who or "defending" in who:
+                continue
+            if "equipped" in who:
+                count += is_equipped
+            elif card.get("id") == attacker.get("id") and (
+                    "this creature" in who or card.get("name", "").split(",")[0].lower() in who):
+                count += 1
+            elif "creature" in who and "you control" in who:
+                count += 1
+    return count
+
+
 def attack_context(decision: Decision) -> dict[str, Any]:
     """Things that are the same for every creature in this combat, worked out once."""
     state = decision["state"]
@@ -223,6 +266,7 @@ def attack_context(decision: Decision) -> dict[str, Any]:
         # Could we cast a combat trick? (We only see card types, not what the
         # instant does, so this is a rough "maybe".)
         "trick_possible": instants > 0 and untapped_lands > 0,
+        "mine": mine,
         "state": state,
         "players": players,
         "leader": threat.leader(state),
@@ -266,6 +310,9 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
             "attack_small_with_trick": _flag(power <= 1 and ctx["trick_possible"]),
             "attack_zero_power_with_trick": _flag(power == 0 and ctx["trick_possible"]),
             "attack_is_commander": _flag(attacker.get("commander", False)),
+            # Equipment on it, and "whenever ... attacks" abilities it would set off.
+            "attack_equipped": _flag(equipped(attacker, ctx["mine"])),
+            "attack_triggers": min(attack_triggers(attacker, ctx["mine"]), 3) / 3,
             "attack_planeswalker": _flag(target is None),
             "simple_prior": _flag(simple_target == index),
         }
@@ -330,6 +377,26 @@ def is_harmful(decision: Decision) -> bool:
         return params.get("Origin", "") == "Battlefield"       # exile or bounce from play
     text = decision.get("description", "").lower()
     return any(word in text for word in HARMFUL_WORDS)
+
+
+def keyword_cost_options(decision: Decision) -> list[Features]:
+    """Pay an optional extra cost (casualty, offspring...)? [no, yes].
+
+    For a sacrifice, what we'd lose matters: a token or a creature that comes
+    back from the graveyard (Bloodghast) is cheap, a commander is not.
+    """
+    simple = _simple.pay_keyword_cost(decision)
+    simple_pays = simple is None or simple > 0
+    sac = decision.get("sacrifice_candidates", [])
+    cheapest = min(sac, key=lambda c: (c.get("cmc", 0), c.get("power", 0)), default=None)
+    no = {"skip_cost": 1.0, "simple_prior": _flag(not simple_pays)}
+    yes = {"pay_cost": 1.0, "simple_prior": _flag(simple_pays), "pay_sacrifice": _flag(bool(sac))}
+    if cheapest is not None:
+        yes["sac_cheapest_cmc"] = cheapest.get("cmc", 0) / 7
+        yes["sac_token"] = _flag(cheapest.get("token", False))
+        yes["sac_comes_back"] = _flag(any(c.get("graveyard_use") for c in sac))  # Bloodghast & co.
+        yes["sac_only_commander"] = _flag(all(c.get("commander") for c in sac))
+    return [no, yes]
 
 
 def pick_options(decision: Decision) -> list[Features]:

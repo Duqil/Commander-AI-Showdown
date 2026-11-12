@@ -124,6 +124,11 @@ class BoyBot(Bot):
         picked = self._pick("target", features.target_options(decision))
         return [decision["candidates"][picked]["index"]]
 
+    def pay_keyword_cost(self, decision: Decision) -> int | None:
+        self._observe(decision["state"])
+        pay = self._pick("keyword_cost", features.keyword_cost_options(decision)) == 1
+        return decision.get("max", 1) if pay else 0
+
     def choose_card(self, decision: Decision) -> int | None:
         self._observe(decision["state"])
         if not decision["candidates"]:

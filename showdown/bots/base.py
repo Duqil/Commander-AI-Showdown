@@ -59,6 +59,18 @@ class Bot:
         """
         return None
 
+    def pay_keyword_cost(self, decision: Decision) -> int | None:
+        """An optional extra cost while casting a spell: casualty (sacrifice a
+        creature to copy the spell), offspring, ... How many times to pay
+        (0 = don't), or None to let Forge's AI decide (it pays when it can).
+
+        decision["keyword"]: e.g. "Casualty:2". decision["max"]: the most you can pay.
+        decision["spell"]: the spell being cast.
+        decision["sacrifice_candidates"]: creatures the cost could sacrifice
+            (Forge sacrifices its least valuable one).
+        """
+        return None
+
     def choose_card(self, decision: Decision) -> int | None:
         """Pick a card for yourself. Return a candidate index, or None to take
         what Forge's AI suggested. Two situations ask this:

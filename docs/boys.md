@@ -117,6 +117,31 @@ plays the most useful land from hand. Forge's own AI only fixed colors when it
 had no land in hand and nothing to cast, so Anhelo could fetch Island after
 Island.
 
+**Commander and extra costs.** There's no rule about when to cast the
+commander, and no single "commander" weight either: commanders differ too
+much. `showdown/boys/commander.py` reads each commander's *traits* from its
+card (cheap, big body, spell engine and which spells feed it, draws cards,
+makes tokens, attack trigger, grows when recast, gets cheaper) and crosses
+them with the situation for the option "cast my commander": `cmdr_engine_fuel`
+(an engine x the spells in hand it would power up), `cmdr_big_late`,
+`cmdr_big_open_board`, `cmdr_cheap_early`, `cmdr_draws_low_hand`,
+`cmdr_grows_recast` and more. Once it's out, other spells get
+`feeds_my_commander` (an instant with Anhelo out). On top, `cmdr_is_<name>` is
+a small learned adjustment for that one commander (it starts at 0; it's
+learned, never a rule). `cast_commander` starts at 1.0, `commander_tax` at 0.
+Optional extra costs while casting (casualty, offspring...)
+are a decision too (`keyword_cost`): Forge's AI pays whenever it can, SimpleBot
+only refuses to sacrifice its commander, and Boys see what they'd sacrifice
+(`sac_token`, `sac_comes_back` for Bloodghast-like cards, `sac_cheapest_cmc`,
+`sac_only_commander`).
+
+**Attack triggers.** Every card's rules text (`oracle`) comes along now. Boys
+see `attack_equipped` (an Equipment sits on the attacker) and
+`attack_triggers`: how many of my "whenever ... attacks" abilities this attacker
+sets off, read from the text ("whenever an equipped creature you control
+attacks" needs an equipped attacker, "whenever <name> attacks" only that card).
+`attack_triggers` starts at weight 1.0.
+
 **Fixing a bad habit.** To reset one kind of decision for a Boy (back to the
 starting weights, everything else kept):
 

@@ -59,14 +59,19 @@ Features = dict[str, float]
 #     trick in hand it can be right, and a Boy can learn that.
 DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_suggested": 2.0,
                    "attack_breaks_deal": -1.0, "attack_grudge": 1.0,
-                   "mulligan_deeper": -2.0, "hurt_damage_dealer": 2.0}
+                   "mulligan_deeper": -2.0, "hurt_damage_dealer": 2.0,
+                   # A mild starting liking for casting the commander, which is
+                   # always available. Not a rule: training moves it up or down.
+                   "cast_commander": 1.0,
+                   # Same idea: attacking sets off "whenever ... attacks" abilities.
+                   "attack_triggers": 1.0}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each
 # game moves it a lot, and whether we won is mostly noise for that one choice.
 # At full speed Yugi's mulligan weights wandered until he threw away good hands.
 KIND_RATE = {"mulligan": 0.25}
 
-DECISION_KINDS = ("mulligan", "play", "attack", "target", "pick_card", "offer_whether", "offer", "answer")
+DECISION_KINDS = ("mulligan", "play", "attack", "target", "pick_card", "keyword_cost", "offer_whether", "offer", "answer")
 
 
 @dataclass

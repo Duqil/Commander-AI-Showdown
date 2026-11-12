@@ -4,7 +4,10 @@ Rules, in order:
   * Mulligan: keep a 7-card hand with 2 to 5 lands; keep anything smaller.
   * With priority, in our own main phase:
       1. play a land if we can,
-      2. otherwise cast the most expensive spell we can afford.
+      2. otherwise cast the most expensive spell we can afford. Our
+         commander wins ties, and goes first when our hand holds spells it
+         powers up (cast Anhelo, then the instants and sorceries).
+         Non-creature X spells wait until X is at least SMALL_X.
     Outside our main phases we pass (no instant-speed tricks yet).
   * Attack the opponent with the lowest life, with every creature whose
     power is at least 2 (small creatures stay home to block).
@@ -25,12 +28,13 @@ first Python exercise.
 from __future__ import annotations
 
 from showdown.bots.base import Bot, Decision
-from showdown.boys import colors, threat
+from showdown.boys import colors, commander, threat
 from showdown.boys.threat import game_round
 
 MAIN_PHASES = {"MAIN1", "MAIN2"}
 EARLIEST_DEAL_ROUND = 3     # no deals in rounds 1-2
 MEANINGFUL_BOARD_POWER = 3  # the leader needs at least this much power before a deal means anything
+SMALL_X = 3                 # a non-creature X spell (Torment of Hailfire) waits until X is at least this
 
 
 def is_ability(option: dict) -> bool:
@@ -45,9 +49,25 @@ def spell_size(option: dict) -> int:
 
 
 def risky_x_spell(option: dict) -> bool:
-    """A non-creature X spell that Forge's AI wouldn't cast right now at any X."""
-    return "max_x" in option and "Creature" not in option["card"].get("type", "") \
-        and not option.get("forge_would_play", True)
+    """A non-creature X spell that's better saved for later: Forge's AI
+    wouldn't cast it right now at any X, or X would still be small."""
+    if "max_x" not in option or "Creature" in option["card"].get("type", ""):
+        return False
+    return not option.get("forge_would_play", True) or option["max_x"] < SMALL_X
+
+
+def spell_priority(option: dict, hand: list[dict]) -> tuple:
+    """How keen we are to cast this spell now. Python compares tuples item by
+    item, so the first number matters most:
+      1. our commander when it powers up spells in our hand (engine first),
+      2. the mana it uses (bigger first),
+      3. our commander wins a tie on mana.
+    """
+    card = option["card"]
+    is_cmdr = bool(card.get("commander"))
+    kinds = commander.engine_types(card) if is_cmdr else set()
+    engine_first = bool(kinds) and any(commander.feeds(c, kinds) for c in hand if not c.get("commander"))
+    return (engine_first, spell_size(option), is_cmdr)
 
 
 class SimpleBot(Bot):
@@ -87,12 +107,20 @@ class SimpleBot(Bot):
         # only when Forge's AI sees a good X; otherwise they'd hurt us.
         spells = [o for o in options if o["is_spell"] and not risky_x_spell(o)]
         if spells:
-            # max(..., key=...) picks the option with the biggest mana value.
-            best = max(spells, key=spell_size)
+            # max(..., key=...) picks the option with the highest priority.
+            hand = self.me(decision).get("hand", [])
+            best = max(spells, key=lambda o: spell_priority(o, hand))
             return best["index"]
         # Nothing left to cast: use other abilities with the mana that's left.
         if abilities:
             return abilities[0]["index"]
+        return None
+
+    def pay_keyword_cost(self, decision: Decision) -> int | None:
+        """Pay extra costs like Forge's AI does, but never sacrifice our commander."""
+        sacrifice = decision.get("sacrifice_candidates", [])
+        if sacrifice and all(c.get("commander") for c in sacrifice):
+            return 0
         return None
 
     def choose_card(self, decision: Decision) -> int | None:

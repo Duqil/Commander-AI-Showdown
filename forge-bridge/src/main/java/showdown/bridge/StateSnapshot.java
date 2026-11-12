@@ -199,6 +199,7 @@ public final class StateSnapshot {
         cj.addProperty("type", c.getType().toString());
         cj.addProperty("tapped", c.isTapped());
         addMana(cj, c);
+        cj.addProperty("oracle", c.getOracleText()); // rules text, for features like "has an attack trigger"
         if (c.isCreature()) {
             cj.addProperty("power", c.getNetPower());
             cj.addProperty("toughness", c.getNetToughness());
@@ -222,7 +223,6 @@ public final class StateSnapshot {
             if (colors.hasRed()) wubrg.append('R');
             if (colors.hasGreen()) wubrg.append('G');
             cj.addProperty("colors", wubrg.toString());
-            cj.addProperty("oracle", c.getOracleText());
             if (c.isCreature()) {
                 cj.addProperty("base_power", c.getBasePower());
                 cj.addProperty("base_toughness", c.getBaseToughness());
