@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 from showdown.bots.boy_bot import BoyBot
-from showdown.boys import critic, features, storage, threat
+from showdown.boys import combat, critic, features, storage, threat
 from showdown.boys.brain import Brain
 from showdown.boys.reward import game_reward, turn_bonus
 
@@ -100,6 +100,46 @@ class FeatureTest(unittest.TestCase):
         self.assertEqual(feats[1]["forge_suggested"], 1.0)
         bot = BoyBot("tester_t", learn=False, seed=3)
         self.assertIn(bot.choose_targets(decision)[0], [0, 1, 2])
+
+    def test_combat_trick_features(self):
+        """After blocks: my creature 1 is unblocked, my creature 2 is blocked by B's creature 10."""
+        state = table(phase="COMBAT_DECLARE_BLOCKERS")
+        me, b = state["players"][0], state["players"][1]
+        me["battlefield"] = [creature(1, 3, attacking="3-C"), creature(2, 2, attacking="2-B")]
+        b["battlefield"][0].update(blocking=True, blocks=[2])
+        decision = {"state": state, "description": "Choose target creature you control. Whenever "
+                    "that creature deals combat damage to a player, draw that many cards.",
+                    "api": "Effect", "params": {"ValidTgts": "Creature.YouCtrl"}, "suggested": [0],
+                    "min": 1, "max": 1, "candidates": [
+                        {"index": 0, **creature(1, 3, controller="1-A"), "is_player": False},
+                        {"index": 1, **creature(2, 2, controller="1-A"), "is_player": False}]}
+        feats = features.target_options(decision)
+        self.assertEqual(feats[0]["help_my_unblocked"], 1.0)   # "damage" in the text, but it's a gift
+        self.assertEqual(feats[1]["help_my_blocked"], 1.0)
+        self.assertEqual(feats[0]["hurt_mine"], 0.0)
+
+        kill = {**decision, "api": "Destroy", "params": {}, "candidates": [
+            {"index": 0, **b["battlefield"][0], "controller": "2-B", "is_player": False}]}
+        self.assertEqual(features.target_options(kill)[0]["hurt_blocker_of_mine"], 1.0)
+
+        plays = features.play_options({"state": state, "options": [
+            {"index": 0, "card": {"name": "Trick", "type": "Instant", "cmc": 3},
+             "description": "trick", "is_land": False, "is_spell": True}]})
+        self.assertEqual(plays[0]["trick_my_unblocked"], 1.0)
+        self.assertEqual(plays[0]["trick_my_blocked"], 1.0)
+        self.assertEqual(plays[1]["pass_in_fight"], 1.0)
+
+    def test_no_unblocked_before_blocks(self):
+        state = table(phase="COMBAT_DECLARE_ATTACKERS")
+        state["players"][0]["battlefield"] = [creature(1, 3, attacking="3-C")]
+        fight = combat.view(state)
+        self.assertEqual(fight.my_unblocked, set())   # blockers aren't declared yet
+        self.assertFalse(fight.in_trick_window())
+        state["phase"] = "MAIN1"
+        plays = features.play_options({"state": state, "options": [
+            {"index": 0, "card": {"name": "Trick", "type": "Instant", "cmc": 3},
+             "description": "trick", "is_land": False, "is_spell": True}]})
+        self.assertNotIn("play_in_combat", plays[0])
 
     def test_harmful_or_helpful(self):
         self.assertTrue(features.is_harmful({"api": "Destroy"}))

@@ -31,8 +31,9 @@ normal PC. So 100 games is roughly half an hour.
 
 ## What a Boy decides
 
-Mulligans, what to play (or pass) when it has priority, the target of the
-play it chose (when it has one target), and where each creature attacks.
+Mulligans, what to play (or pass) when it has priority (in any step,
+combat included), the target of the play it chose (when it has one target),
+and where each creature attacks.
 For targets, Forge's AI suggests one first; a new Boy mostly follows that
 suggestion (`forge_suggested`) and learns when to pick something else.
 Blocks, triggered abilities' targets and other in-card choices are still
@@ -141,6 +142,22 @@ see `attack_equipped` (an Equipment sits on the attacker) and
 sets off, read from the text ("whenever an equipped creature you control
 attacks" needs an equipped attacker, "whenever <name> attacks" only that card).
 `attack_triggers` starts at weight 1.0.
+
+**Combat tricks.** A Boy gets priority in every step, also mid-combat, so it
+can cast instants and use abilities after blockers are declared. The table
+snapshot says which creatures attack whom and which block what;
+`showdown/boys/combat.py` turns that into "my unblocked attackers", "my
+blocked attackers", "creatures blocking mine", "creatures attacking me" and
+so on (before blocks, nothing counts as unblocked yet). A play made during
+combat gets `play_in_combat`, `trick_my_unblocked` (damage is sure to land),
+`trick_my_blocked` (a fight to win), `trick_defending` and
+`trick_unblocked_at_me`; passing then gets `pass_in_fight`. Its target gets
+`help_my_unblocked` (a pump, or Hunter's Insight's "draw per damage"),
+`help_my_blocked`, `help_my_blocker`, `hurt_blocker_of_mine` (clear the way),
+`hurt_attacker_at_me` and `hurt_unblocked_at_me`. They all start at 0, so a
+Boy discovers tricks by trying them. Whether a target is helped or hurt also
+reads who may be targeted (`ValidTgts`): "creature you control" counts as
+help even when the text mentions damage. No card names anywhere.
 
 **Fixing a bad habit.** To reset one kind of decision for a Boy (back to the
 starting weights, everything else kept):

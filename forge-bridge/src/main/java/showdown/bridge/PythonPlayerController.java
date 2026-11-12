@@ -403,9 +403,9 @@ public class PythonPlayerController extends PlayerControllerAi {
             // What the ability does, in Forge's own terms, e.g. "Destroy", "DealDamage", "Pump".
             extra.addProperty("api", a.getApi() == null ? null : a.getApi().name());
             JsonObject params = new JsonObject();
-            for (String key : new String[] {"NumAtt", "NumDef", "Origin", "Destination", "CounterType"}) {
+            for (String key : new String[] {"NumAtt", "NumDef", "Origin", "Destination", "CounterType", "ValidTgts"}) {
                 if (a.hasParam(key)) {
-                    params.addProperty(key, a.getParam(key)); // e.g. NumAtt "-2" means a shrink, not a pump
+                    params.addProperty(key, a.getParam(key)); // e.g. NumAtt "-2" = a shrink; ValidTgts "Creature.YouCtrl" = your own
                 }
             }
             extra.add("params", params);
