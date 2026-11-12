@@ -118,6 +118,9 @@ def play_options(decision: Decision) -> list[Features]:
         is_ability = not is_land and not is_spell
         result.append({
             "land_drop": _flag(is_land),
+            # Casting my commander, and how much extra it costs after dying (/10).
+            "cast_commander": _flag(is_spell and card.get("commander", False)),
+            "commander_tax": card.get("commander_tax", 0) / 10 if is_spell and card.get("commander") else 0.0,
             # A land that makes a color my cards need and I don't have yet.
             "land_new_color": _flag(is_land and bool(colors.produces(card) & missing)),
             "spell": _flag(is_spell),
@@ -330,6 +333,26 @@ def is_harmful(decision: Decision) -> bool:
         return params.get("Origin", "") == "Battlefield"       # exile or bounce from play
     text = decision.get("description", "").lower()
     return any(word in text for word in HARMFUL_WORDS)
+
+
+def keyword_cost_options(decision: Decision) -> list[Features]:
+    """Pay an optional extra cost (casualty, offspring...)? [no, yes].
+
+    For a sacrifice, what we'd lose matters: a token or a creature that comes
+    back from the graveyard (Bloodghast) is cheap, a commander is not.
+    """
+    simple = _simple.pay_keyword_cost(decision)
+    simple_pays = simple is None or simple > 0
+    sac = decision.get("sacrifice_candidates", [])
+    cheapest = min(sac, key=lambda c: (c.get("cmc", 0), c.get("power", 0)), default=None)
+    no = {"skip_cost": 1.0, "simple_prior": _flag(not simple_pays)}
+    yes = {"pay_cost": 1.0, "simple_prior": _flag(simple_pays), "pay_sacrifice": _flag(bool(sac))}
+    if cheapest is not None:
+        yes["sac_cheapest_cmc"] = cheapest.get("cmc", 0) / 7
+        yes["sac_token"] = _flag(cheapest.get("token", False))
+        yes["sac_comes_back"] = _flag(any(c.get("graveyard_use") for c in sac))  # Bloodghast & co.
+        yes["sac_only_commander"] = _flag(all(c.get("commander") for c in sac))
+    return [no, yes]
 
 
 def pick_options(decision: Decision) -> list[Features]:

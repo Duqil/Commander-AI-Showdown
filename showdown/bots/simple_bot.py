@@ -29,6 +29,7 @@ from showdown.boys import colors, threat
 from showdown.boys.threat import game_round
 
 MAIN_PHASES = {"MAIN1", "MAIN2"}
+MAX_TAX_TO_RUSH_COMMANDER = 2  # cast the commander before other spells while it costs at most {2} extra
 EARLIEST_DEAL_ROUND = 3     # no deals in rounds 1-2
 MEANINGFUL_BOARD_POWER = 3  # the leader needs at least this much power before a deal means anything
 
@@ -86,6 +87,13 @@ class SimpleBot(Bot):
         # X spells that aren't creatures (Starstorm: X damage to every creature)
         # only when Forge's AI sees a good X; otherwise they'd hurt us.
         spells = [o for o in options if o["is_spell"] and not risky_x_spell(o)]
+        # The commander first: it's what the deck is built around (Anhelo gives
+        # casualty, Kuja makes Wizards...). Not when it already died twice and
+        # costs {4} more: then it waits its turn like any other spell.
+        commander = [o for o in spells if o["card"].get("commander")
+                     and o["card"].get("commander_tax", 0) <= MAX_TAX_TO_RUSH_COMMANDER]
+        if commander:
+            return commander[0]["index"]
         if spells:
             # max(..., key=...) picks the option with the biggest mana value.
             best = max(spells, key=spell_size)
@@ -93,6 +101,13 @@ class SimpleBot(Bot):
         # Nothing left to cast: use other abilities with the mana that's left.
         if abilities:
             return abilities[0]["index"]
+        return None
+
+    def pay_keyword_cost(self, decision: Decision) -> int | None:
+        """Pay extra costs like Forge's AI does, but never sacrifice our commander."""
+        sacrifice = decision.get("sacrifice_candidates", [])
+        if sacrifice and all(c.get("commander") for c in sacrifice):
+            return 0
         return None
 
     def choose_card(self, decision: Decision) -> int | None:

@@ -19,6 +19,7 @@ a time, starting with the ones that matter most.
 | `choose_play` | You have priority and at least one legal play | option `index` | pass priority |
 | `choose_targets` | Right after you chose a play that targets, once per targeting part | list of candidate `index`es | keep Forge AI's `suggested` targets |
 | `attack` | Your declare-attackers step, if anything can attack | `{"<card id>": defender index}` | Forge AI attacks |
+| `keyword_cost` | Casting a spell with an optional extra cost (casualty, offspring...) that you can pay | how many times to pay, 0 to `max` | Forge AI pays as much as it can |
 | `pick_card` | Picking cards for yourself: `how` is `library_search` (any search of your library where every option is a land) or `look_at_top` ("look at the top N, put some in your hand"). Picking two cards asks twice | a candidate `index` (-1 = none, only if `optional`) | Forge AI's `suggested` card |
 
 Still answered by Forge's AI: targets and X values of a chosen play, mana
