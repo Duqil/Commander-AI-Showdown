@@ -35,7 +35,7 @@ class GameStopped(Exception):
 @dataclass
 class GameConfig:
     decks: list[str]          # deck file names in decks/forge/, without ".dck"
-    bots: list[str]           # one per deck: "simple", "random" or "forge"
+    bots: list[str]           # one per deck: "simple", "random", "forge" or "boy:<name>"
     seed: int | None = None
     deals: bool = False       # bots may make deals with each other (showdown/deals.py)
 
@@ -54,7 +54,6 @@ class GameSession:
         self._lock = threading.Lock()
         self._stop = threading.Event()  # a thread-safe True/False flag
         self._thread: threading.Thread | None = None
-        self.saved_to: Path | None = None
 
     # --- reading (called by the web server thread) --------------------------
 
@@ -138,7 +137,6 @@ class GameSession:
         # "wt" = write text; gzip compresses it on the way to disk.
         with gzip.open(path, "wt", encoding="utf-8") as f:
             json.dump(data, f)
-        self.saved_to = path
         return path
 
     @classmethod
@@ -150,7 +148,6 @@ class GameSession:
         session = cls(config, path.name.removesuffix(".json.gz"))
         session.events = data["events"]
         session.status = "finished"
-        session.saved_to = path
         return session
 
 

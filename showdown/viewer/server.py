@@ -48,6 +48,8 @@ def valid_bot(name: str) -> bool:
     if name.startswith("boy:"):
         return bool(VALID_NAME.match(name.removeprefix("boy:")))
     return name in ("simple", "random", "forge")
+
+
 CONTENT_TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
                  ".svg": "image/svg+xml", ".png": "image/png"}
 

@@ -30,7 +30,7 @@ class Accepter(Bot):
         return True
 
 
-def attack(player, target_index, turn=6):
+def attack(player, turn=6):
     return {"kind": "attack", "player": player, "state": state(turn=turn, active=player, you=player),
             "defenders": [{"index": 0, "name": "1-A"}, {"index": 1, "name": "2-B"},
                           {"index": 2, "name": "3-C"}, {"index": 3, "name": "4-D"}],
@@ -65,7 +65,7 @@ class DealBookTest(unittest.TestCase):
 
     def test_breaking_a_deal_costs_trust(self):
         self.book.offer_phase(state(), {"1-A": Offerer({"type": "peace", "to": "2-B"}), "2-B": Accepter()})
-        msgs = self.book.check_attack("2-B", attack("2-B", 0), {"7": 0})  # B attacks A
+        msgs = self.book.check_attack("2-B", attack("2-B"), {"7": 0})  # B attacks A
         self.assertEqual(msgs[0]["event"], "break")
         self.assertEqual(self.book.trust["1-A"]["2-B"], 0.5)   # the victim
         self.assertEqual(self.book.trust["3-C"]["2-B"], 0.75)  # everyone else
@@ -80,7 +80,7 @@ class DealBookTest(unittest.TestCase):
     def test_kept_deal_restores_trust(self):
         self.book.trust["1-A"]["2-B"] = 0.5
         self.book.offer_phase(state(turn=5), {"1-A": Offerer({"type": "peace", "to": "2-B"}), "2-B": Accepter()})
-        self.book.check_attack("2-B", attack("2-B", 2), {"7": 2})  # B could hit A, hits C instead
+        self.book.check_attack("2-B", attack("2-B"), {"7": 2})  # B could hit A, hits C instead
         self.assertEqual(self.book.settle(13), [])               # still running
         msgs = self.book.settle(14)
         self.assertEqual([m["event"] for m in msgs], ["kept"])
@@ -94,10 +94,10 @@ class DealBookTest(unittest.TestCase):
         """Peace while nobody could attack anyone proves nothing."""
         self.book.trust["1-A"]["2-B"] = 0.5
         self.book.offer_phase(state(turn=5), {"1-A": Offerer({"type": "peace", "to": "2-B"}), "2-B": Accepter()})
-        no_creatures = attack("2-B", 0)
+        no_creatures = attack("2-B")
         no_creatures["attackers"] = []
         self.book.check_attack("2-B", no_creatures, None)
-        zero_power = attack("2-B", 0)
+        zero_power = attack("2-B")
         zero_power["attackers"] = [{"id": 7, "power": 0, "can_attack": [0, 2, 3]}]
         self.book.check_attack("2-B", zero_power, {})
         self.assertEqual(self.book.settle(14), [])
@@ -105,14 +105,14 @@ class DealBookTest(unittest.TestCase):
 
     def test_broken_deal_is_not_kept(self):
         self.book.offer_phase(state(turn=5), {"1-A": Offerer({"type": "peace", "to": "2-B"}), "2-B": Accepter()})
-        self.book.check_attack("2-B", attack("2-B", 0), {"7": 0})
+        self.book.check_attack("2-B", attack("2-B"), {"7": 0})
         self.assertEqual(self.book.settle(14), [])
 
     def test_attacking_gang_target_builds_trust(self):
         self.book.trust["2-B"]["1-A"] = 0.5
         self.book.offer_phase(state(), {"1-A": Offerer({"type": "gang_up", "to": "2-B", "against": "3-C"}),
                                         "2-B": Accepter()})
-        self.book.check_attack("1-A", attack("1-A", 2), {"7": 2})  # A attacks C as promised
+        self.book.check_attack("1-A", attack("1-A"), {"7": 2})  # A attacks C as promised
         self.assertAlmostEqual(self.book.trust["2-B"]["1-A"], 0.55)
 
     def test_viewer_shows_deals(self):
@@ -124,7 +124,7 @@ class DealBookTest(unittest.TestCase):
 
 class SimpleBotDealTest(unittest.TestCase):
     def test_never_attacks_a_partner(self):
-        decision = attack("1-A", 1)
+        decision = attack("1-A")
         decision["state"]["players"][2]["life"] = 1   # C is weakest...
         decision["deals"] = {"protected": ["3-C"], "gang_targets": [], "active": [], "trust": {}}
         decision["attackers"] = [{"id": 7, "power": 3, "can_attack": [1, 2, 3]}]

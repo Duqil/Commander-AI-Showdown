@@ -34,8 +34,6 @@ import copy
 from dataclasses import dataclass, field
 from typing import Any
 
-from showdown.boys import threat
-
 DEAL_ROUNDS = 2         # how long a deal lasts: 2 rounds = every player gets 2 more turns
 VICTIM_TRUST_LOSS = 0.5
 OTHERS_TRUST_LOSS = 0.25
@@ -57,9 +55,6 @@ class Deal:
     broken_by: str | None = None
     settled: bool = False      # we already handed out the "kept the deal" trust
     tested: bool = False       # someone could have attacked their partner and didn't
-
-    def partners(self) -> tuple[str, str]:
-        return self.a, self.b
 
     def involves(self, name: str) -> bool:
         return name in (self.a, self.b)
@@ -258,8 +253,3 @@ def deal_message(event: str, deal: Deal, turn: int, **extra: Any) -> dict:
     return {"type": "deal", "event": event, "text": text, "turn": turn, "deal": deal.to_dict(),
             **{k: v for k, v in extra.items() if v is not None}}
 
-
-def leader_other_than(state: dict, *excluded: str) -> str | None:
-    """The biggest threat at the table, not counting ``excluded`` players."""
-    others = [p for p in state["players"] if not p.get("lost") and p["name"] not in excluded]
-    return max(others, key=threat.threat_score)["name"] if others else None

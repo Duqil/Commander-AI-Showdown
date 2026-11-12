@@ -27,9 +27,9 @@ from showdown.bots.base import Bot, Decision
 from showdown.boys import features
 from showdown.boys.brain import Step
 from showdown.boys.reward import game_reward, mulligan_bonus, turn_bonus
+from showdown.boys.storage import load_brain, save_brain
 
 HAND_LIMIT = 7  # maximum hand size at the end of your turn
-from showdown.boys.storage import load_brain, save_brain
 
 
 class BoyBot(Bot):
@@ -43,8 +43,8 @@ class BoyBot(Bot):
         self.steps: list[Step] = []          # every choice made this game
         self.last_state: dict | None = None  # the table as we last saw it
         self.result: dict | None = None      # filled in by game_over()
-        # What we did to opponents on each of our turns: {turn: [damage, knockouts]}
-        # turn -> [damage, knockouts, cards drawn, cards discarded to hand size]
+        # What happened on each of our own turns:
+        #   {turn: [damage to opponents, knockouts, cards drawn, cards discarded to hand size]}
         self.turn_effects: dict[int, list[int]] = {}
 
     def _observe(self, state: dict) -> None:

@@ -11,7 +11,8 @@ Rules, in order:
   * Deals (when the game has them on): never break a deal. Attack a player
     who broke a deal with us first (revenge!), then players we promised to
     gang up on, then the weakest.
-      - Offer (from round 2 on): if someone else is the leader, ask the next most threatening
+      - Offer (from round 3 on, once the strongest opponent has 3+ power on
+        the board): if someone else is the leader, ask the next most threatening
         opponent to gang up on the leader. If WE are the leader, offer peace
         to the strongest opponent.
       - Accept: anything from a player we still trust (trust 0.5 or more),
@@ -146,7 +147,6 @@ class SimpleBot(Bot):
         deals are just something you spam early.
         """
         state = view["state"]
-        you = state["you"]
         opponents = threat.opponents(state)
         if len(opponents) < 2 or view["deals"]["active"]:
             return None  # one deal at a time is plenty for a simple bot

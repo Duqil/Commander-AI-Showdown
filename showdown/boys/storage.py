@@ -116,7 +116,7 @@ if __name__ == "__main__":
     sub = parser.add_subparsers(dest="command", required=True)
     f = sub.add_parser("forget", help="reset one kind of decision for a Boy")
     f.add_argument("name")
-    f.add_argument("kind", help="mulligan, play, attack, target, offer_whether, offer or answer")
+    f.add_argument("kind", help=", ".join(DECISION_KINDS))
     args = parser.parse_args()
     if args.kind not in DECISION_KINDS:
         parser.error(f"kind must be one of {', '.join(DECISION_KINDS)}")

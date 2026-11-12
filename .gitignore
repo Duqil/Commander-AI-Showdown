@@ -3,6 +3,7 @@ vendor/
 forge-bridge/target/
 forge.log
 __pycache__/
+.pytest_cache/
 *.pyc
 .venv/
 games/

@@ -46,10 +46,6 @@ EVENT_KINDS = {
     "deal_break": "A bot broke a deal it had made.",
 }
 
-# Forge log categories we hide by default in the browser because they are
-# very chatty. They are still in the timeline; the log has a checkbox to show them.
-NOISY_CATEGORIES = {"PHASE", "MANA"}
-
 
 def make_event(kind: str, text: str, *, turn: int = 0, player: str | None = None,
                category: str | None = None, state: dict | None = None, **data: Any) -> Event:
