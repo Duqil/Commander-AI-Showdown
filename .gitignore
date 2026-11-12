@@ -12,3 +12,4 @@ forge-batch-*.log
 /boys/
 # Your own win/loss record (python -m showdown.stats)
 /stats/
+dist/

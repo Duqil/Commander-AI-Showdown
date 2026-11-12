@@ -139,3 +139,5 @@ Running the setup again is always safe; it's much faster the second time.
 - [docs/development.md](docs/development.md): how the code fits together,
   adding decks, running tests, where files go.
 - [docs/bridge.md](docs/bridge.md): how Python and Forge talk to each other.
+- [docs/windows-release.md](docs/windows-release.md): (trial) a ready-to-run
+  Windows zip that GitHub builds when you push a version tag.
