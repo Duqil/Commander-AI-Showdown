@@ -1,0 +1,87 @@
+1 Nahiri, Forged in Fury (MAT) 171
+1 Alpine Meadow (KHM) 248
+1 Ancient Den (MRD) 278
+1 Archaeomancer's Map (FIC) 230
+1 Argentum Armor (SOM) 137
+1 Astor, Bearer of Blades (DMU) 194
+1 Aurelia, Exemplar of Justice (RVR) 436
+1 Axgard Armory (KHM) 250
+1 Balan, Wandering Knight (J22) 53
+1 Batterbone (MH2) 221 *F*
+1 Batterskull (2XM) 356
+1 Battlefield Forge (ORI) 244
+1 Beamtown Beatstick (MOM) 131
+1 Big Score (SNC) 102
+1 Bitterthorn, Nissa's Animus (MOC) 132
+1 Bladehold War-Whip (ONE) 280
+1 Blasphemous Act (LCC) 216
+1 Boros Garrison (ONC) 146
+1 Brawler's Plate (M15) 213
+1 Campus Renovation (MAT) 27
+1 Clifftop Retreat (PLST) DOM-239
+1 Cloud, Midgar Mercenary (FIN) 10
+1 Colossus Hammer (M20) 223
+1 Command Tower (ELD) 333
+1 Dancer's Chakrams (FIC) 105
+1 Danitha Capashen, Paragon (PLST) DOM-12
+1 Danitha, Benalia's Hope (PDMU) 15p
+1 Demand Answers (MKM) 122 *F*
+1 Dispatch (FIC) 241
+1 Dispense Justice (SOM) 5
+1 Divine Visitation (RVR) 416
+1 Dowsing Dagger / Lost Vale (XLN) 235
+1 Evolving Wilds (M15) 243
+1 Exotic Orchard (C19) 242
+1 Fighter Class (AFR) 222 *F*
+1 Flayer Husk (2XM) 256 *F*
+1 Furycalm Snarl (ONC) 155
+1 Glimmer Lens (ONC) 44
+1 Goldwardens' Gambit (ONC) 51
+1 Great Furnace (PLST) C18-250
+1 Hexgold Halberd (ONE) 136
+1 Hexgold Hoverwings (ONE) 14
+1 Jor Kadeen, First Goldwarden (ONE) 203 *F*
+1 Kaldra Compleat (MH2) 227
+1 Kher Keep (MOC) 411
+1 Loxodon Warhammer (CMR) 465
+1 Luxior, Giada's Gift (SNC) 439
+1 Machinist's Arsenal (FIN) 23
+1 Mantle of the Ancients (WOC) 70
+1 Maul of the Skyclaves (ZNR) 320
+1 Mind Stone (C21) 251
+8 Mountain (ELD) 262
+1 Myriad Landscape (LCC) 343
+1 Nahiri, Heir of the Ancients (ZNR) 282
+1 Nahiri, the Lithomancer (CMM) 45
+1 Nahiri, the Unforgiving (ONE) 343
+1 Nettlecyst (MH2) 231
+1 Path of Ancestry (CMM) 661
+7 Plains (UND) 87
+1 Plate Armor (AFR) 32
+1 Puresteel Paladin (NPH) 20
+1 Rabbit Battery (NEO) 157
+1 Rebel Salvo (ONE) 144 *F*
+1 Reconstruct History (STX) 222
+1 Reyav, Master Smith (MUL) 57
+1 Rhuk, Hexgold Nabber (ONE) 412
+1 Rip Apart (STX) 225
+1 Rustvale Bridge (MH2) 253
+1 Sacred Peaks (DMU) 254 *F*
+1 Single Combat (WAR) 30
+1 Sram, Senior Edificer (SLD) 461
+1 Swiftfoot Boots (BRR) 58
+1 Sword of the Animist (ORI) 240
+1 Temple of Triumph (PM20) 257p
+1 Terramorphic Expanse (TSP) 279
+1 The Irencrag (WOE) 368
+1 The Wandering Emperor (NEO) 316
+1 Thran Power Suit (BRO) 253
+1 Thrill of Possibility (J22) 84
+1 Unfinished Business (WOC) 44
+1 Upriser Renegade (NEO) 324
+1 Valorous Stance (J22) 59
+1 Weapons Vendor (FIN) 40
+1 Wear / Tear (DGM) 135
+1 Wind-Scarred Crag (KTK) 247
+1 Wyleth, Soul of Steel (CMR) 362 *F*
+1 Zamriel, Seraph of Steel (GN3) 1 *F*
