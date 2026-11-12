@@ -104,13 +104,21 @@ plays the most useful land from hand. Forge's own AI only fixed colors when it
 had no land in hand and nothing to cast, so Anhelo could fetch Island after
 Island.
 
-**Commander and extra costs.** SimpleBot casts its commander before other
-spells while the commander tax is at most {2}; Boys see `cast_commander` and
-`commander_tax`. Optional extra costs while casting (casualty, offspring...)
+**Commander and extra costs.** There's no rule about when to cast the
+commander. Boys see `cast_commander` and `commander_tax`; `cast_commander`
+starts at weight 1.0 (a mild liking, since SimpleBot's "biggest spell first"
+almost never picks a 3-mana commander), and training moves it from there. Optional extra costs while casting (casualty, offspring...)
 are a decision too (`keyword_cost`): Forge's AI pays whenever it can, SimpleBot
 only refuses to sacrifice its commander, and Boys see what they'd sacrifice
 (`sac_token`, `sac_comes_back` for Bloodghast-like cards, `sac_cheapest_cmc`,
 `sac_only_commander`).
+
+**Attack triggers.** Every card's rules text (`oracle`) comes along now. Boys
+see `attack_equipped` (an Equipment sits on the attacker) and
+`attack_triggers`: how many of my "whenever ... attacks" abilities this attacker
+sets off, read from the text ("whenever an equipped creature you control
+attacks" needs an equipped attacker, "whenever <name> attacks" only that card).
+`attack_triggers` starts at weight 1.0.
 
 **Fixing a bad habit.** To reset one kind of decision for a Boy (back to the
 starting weights, everything else kept):
