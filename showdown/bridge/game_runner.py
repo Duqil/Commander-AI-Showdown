@@ -204,7 +204,7 @@ class Forge:
         if self.conn is not None and self.games >= self.MAX_GAMES:
             self.close()
         if self.conn is None:
-            self._start(seats, seed, abort)
+            self._start(seats, seed, abort, on_message)
         else:
             # Forge is waiting after its last game: tell it what to play next.
             self.conn.send({"type": "next_game", "seed": seed,
@@ -223,8 +223,14 @@ class Forge:
                         return
             threading.Thread(target=watch, name="abort-watch", daemon=True).start()
         try:
-            self.conn.settimeout(timeout)  # no single message should take this long
-            result = play(self.conn, [s.bot for s in seats], on_log, on_message, deals=deals)
+            # No single message should take longer than ``timeout``. Loading counts
+            # too: on a slow disk, Forge can be silent for minutes while it
+            # indexes its ~34,000 card scripts (one Windows PC took 3 minutes).
+            self.conn.settimeout(timeout)
+            try:
+                result = play(self.conn, [s.bot for s in seats], on_log, on_message, deals=deals)
+            except socket.timeout:
+                raise TimeoutError(f"Forge sent nothing for {timeout:.0f} seconds (see the Forge log file)") from None
             self.games += 1
             return result
         except BaseException:
@@ -253,9 +259,17 @@ class Forge:
         except OSError:
             pass  # a missing log mustn't hide the real error
 
-    def _start(self, seats: list[Seat], seed: int | None, abort: threading.Event | None) -> None:
+    def _start(self, seats: list[Seat], seed: int | None, abort: threading.Event | None,
+               on_message: MessageCallback | None = None) -> None:
+        def loading(percent: int, text: str) -> None:
+            # Same shape as Forge's own "loading" messages (LoadingProgress.java),
+            # so the viewer shows one progress bar from start to deal.
+            if on_message:
+                on_message({"type": "loading", "percent": percent, "text": text})
+
         server = listen()
         try:
+            loading(0, "Starting Java")
             self.process = start_forge(
                 server.getsockname()[1],
                 [(s.deck, "forge" if s.bot is None else "python") for s in seats],
@@ -279,6 +293,7 @@ class Forge:
                         raise TimeoutError("Forge didn't connect within 2 minutes (see the Forge log file)")
             self.conn = BridgeConnection(sock)
             self.games = 0
+            loading(3, "Java started, waiting for Forge")
         except BaseException:
             self.close(kill=True)
             raise

@@ -52,6 +52,9 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 #topbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 12px;
           background: var(--panel); border-bottom: 1px solid var(--line); }
 #turn-info { font-weight: 600; min-width: 260px; }
+#turn-info.failed { color: var(--danger); }
+.load-bar { height: 4px; margin-top: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.load-bar > div { height: 100%; background: var(--accent); transition: width .4s; }
 #controls { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 300px; }
 #scrub { flex: 1; min-width: 80px; accent-color: var(--accent); }
 .speed button { padding: 4px 7px; }

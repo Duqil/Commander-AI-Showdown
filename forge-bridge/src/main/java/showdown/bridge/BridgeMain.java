@@ -81,7 +81,10 @@ public final class BridgeMain {
             // one works fine headless. Then load cards, editions, AI profiles, ...
             // This is the slow part, and it happens only once per Forge.
             GuiBase.setInterface(new GuiDesktop());
-            FModel.initialize(null, null);
+            LoadingProgress.send(bridge, LoadingProgress.FROM, "Loading card rules");
+            // Forge reports its loading steps to this progress bar, which passes
+            // them on to Python (the viewer shows them as a percentage).
+            FModel.initialize(new LoadingProgress(bridge), null);
             // Forge's own crash handler tries to open a bug-report window, which
             // can't work without a screen, so a crash used to vanish without a
             // trace. Print it to the log instead.
@@ -123,6 +126,9 @@ public final class BridgeMain {
         JsonArray seatInfo = new JsonArray();
         for (int i = 0; i < seats.size(); i++) {
             Seat seat = seats.get(i);
+            // 80% -> 92% while reading the decks (Forge looks up each card's rules now).
+            LoadingProgress.send(bridge, LoadingProgress.TO + 3 * i,
+                    "Reading deck " + (i + 1) + " of " + seats.size() + ": " + new File(seat.deckPath()).getName());
             Deck deck = DeckSerializer.fromFile(new File(seat.deckPath()));
             if (deck == null) {
                 throw new IllegalArgumentException("Could not read deck " + seat.deckPath());
@@ -150,6 +156,7 @@ public final class BridgeMain {
         start.add("seats", seatInfo);
         bridge.send(start);
 
+        LoadingProgress.send(bridge, 94, "Shuffling and dealing opening hands");
         Match match = new Match(rules, players, "Commander AI Showdown");
         Game game = match.createGame();
         game.setNoGUIUser();
