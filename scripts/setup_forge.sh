@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Download and build Forge (the rules engine), then build our Java bridge.
 #
-# Needs: git, Java 17+ (21 recommended), Maven 3.9+.
+# Needs: git, Java 21 (19 or newer: showdown/bridge/forge_process.py starts Java with
+#        -XX:+AutoCreateSharedArchive, which Java 17 doesn't know), Maven 3.9+.
 # Takes 5-15 minutes the first time; Maven downloads a lot of jars.
 #
 # Usage:  ./scripts/setup_forge.sh
