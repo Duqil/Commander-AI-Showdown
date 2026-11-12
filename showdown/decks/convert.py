@@ -34,6 +34,7 @@ import argparse
 import json
 import re
 import time
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -75,7 +76,8 @@ def scryfall_name(set_code: str, number: str, cache: dict[str, str]) -> str:
     key = f"{set_code}/{number}"
     if key not in cache:
         req = urllib.request.Request(
-            f"https://api.scryfall.com/cards/{set_code}/{number}",
+            # quote() turns special collector numbers such as "162★" into URL-safe text.
+            f"https://api.scryfall.com/cards/{set_code}/{urllib.parse.quote(number)}",
             headers={"User-Agent": "CommanderAIShowdown/0.1", "Accept": "application/json"},
         )
         time.sleep(0.1)  # Scryfall asks for at most ~10 requests per second
@@ -86,6 +88,11 @@ def scryfall_name(set_code: str, number: str, cache: dict[str, str]) -> str:
 
 CARDS_FOLDER = REPO_ROOT / "vendor" / "forge" / "forge-gui" / "res" / "cardsfolder"
 _forge_names: set[str] | None = None
+# Universes Beyond cards can have a second, "Universes Within" name: Forge calls
+# the card "Zangief, the Red Cyclone" while Scryfall's Oracle name is
+# "Maarika, Brutal Gladiator". Forge lists the other name in the card file as
+# "Variant:UniversesWithin:FlavorName:<name>"; we map that name to Forge's.
+_forge_aliases: dict[str, str] = {}
 
 
 def forge_card_names() -> set[str]:
@@ -105,6 +112,9 @@ def forge_card_names() -> set[str]:
             if not text.startswith("Name:"):
                 continue
             names = [l[5:].strip() for l in text.splitlines() if l.startswith("Name:")]
+            for l in text.splitlines():
+                if l.startswith("Variant:") and ":FlavorName:" in l:
+                    _forge_aliases[l.split(":FlavorName:", 1)[1].strip()] = names[0]
             if "AlternateMode:Split" in text and len(names) >= 2:
                 _forge_names.add(f"{names[0]} // {names[1]}")
             else:
@@ -132,6 +142,7 @@ def forge_name(line: DeckLine, cache: dict[str, str]) -> str:
         return split
     if line.set_code == "fca" or (known and name not in known):
         name = scryfall_name(line.set_code, line.number, cache).split(" // ")[0]
+        name = _forge_aliases.get(name, name)
         if known and name not in known:
             name = split_card_name(name) or name
     return name
@@ -177,7 +188,7 @@ def check(source: Path) -> list[str]:
     for l in lines:
         ours = forge_name(l, cache)
         real = scryfall_name(l.set_code, l.number, cache).split(" // ")[0]
-        if ours.split(" // ")[0] != real:
+        if ours.split(" // ")[0] != real and _forge_aliases.get(real) != ours:
             problems.append(f"{l.name}: converted to '{ours}' but the printing is '{real}'")
         if known and ours not in known:
             problems.append(f"Forge doesn't have '{ours}'")
