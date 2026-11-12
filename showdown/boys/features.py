@@ -46,6 +46,9 @@ def mulligan_options(decision: Decision) -> list[Features]:
     lands = sum(1 for c in hand if "Land" in c.get("type", ""))
     to_bottom = decision.get("cards_to_bottom_if_kept", 0)
     simple_keeps = _simple.keep_hand(decision)
+    # Commander's first mulligan is free; every one after that costs a card.
+    # (game_runner counts mulligans for us in "mulligans_so_far".)
+    costs_a_card = decision.get("mulligans_so_far", 0) > 0
 
     keep = {
         "keep": 1.0,
@@ -58,7 +61,8 @@ def mulligan_options(decision: Decision) -> list[Features]:
         "mulligan": 1.0,
         # Cards we'd have to put back if we mulligan again and then keep. Starts
         # with a negative weight, so going deeper gets less and less tempting.
-        "mulligan_deeper": (to_bottom + 1) / 3,
+        # 0 for the free first mulligan.
+        "mulligan_deeper": (to_bottom + costs_a_card) / 3,
         "simple_prior": _flag(not simple_keeps),
     }
     return [keep, mulligan]

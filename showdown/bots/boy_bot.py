@@ -26,7 +26,7 @@ import random
 from showdown.bots.base import Bot, Decision
 from showdown.boys import features
 from showdown.boys.brain import Step
-from showdown.boys.reward import game_reward, turn_bonus
+from showdown.boys.reward import game_reward, mulligan_bonus, turn_bonus
 
 HAND_LIMIT = 7  # maximum hand size at the end of your turn
 from showdown.boys.storage import load_brain, save_brain
@@ -98,7 +98,13 @@ class BoyBot(Bot):
 
     def keep_hand(self, decision: Decision) -> bool:
         self._observe(decision["state"])
-        return self._pick("mulligan", features.mulligan_options(decision)) == 0  # option 0 = keep
+        keep = self._pick("mulligan", features.mulligan_options(decision)) == 0  # option 0 = keep
+        step = self.steps[-1]
+        step.pregame = True
+        # The first mulligan is free; each one after it costs a card.
+        if not keep and decision.get("mulligans_so_far", 0) > 0:
+            step.bonus = mulligan_bonus(1)
+        return keep
 
     def choose_play(self, decision: Decision) -> int | None:
         self._observe(decision["state"])
@@ -158,6 +164,8 @@ class BoyBot(Bot):
             final = {"players": players, "you": player}
             self._observe({**self.last_state, **final})
         for step in self.steps:
+            if step.pregame:
+                continue  # mulligans got their bonus when they were made
             damage, knockouts, drawn, discarded = self.turn_effects.get(step.turn, (0, 0, 0, 0))
             step.bonus = turn_bonus(damage, knockouts, drawn, discarded)
         damage = sum(e[0] for e in self.turn_effects.values())

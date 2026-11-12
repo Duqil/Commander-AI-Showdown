@@ -15,7 +15,7 @@ import re
 import threading
 from pathlib import Path
 
-from showdown.boys.brain import Brain
+from showdown.boys.brain import DECISION_KINDS, Brain
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BOYS_DIR = REPO_ROOT / "boys"
@@ -92,3 +92,32 @@ def read_history() -> list[dict]:
         return []
     with open(HISTORY_FILE, newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def forget(name: str, kind: str) -> Path:
+    """Wipe what a Boy learned for one kind of decision (e.g. "mulligan").
+
+    Everything else stays. That kind goes back to the starting weights, so the
+    Boy follows SimpleBot there again and relearns from scratch. Useful when a
+    habit went wrong, like Yugi throwing away good opening hands.
+    """
+    if not brain_path(name).exists():
+        raise FileNotFoundError(f"No Boy called {name!r} in {BOYS_DIR}")
+    brain = load_brain(name)
+    brain.weights.pop(kind, None)
+    return save_brain(brain)
+
+
+if __name__ == "__main__":
+    # python -m showdown.boys.storage forget Yugi mulligan
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Manage saved Boys.")
+    sub = parser.add_subparsers(dest="command", required=True)
+    f = sub.add_parser("forget", help="reset one kind of decision for a Boy")
+    f.add_argument("name")
+    f.add_argument("kind", help="mulligan, play, attack, target, offer_whether, offer or answer")
+    args = parser.parse_args()
+    if args.kind not in DECISION_KINDS:
+        parser.error(f"kind must be one of {', '.join(DECISION_KINDS)}")
+    print(f"{args.name} forgot their {args.kind} habits: {forget(args.name, args.kind)}")

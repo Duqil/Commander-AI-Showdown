@@ -218,6 +218,30 @@ class BrainTest(unittest.TestCase):
             return brain.choose("mulligan", opts, random.Random(0), explore=False).picked == 0
         self.assertTrue(keeps(2))   # two mulligans deep: keep
 
+    def test_first_mulligan_is_free(self):
+        state = table(); state["players"][0]["hand"] = [{"type": "Land"}] * 3 + [{"type": "Creature"}] * 4
+        first = features.mulligan_options({"state": state, "cards_to_bottom_if_kept": 0, "mulligans_so_far": 0})
+        second = features.mulligan_options({"state": state, "cards_to_bottom_if_kept": 0, "mulligans_so_far": 1})
+        self.assertEqual(first[1]["mulligan_deeper"], 0.0)
+        self.assertAlmostEqual(second[1]["mulligan_deeper"], 1 / 3)
+
+    def test_mulligans_ignore_the_turn_bonus_baseline(self):
+        """A mulligan has no turn, so the usual turn bonus mustn't count against it."""
+        brain = Brain("t", games=10, baseline=0.5, bonus_baseline=0.3)
+        options = [{"keep": 1.0}, {"mulligan": 1.0}]
+        step = brain.choose("mulligan", options, random.Random(0))
+        step.pregame = True
+        brain.learn([step], reward=0.5)          # an average game, no cards lost
+        self.assertTrue(all(w == 0.0 for w in brain.weights["mulligan"].values()))
+
+    def test_mulligans_learn_slower(self):
+        fast, slow = Brain("a", games=1), Brain("b", games=1)
+        for brain, kind in ((fast, "attack"), (slow, "mulligan")):
+            step = brain.choose(kind, [{"x": 1.0}, {}], random.Random(0), explore=False)
+            step.pregame = kind == "mulligan"
+            brain.learn([step], reward=1.0)
+        self.assertAlmostEqual(slow.weights["mulligan"]["x"], fast.weights["attack"]["x"] / 4)
+
     def test_learns_to_prefer_rewarded_feature(self):
         """Option with feature "good" pays off, the other doesn't. The weight should grow."""
         brain = Brain("t")
@@ -325,6 +349,33 @@ class BoyBotTest(unittest.TestCase):
         bot.choose_play({"state": table(), "options": []})
         bot.game_over({"winner": "1-A", "players": table()["players"]}, "1-A")
         self.assertTrue(bot.result["won"])
+
+    def test_mulligan_bonus_survives_game_over(self):
+        bot = BoyBot("tester_m2", learn=False, seed=1)
+        bot.brain.weights["mulligan"] = {"keep": -50.0}
+        state = table(); del state["active_player"], state["turn"]
+        bot.keep_hand({"state": state, "cards_to_bottom_if_kept": 0, "mulligans_so_far": 0})
+        bot.keep_hand({"state": state, "cards_to_bottom_if_kept": 0, "mulligans_so_far": 1})
+        steps = list(bot.steps)
+        bot.game_over({"winner": "2-B", "players": table()["players"]}, "1-A")
+        self.assertEqual([s.bonus for s in steps], [0.0, -0.1])   # first free, second costs a card
+        self.assertTrue(all(s.pregame for s in steps))
+
+    def test_forget_resets_one_habit(self):
+        """Yugi's real overnight weights: keeps a good 7 only ~30% of the time."""
+        brain = storage.load_brain("Yugi")
+        brain.weights["mulligan"] = {"mulligan_deeper": -1.71, "simple_prior": 1.33, "keep": -0.99,
+                                     "mulligan": 0.99, "keep_good_lands": -0.69, "keep_land_distance": -0.40}
+        brain.weights["attack"]["attack_power"] = 0.5
+        storage.save_brain(brain)
+        state = table(); state["players"][0]["hand"] = [{"type": "Land"}] * 3 + [{"type": "Creature"}] * 4
+        opts = features.mulligan_options({"state": state, "cards_to_bottom_if_kept": 0, "mulligans_so_far": 0})
+        self.assertLess(brain.probabilities("mulligan", opts)[0], 0.35)
+        storage.forget("Yugi", "mulligan")
+        storage._brains.clear()
+        again = storage.load_brain("Yugi")
+        self.assertGreater(again.probabilities("mulligan", opts)[0], 0.85)
+        self.assertEqual(again.weights["attack"]["attack_power"], 0.5)   # other habits stay
 
     def test_rejects_bad_names(self):
         with self.assertRaises(ValueError):
