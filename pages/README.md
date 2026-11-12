@@ -16,8 +16,9 @@ Everything for it lives in two places, so it's easy to remove:
 | `pages/publish.py` | The viewer's "Put on website" button: commits and pushes one replay |
 | `.github/workflows/replay-site.yml` | On GitHub: builds the site and publishes it on every change |
 
-The viewer itself (`showdown/viewer/`) isn't changed, so viewer improvements
-show up on the site automatically.
+The site is built from the normal viewer (`showdown/viewer/static/`), so viewer
+improvements show up on it automatically. The only website code inside the
+viewer is the Saved games button, which hides itself when `pages/` is gone.
 
 ## Try it on your computer
 
