@@ -351,7 +351,7 @@ async function poll() {
       // show the opening table so there's something to look at before pressing play.
       if (!hadState && app.stateSeqs.length && !app.playing && app.pos === 0) {
         goTo(app.stateSeqs[0] + 1);
-        showBanner("Ready. Press ▶ or Space to start", 4000);
+        showBanner("Ready. Press ▶ or Space to start", Infinity);
       }
       if (data.events.length < 400) break;
     }
@@ -446,6 +446,7 @@ function stepForward() {
 
 /** Jump the playhead to any position (scrubbing, step back, replay). */
 function goTo(pos) {
+  hideReadyBanner(); // moving through the game: "Ready. Press ▶" is done
   cancelCastAnimation();
   app.dealLayer?.remove();
   document.querySelectorAll(".deal-glow").forEach((b) => b.classList.remove("deal-glow"));
@@ -456,6 +457,7 @@ function goTo(pos) {
 
 function setPlaying(on) {
   app.playing = on;
+  if (on) hideReadyBanner();
   if (on && app.pos >= app.events.length && app.status === "finished") goTo(0); // replay a finished game
   updateButtons();
   schedule(0);
@@ -807,12 +809,17 @@ function showZone(title, cards) {
 $("#zone-popup button").onclick = () => $("#zone-popup").classList.add("hidden");
 
 let bannerTimer = null;
+function hideReadyBanner() {
+  if ($("#banner").classList.contains("until-play")) $("#banner").classList.add("hidden");
+}
+// ms = Infinity keeps the banner up until playback starts (see setPlaying).
 function showBanner(text, ms = 1600, cls = "") {
   const b = $("#banner");
   b.textContent = text;
   b.className = cls;
   b.classList.remove("hidden");
   clearTimeout(bannerTimer);
+  if (ms === Infinity) return b.classList.add("until-play");
   bannerTimer = setTimeout(() => b.classList.add("hidden"), Math.max(400, ms / Math.min(app.speed, 4)));
 }
 
@@ -988,7 +995,7 @@ window.addEventListener("resize", () => { if (app.fitSize) fitCardSize(); });
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem("cardSize")); } catch {}
   setCardSize(saved?.size ?? 80);
-  app.fitSize = !!saved?.fit;
+  app.fitSize = saved ? !!saved.fit : true; // first visit: Fit is on
   $("#size-fit").classList.toggle("on", app.fitSize);
 })();
 
