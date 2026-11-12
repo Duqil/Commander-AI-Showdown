@@ -21,10 +21,33 @@ def spell(i, name, cmc, **card):
 
 
 class CommanderTest(unittest.TestCase):
-    def test_no_commander_rule_in_simplebot(self):
-        """Adam: don't force commanders. SimpleBot treats it like any other spell."""
+    def test_simplebot_still_casts_bigger_spells_first(self):
+        """No forced commander: a bigger spell still beats a commander with no engine to feed."""
         options = [spell(0, "Big Thing", 6), spell(1, "Anhelo", 3, commander=True, commander_tax=0)]
         self.assertEqual(SimpleBot().choose_play({"state": state(), "options": options}), 0)
+
+    def test_simplebot_commander_wins_a_tie(self):
+        options = [spell(0, "Other 3-drop", 3), spell(1, "Anhelo", 3, commander=True)]
+        self.assertEqual(SimpleBot().choose_play({"state": state(), "options": options}), 1)
+
+    def test_simplebot_casts_engine_commander_before_its_fuel(self):
+        """Anhelo first, then the instants and sorceries he powers up."""
+        charm = {"name": "Some Charm", "type": "Instant", "cmc": 3}
+        oracle = "The first instant or sorcery spell you cast each turn has casualty 2."
+        options = [spell(0, "Big Thing", 4), dict(spell(1, "Some Charm", 3), card=charm),
+                   spell(2, "Anhelo", 3, commander=True, oracle=oracle)]
+        st = state(); st["players"][0]["hand"] = [options[0]["card"], charm]
+        self.assertEqual(SimpleBot().choose_play({"state": st, "options": options}), 2)
+        st["players"][0]["hand"] = [options[0]["card"]]  # nothing to power up: biggest first
+        self.assertEqual(SimpleBot().choose_play({"state": st, "options": options[::2]}), 0)
+
+    def test_simplebot_saves_small_x_spells(self):
+        drain = {"name": "Drain", "type": "Sorcery", "cmc": 2}
+        small = [spell(0, "Bear", 2), {"index": 1, "is_spell": True, "is_land": False, "card": drain,
+                                       "max_x": 1, "forge_would_play": True}]
+        self.assertEqual(SimpleBot().choose_play({"state": state(), "options": small}), 0)
+        small[1]["max_x"] = 5
+        self.assertEqual(SimpleBot().choose_play({"state": state(), "options": small}), 1)
 
     def test_boys_lean_towards_the_commander_but_can_unlearn_it(self):
         from showdown.boys.brain import Brain
