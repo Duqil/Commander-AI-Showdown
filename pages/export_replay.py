@@ -13,8 +13,11 @@ Usage (from the project folder):
     python -m pages.export_replay games/2026-11-12_140000_kuja-garnet-anhelo-swarmlord.json.gz
 
 The title and description are made from the decks and bots, or give your own
-with --title "..." --about "...". Easier: the "Put on website" button in the
-viewer's Saved games tab does this and publishes it (pages/publish.py).
+with --title "..." --about "...".
+
+You rarely need to run this yourself: upload a game from games/ straight into
+pages/replays/ on github.com, and GitHub runs prepare_replays.py, which calls
+make_replay() below for every game that isn't a finished replay yet.
 
 Python concepts used here:
   * ``gzip.open``     - read and write compressed files as if they were normal text.

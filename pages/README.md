@@ -12,13 +12,12 @@ Everything for it lives in two places, so it's easy to remove:
 | `pages/replays/*.json.gz` | The recorded games shown on the site |
 | `pages/replay.js` | Stands in for the Python server, so the viewer can run as plain files |
 | `pages/build_site.py` | Copies the viewer + `replay.js` + replays into `pages/_site/` |
-| `pages/export_replay.py` | Turns a game from `games/` into a replay (adds card picture URLs) |
-| `pages/publish.py` | The viewer's "Put on website" button: commits and pushes one replay |
+| `pages/export_replay.py` | Turns a game from `games/` into a replay (adds card picture URLs and a title) |
+| `pages/prepare_replays.py` | On GitHub: finishes games uploaded straight from `games/` |
 | `.github/workflows/replay-site.yml` | On GitHub: builds the site and publishes it on every change |
 
-The site is built from the normal viewer (`showdown/viewer/static/`), so viewer
-improvements show up on it automatically. The only website code inside the
-viewer is the Saved games button, which hides itself when `pages/` is gone.
+The viewer itself (`showdown/viewer/`) isn't changed, so viewer improvements
+show up on the site automatically.
 
 ## Try it on your computer
 
@@ -39,24 +38,25 @@ After a minute the site is at `https://duqil.github.io/Commander-AI-Showdown/`.
 From then on it rebuilds by itself whenever `pages/` or the viewer changes on `main`.
 The repo must be public for Pages on a free GitHub plan.
 
-## Add or remove a game (one click)
+## Add a game (drag and drop on github.com)
 
-1. Watch a game in the viewer (`python -m showdown.viewer`) and let it finish,
-   or tick "Save games for replay" in Run many games.
-2. Open **Saved games** and press **Put on website** next to the game.
-   After about a minute it says **On website ✓**, and a minute later the site has it.
-3. To take it off, press **On website ✓** and confirm.
+1. On github.com, open the repo and go into the `pages/replays` folder.
+2. Click **Add file > Upload files** and drag in a game from your `games/` folder, as it is.
+3. Click **Commit changes**.
 
-The title and description are made from the decks and bots, e.g.
-"Kaiba (Kuja), Tristan (Garnet), ...". No winner is shown, so nothing is spoiled.
+GitHub then looks up the card pictures, makes the title and description from
+the decks and bots (e.g. "Kaiba (Kuja), Tristan (Garnet), ..."; no winner, so
+no spoilers), saves the finished replay back (a small automatic commit), and
+updates the site. That takes a minute or two. `pages/prepare_replays.py` does
+this part; you can run it yourself with `python -m pages.prepare_replays`.
 
-Behind the button (`pages/publish.py`): it makes the replay, commits only that
-one file to GitHub's `main` and pushes, using your normal GitHub login. It never
-changes your files or the branch you're on. `git pull` on main later brings the
-replay files to your folder too.
+Want your own title? Run `python -m pages.export_replay games/<file>.json.gz
+--title "..." --about "..."` and upload the file it makes instead.
 
-By hand, if you prefer: `python -m pages.export_replay games/<file>.json.gz`
-(optional `--title "..." --about "..."`), then commit `pages/replays/` and push.
+## Remove a game
+
+On github.com, click the file in `pages/replays`, open the **...** menu, pick
+**Delete file**, then **Commit changes**. The site updates a minute later.
 
 ## Remove the website completely
 
@@ -65,5 +65,4 @@ By hand, if you prefer: `python -m pages.export_replay games/<file>.json.gz`
    The site goes offline.
 2. Delete the `pages/` folder and `.github/workflows/replay-site.yml`, commit and push.
 
-The viewer then simply stops showing the website buttons (it only shows them
-when `pages/` is there). No other code needs changing.
+Nothing else in the project uses these files.
