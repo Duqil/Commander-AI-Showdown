@@ -35,12 +35,17 @@ class BatchJob:
     def start(self) -> None:
         self._thread.start()
 
-    def stop(self, now: bool = False) -> None:
-        """No new games start. With now=True the running games end too (they don't count)."""
+    def stop(self, now: bool = False, wait: float = 0) -> None:
+        """No new games start. With now=True the running games end too (they don't count).
+
+        ``wait`` = seconds to wait for the batch to wind down (0 = don't wait).
+        """
         self._stop.set()
         if now:
             self._abort.set()
             self.status = "stopping"
+        if wait and self._thread.is_alive():
+            self._thread.join(timeout=wait)
 
     def _on_result(self, record: GameRecord) -> None:
         with self._lock:

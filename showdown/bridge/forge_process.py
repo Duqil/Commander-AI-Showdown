@@ -95,6 +95,11 @@ def start_forge(
     write_forge_preferences()
 
     # Forge prints a lot of its own logging. Send it to a file so our output stays readable.
-    out = open(log_file, "w") if log_file else subprocess.DEVNULL
     # Forge finds its card scripts in "res/", relative to forge-gui/.
-    return subprocess.Popen(cmd, cwd=FORGE_DIR / "forge-gui", stdout=out, stderr=subprocess.STDOUT)
+    if log_file is None:
+        return subprocess.Popen(cmd, cwd=FORGE_DIR / "forge-gui", stdout=subprocess.DEVNULL,
+                                stderr=subprocess.STDOUT)
+    # Forge gets its own copy of the open file, so Python can close ours right
+    # away. Before, every Forge start left one file open in Python until it quit.
+    with open(log_file, "w") as out:
+        return subprocess.Popen(cmd, cwd=FORGE_DIR / "forge-gui", stdout=out, stderr=subprocess.STDOUT)

@@ -64,7 +64,9 @@ def main() -> None:
     if len(bots) != len(args.decks):
         raise SystemExit("--bots needs one entry per deck")
 
-    seats = [Seat(DECK_DIR / f"{d}.dck", make_bot(b, args.seed)) for d, b in zip(args.decks, bots)]
+    # Each seat gets its own seed, so two random bots don't roll the same dice.
+    seats = [Seat(DECK_DIR / f"{d}.dck", make_bot(b, None if args.seed is None else args.seed + seat))
+             for seat, (d, b) in enumerate(zip(args.decks, bots))]
     for deck, bot in zip(args.decks, bots):
         print(f"  {deck:<10} played by {bot}")
 

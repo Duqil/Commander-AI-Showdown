@@ -32,8 +32,11 @@ def main() -> None:
     except KeyboardInterrupt:
         print("\nStopped.")
     finally:
+        # Don't leave Forge (Java, ~2 GB each) running in the background.
         if STATE.session:
-            STATE.session.stop(wait=5)  # don't leave Forge running in the background
+            STATE.session.stop(wait=5)
+        if STATE.batch:
+            STATE.batch.stop(now=True, wait=15)
         server.server_close()
 
 

@@ -37,6 +37,14 @@ HEADERS = {"User-Agent": "CommanderAIShowdown/0.1 (local hobby viewer)", "Accept
 API = "https://api.scryfall.com"
 
 
+class ScryfallUnreachable(Exception):
+    """We couldn't ask Scryfall right now (offline, timeout, too many requests).
+
+    Not the same as "Scryfall doesn't know this card": that answer is saved in
+    missing.json for good, while this one is only for now, so we try again later.
+    """
+
+
 class CardImages:
     def __init__(self, cache_dir: Path = CACHE_DIR) -> None:
         self.cache_dir = cache_dir
@@ -69,7 +77,10 @@ class CardImages:
         with self._lock:
             if path.exists():  # another browser request fetched it while we waited
                 return path.read_bytes()
-            data = self._download(name, token, details)
+            try:
+                data = self._download(name, token, details)
+            except ScryfallUnreachable:
+                return None  # the browser shows a text card; we'll try again next time
             self.cache_dir.mkdir(parents=True, exist_ok=True)  # created on first use
             if data is None:
                 self._missing.add(key)
@@ -139,9 +150,9 @@ class CardImages:
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 return None  # Scryfall doesn't know it
-            raise
-        except urllib.error.URLError:
-            return None  # offline: the browser shows a text card instead
+            raise ScryfallUnreachable(f"Scryfall answered {e.code}") from e  # e.g. 429 "slow down"
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            raise ScryfallUnreachable(str(e)) from e  # offline or no answer in time
 
 
 def best_face(card: dict, wanted: str) -> dict:

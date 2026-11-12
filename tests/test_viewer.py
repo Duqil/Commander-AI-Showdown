@@ -137,6 +137,30 @@ class CardImagesTest(unittest.TestCase):
             Path(tmp, file_name("Sol Ring")).write_bytes(b"jpeg!")
             self.assertEqual(images.get("Sol Ring"), b"jpeg!")
 
+    def test_offline_is_not_remembered_as_missing(self):
+        from unittest import mock
+        from showdown.viewer.card_images import ScryfallUnreachable
+        with tempfile.TemporaryDirectory() as tmp:
+            images = CardImages(Path(tmp))
+            with mock.patch.object(images, "_fetch", side_effect=ScryfallUnreachable("offline")):
+                self.assertIsNone(images.get("Sol Ring"))
+            self.assertNotIn("Sol Ring", images._missing)  # try again once we're back online
+            with mock.patch.object(images, "_fetch", return_value=None):  # 404: Scryfall doesn't know it
+                self.assertIsNone(images.get("Not A Card"))
+            self.assertIn("Not A Card", images._missing)
+
+    def test_network_errors_become_unreachable(self):
+        from unittest import mock
+        from showdown.viewer.card_images import ScryfallUnreachable
+        images = CardImages(Path(tempfile.gettempdir()) / "no-such-cache")
+        for error in (urllib.error.URLError("no network"), TimeoutError(),
+                      urllib.error.HTTPError("u", 429, "slow down", None, None)):
+            with mock.patch("urllib.request.urlopen", side_effect=error):
+                with self.assertRaises(ScryfallUnreachable):
+                    images._fetch("https://api.scryfall.com/x")
+        with mock.patch("urllib.request.urlopen", side_effect=urllib.error.HTTPError("u", 404, "nope", None, None)):
+            self.assertIsNone(images._fetch("https://api.scryfall.com/x"))
+
 
 class TokenScoreTest(unittest.TestCase):
     def test_rules_text_picks_the_right_knight(self):
@@ -168,6 +192,27 @@ class BatchStopTest(unittest.TestCase):
         job.stop(now=True)
         self.assertTrue(job._abort.is_set())
         self.assertEqual(job.status, "stopping")
+        job.stop(now=True, wait=1)  # never started: nothing to wait for, and no error
+
+
+class SessionStopTest(unittest.TestCase):
+    def test_stop_reaches_forge_and_seats_get_their_own_seeds(self):
+        from unittest import mock
+        import showdown.viewer.session as session_module
+        from showdown.bridge.game_runner import GameAborted
+        from showdown.viewer.session import GameConfig
+        seen = {}
+
+        def fake_run_game(seats, abort=None, **kwargs):
+            seen["abort"], seen["seeds"] = abort, [s.bot.rng.random() for s in seats]
+            raise GameAborted("stopped")
+
+        session = GameSession(GameConfig(["a", "b"], ["random", "random"], seed=5), "test")
+        with mock.patch.object(session_module, "run_game", fake_run_game):
+            session._run()
+        self.assertIs(seen["abort"], session._stop)  # Stop can kill Forge right away
+        self.assertNotEqual(seen["seeds"][0], seen["seeds"][1])  # not the same dice
+        self.assertEqual(session.status, "stopped")
 
 
 class StatsPageTest(unittest.TestCase):
@@ -229,6 +274,19 @@ class ServerTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             urllib.request.urlopen(req)
         self.assertEqual(ctx.exception.code, 400)
+
+    def post(self, path, body: bytes):
+        req = urllib.request.Request(f"http://127.0.0.1:{self.port}{path}", data=body, method="POST")
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            urllib.request.urlopen(req)
+        return ctx.exception.code
+
+    def test_unknown_decks_and_bad_numbers_are_refused(self):
+        self.assertEqual(self.post("/api/game/new", b'{"decks": ["zidane", "../../x"], "bots": ["simple", "simple"]}'), 400)
+        self.assertEqual(self.post("/api/batch/start", b'{"decks": ["zidane", "nope"], "bots": ["simple", "simple"]}'), 400)
+        self.assertEqual(self.post("/api/batch/start",
+                                   b'{"decks": ["zidane", "kuja"], "bots": ["simple", "simple"], "games": "lots"}'), 400)
+        self.assertEqual(self.post("/api/game/new", b'not json'), 400)
 
     def test_bad_new_game_is_refused(self):
         req = urllib.request.Request(f"http://127.0.0.1:{self.port}/api/game/new", data=b'{"decks": ["zidane"]}',

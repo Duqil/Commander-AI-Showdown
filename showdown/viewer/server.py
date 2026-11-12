@@ -43,6 +43,26 @@ from showdown.viewer.session import GAMES_DIR, GameConfig, GameSession, list_sav
 STATIC_DIR = Path(__file__).parent / "static"
 
 
+def deck_names() -> list[str]:
+    """Decks the viewer can play: every decks/forge/<name>.dck."""
+    return sorted(p.stem for p in DECK_DIR.glob("*.dck"))
+
+
+def valid_decks(decks: list) -> bool:
+    """2 to 4 decks, each one that really exists. Also stops names like
+    "../x" from reaching file paths (deck names end up in saved-game names)."""
+    known = set(deck_names())
+    return 2 <= len(decks) <= 4 and all(isinstance(d, str) and d in known for d in decks)
+
+
+def number(value, default: int | None) -> int | None:
+    """A number from the browser: "7" or 7 -> 7, "" or missing -> default.
+    Raises ValueError for anything else, which becomes a 400 answer."""
+    if value in (None, ""):
+        return default
+    return int(value)
+
+
 def valid_bot(name: str) -> bool:
     """simple / random / forge, or "boy:<name>" (a new name creates a new Boy)."""
     if name.startswith("boy:"):
@@ -110,8 +130,7 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/static/"):
             return self.serve_static(path.removeprefix("/static/"))
         if path == "/api/decks":
-            decks = sorted(p.stem for p in DECK_DIR.glob("*.dck"))
-            return self.send_json({"decks": decks, "bots": bots_available()})
+            return self.send_json({"decks": deck_names(), "bots": bots_available()})
         if path == "/api/batch":
             return self.send_json(STATE.batch.summary() if STATE.batch else {"status": "none"})
         if path == "/api/stats":
@@ -137,30 +156,33 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
+        try:
+            self.handle_post()
+        except ValueError as e:  # bad JSON or a number that isn't one
+            self.send_json({"error": f"Bad request: {e}"}, 400)
+
+    def handle_post(self) -> None:
         path = urlparse(self.path).path
         body = self.read_json()
 
         if path == "/api/game/new":
             decks, bots = body.get("decks", []), body.get("bots", [])
-            if not 2 <= len(decks) <= 4 or len(bots) != len(decks):
+            if not valid_decks(decks) or len(bots) != len(decks):
                 return self.send_json({"error": "Pick 2 to 4 decks, one bot each"}, 400)
             if not all(valid_bot(b) for b in bots):
                 return self.send_json({"error": "Bots must be simple, random, forge or boy:<name>"}, 400)
-            seed = body.get("seed")
-            config = GameConfig(decks=decks, bots=bots, seed=int(seed) if seed not in (None, "") else None,
+            config = GameConfig(decks=decks, bots=bots, seed=number(body.get("seed"), None),
                                 deals=bool(body.get("deals")))
             return self.send_json(STATE.start_game(config).summary())
         if path == "/api/batch/start":
             decks, bots = body.get("decks", []), body.get("bots", [])
-            if not 2 <= len(decks) <= 4 or len(bots) != len(decks) or not all(valid_bot(b) for b in bots):
+            if not valid_decks(decks) or len(bots) != len(decks) or not all(valid_bot(b) for b in bots):
                 return self.send_json({"error": "Pick 2 to 4 decks with a valid bot each"}, 400)
             if STATE.batch and STATE.batch.status in ("running", "stopping"):
                 return self.send_json({"error": "A batch is already running"}, 409)
-            games = max(1, min(int(body.get("games") or 10), 10000))
-            parallel = max(1, min(int(body.get("parallel") or 1), 5))
-            seed = body.get("seed")
-            STATE.batch = BatchJob(decks, bots, games, parallel,
-                                   seed=int(seed) if seed not in (None, "") else None,
+            games = max(1, min(number(body.get("games"), 10), 10000))
+            parallel = max(1, min(number(body.get("parallel"), 1), 5))
+            STATE.batch = BatchJob(decks, bots, games, parallel, seed=number(body.get("seed"), None),
                                    save_games=bool(body.get("save_games")), learn=bool(body.get("learn", True)),
                                    deals=bool(body.get("deals")))
             STATE.batch.start()

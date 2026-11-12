@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from showdown.bridge.game_runner import Seat, run_game
+from showdown.bridge.game_runner import GameAborted, Seat, run_game
 from showdown.run_game import DECK_DIR, REPO_ROOT, make_bot
 from showdown.stats import record_game
 from showdown.viewer.events import Event, TimelineBuilder, make_event
@@ -88,7 +88,7 @@ class GameSession:
         self._thread.start()
 
     def stop(self, wait: float = 0) -> None:
-        """Ask the game to stop. It ends at the next message from Forge.
+        """Stop the game now: Forge is ended right away, even while it is still loading.
 
         ``wait`` = seconds to wait for the game thread to finish (0 = don't wait).
         """
@@ -110,16 +110,19 @@ class GameSession:
             for event in builder.feed(msg):
                 self.add_event(event)
 
-        seats = [Seat(DECK_DIR / f"{deck}.dck", make_bot(bot, config.seed))
-                 for deck, bot in zip(config.decks, config.bots)]
+        # Each seat gets its own seed, so two random bots don't roll the same dice.
+        seats = [Seat(DECK_DIR / f"{deck}.dck", make_bot(bot, None if config.seed is None else config.seed + seat))
+                 for seat, (deck, bot) in enumerate(zip(config.decks, config.bots))]
         try:
+            # abort=self._stop: Stop kills Forge at once (otherwise it would only
+            # notice at its next message, and never while it is still loading).
             result = run_game(seats, seed=config.seed, on_message=on_message, deals=config.deals,
-                              forge_log=REPO_ROOT / "forge.log")
+                              forge_log=REPO_ROOT / "forge.log", abort=self._stop)
             self.status = "finished"
             # Count it for the Stats screen. Player names look like "2-Kuja": seat 2 (from 1).
             winner = int(result.winner.split("-", 1)[0]) - 1 if result.winner and not result.draw else None
             record_game(config.decks, config.bots, winner, result.draw, result.turns, "viewer", game_id=self.id)
-        except GameStopped:
+        except (GameStopped, GameAborted):
             self.add_event(make_event("error", "Game stopped.", turn=builder.turn))
             self.status = "stopped"
         except Exception as e:  # show any problem in the browser instead of a silent hang
