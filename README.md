@@ -23,7 +23,7 @@ wherever it says `python`.
 | Turn deck lists in `decks/source/` into Forge decks | `python -m showdown.decks.convert --all` |
 | Check every deck: 100 cards, every card name right | `python -m showdown.decks.convert --check` |
 | Run the tests | `python -m unittest discover -s tests` |
-| Rebuild after Java changes | `./scripts/setup_forge.sh` |
+| Rebuild after Java changes (forge-bridge/) | `./scripts/build_bridge.sh` |
 
 Every command takes `--help` to list its options.
 
