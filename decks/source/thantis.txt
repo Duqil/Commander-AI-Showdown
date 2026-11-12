@@ -1,0 +1,93 @@
+1 Thantis, the Warweaver (C18) 46 *F*
+1 Aether Membrane (PLC) 93
+1 Arasta of the Endless Web (TDC) 244
+1 Ash Barrens (TDC) 339
+1 Avarice Amulet (M15) 212
+1 Avatar of Slaughter (CLB) 779
+1 Bloodsoaked Insight / Sanguine Morass (MH3) 252
+1 Bridgeworks Battle / Tanglespan Bridgeworks (MH3) 249
+1 Canyon Slough (ECC) 145
+1 Cathar's Shield (EMN) 192
+1 Chainsaw (DSK) 314
+1 Champion's Helm (FIC) 337
+1 Collective Resistance (MH3) 147
+1 Command Tower (WHO) 263
+1 Coveted Jewel (FIC) 341
+1 Deathreap Ritual (M3C) 259
+1 Deathsprout (PLST) WAR-189
+1 Defend the Rider (DFT) 157
+1 Doom Weaver (VOC) 34
+1 Dragonlair Spider (PLST) PCA-87
+1 Dragonskull Summit (WHO) 272
+1 Elder Gargaroth (DRC) 111
+1 Emberwilde Captain (CMR) 175
+1 Evolving Wilds (LCC) 328
+1 Exotic Orchard (M3C) 341
+1 Festering Thicket (SOC) 371
+1 Forebear's Blade (CMM) 384
+4 Forest (EOE) 275
+1 Fumiko the Lowblood (C20) 152
+1 Glissa Sunslayer (ECC) 122
+1 Goblin Spymaster (C16) 19
+1 Hagra Mauling / Hagra Broodpit (PLST) ZNR-106
+1 Herd Heirloom (PTDM) 144p
+1 Hunter's Insight (CMM) 296
+1 Ignoble Hierarch (M3C) 234
+1 Karazikar, the Eye Tyrant (AFC) 49 *F*
+1 Kenrith's Transformation (AFC) 162
+1 Kessig Wolf Run (LCC) 340
+1 Khalni Ambush / Khalni Territory (ZNR) 192
+1 Kresh the Bloodbraided (NCC) 345
+1 Maarika, Brutal Gladiator (SLX) 15
+1 Migration Path (IKO) 164
+1 Mjölnir, Storm Hammer (ACR) 74
+3 Mountain (EOE) 273
+1 Myriad Landscape (EOC) 169
+1 Night Market (DFT) 258
+1 Ohran Frostfang (SOC) 279
+1 Origin of Metalbending (TLA) 187
+1 Path of Ancestry (MKC) 279
+1 Return of the Wildspeaker (MKC) 181
+1 Revitalizing Repast / Old-Growth Grove (MH3) 256
+1 Rishkar's Expertise (AFC) 170
+1 Riveteers Overlook (M3C) 369
+1 Rogue's Passage (WHO) 299
+1 Rootbound Crag (FIC) 416
+1 Royal Assassin (M11) 116
+1 Ruric Thar, the Unbowed (2X2) 271
+1 Savage Lands (M3C) 371
+1 Shelob, Child of Ungoliant (LTR) 230
+1 Sheltered Thicket (EOC) 178
+1 Short Bow (BLB) 248
+1 Silkguard (NEC) 71
+1 Snakeskin Veil (TDM) 159
+1 Spider Manifestation (SPM) 148
+1 Spider-Man, Miles Morales (SPE) 18
+1 Spinner of Souls (FDN) 474
+1 Stump Stomp / Burnwillow Clearing (MH3) 259
+1 Summoning Materia (FIC) 72
+3 Swamp (J25) 87
+1 Swiftfoot Boots (C13) 263
+1 Sword of Vengeance (C17) 228
+1 Tamiyo's Safekeeping (NEO) 211
+1 Tarrian's Soulcleaver (LCI) 264
+1 Temple of Abandon (TDC) 400
+1 Temple of Malady (BLC) 341
+1 Temple of Malice (M3C) 389
+1 Tender Wildguide (PBLB) 196p
+1 Terramorphic Expanse (DSK) 269
+1 Territorial Hellkite (TDC) 240
+1 The Akroan War (THB) 124
+1 Thorn of the Black Rose (CMM) 190
+1 Toski, Bearer of Secrets (BLC) 244
+1 Trickster's Elk (MH3) 175
+1 Trove of Temptation (XLN) 171
+1 Turntimber Symbiosis / Turntimber, Serpentine Wood (ZNR) 215
+1 Twisted Landscape (MH3) 232
+1 Twitching Doll (PDSK) 201p
+1 Valgavoth's Lair (DSK) 271
+1 Vastwood Surge (ZNR) 217
+1 Weathered Sentinels (TDC) 336
+1 Woodland Cemetery (TDC) 412
+1 Ygra, Eater of All (PBLB) 241p
+1 Yurlok of Scorch Thrash (CMR) 293
