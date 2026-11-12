@@ -80,6 +80,31 @@ it. So a new Boy picks SimpleBot's move about two times in three and
 something else the rest of the time. If you improve SimpleBot, every Boy's
 starting instinct improves with it.
 
+**Mulligans.** Commander's first mulligan is free; every one after that puts
+a card on the bottom. The game loop counts mulligans (`mulligans_so_far` in
+the decision), a mulligan that costs a card gets a bonus of -0.1, and
+`mulligan_deeper` is 0 for the free one. Mulligans also learn at a quarter of
+the normal speed: they happen once a game, and at full speed Yugi's weights
+wandered until he threw away good 3-land hands 70% of the time.
+
+**Colors.** The bridge sends each card's mana `cost` ("{1}{U}{R}") and the
+colors it `produces` ("UB"). `showdown/boys/colors.py` works out which colors
+my hand and commander need and which my permanents make. Boys see
+`keep_color_coverage` (mulligan: how many spells the lands in hand can pay
+for), `land_new_color` (a land drop that adds a missing color) and a new
+decision kind, `fetch`: which land Evolving Wilds or Myriad Landscape should
+find (`fetch_new_color`, `fetch_only_old_colors`, `fetch_color_value`).
+SimpleBot fetches and plays the land whose colors its cards want most.
+Forge's own AI only fixed colors when it had no land in hand and nothing to
+cast, so Anhelo could fetch Island after Island.
+
+**Fixing a bad habit.** To reset one kind of decision for a Boy (back to the
+starting weights, everything else kept):
+
+```
+python -m showdown.boys.storage forget Yugi mulligan
+```
+
 ## Reading a brain
 
 Open `boys/Kaiba.json`. Weights are listed strongest first for each kind of
