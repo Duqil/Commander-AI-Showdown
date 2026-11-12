@@ -92,11 +92,17 @@ colors it `produces` ("UB"). `showdown/boys/colors.py` works out which colors
 my hand and commander need and which my permanents make. Boys see
 `keep_color_coverage` (mulligan: how many spells the lands in hand can pay
 for), `land_new_color` (a land drop that adds a missing color) and a new
-decision kind, `fetch`: which land Evolving Wilds or Myriad Landscape should
-find (`fetch_new_color`, `fetch_only_old_colors`, `fetch_color_value`).
-SimpleBot fetches and plays the land whose colors its cards want most.
-Forge's own AI only fixed colors when it had no land in hand and nothing to
-cast, so Anhelo could fetch Island after Island.
+decision kind, `pick_card`: cards you pick for yourself. That is any search
+of your library for lands (Evolving Wilds, Terramorphic Expanse, Cultivate,
+Myriad Landscape: no card names in the code, only "searching my library and
+every option is a land") and any "look at the top N, put some into your hand"
+(Drawn from Dreams, Impulse). Features: `pick_land_new_color`,
+`pick_land_only_old_colors`, `pick_land_color_value`, `pick_land_when_short`,
+`pick_castable` (a spell my colors can pay for) and `pick_cmc`. When the pick
+is a land, SimpleBot takes the one whose colors its cards want most; it also
+plays the most useful land from hand. Forge's own AI only fixed colors when it
+had no land in hand and nothing to cast, so Anhelo could fetch Island after
+Island.
 
 **Fixing a bad habit.** To reset one kind of decision for a Boy (back to the
 starting weights, everything else kept):

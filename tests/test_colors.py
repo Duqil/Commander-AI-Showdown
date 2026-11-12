@@ -28,7 +28,7 @@ BLACK_RED_HAND = [{"name": "Terminate", "type": "Instant", "cost": "{B}{R}"},
 
 def fetch_decision(state):
     cands = [dict(land, index=i, id=100 + i) for i, land in enumerate([ISLAND, SWAMP, MOUNTAIN])]
-    return {"kind": "fetch_land", "state": state, "candidates": cands, "suggested": 0,
+    return {"kind": "pick_card", "how": "library_search", "state": state, "candidates": cands, "suggested": 0,
             "source": {"name": "Evolving Wilds"}}
 
 
@@ -55,7 +55,7 @@ class FetchTest(unittest.TestCase):
     def test_simplebot_fetches_the_missing_color(self):
         """The bug Adam saw: Anhelo fetching Island after Island."""
         decision = fetch_decision(anhelo_state([ISLAND, ISLAND, ISLAND], BLACK_RED_HAND))
-        self.assertEqual(SimpleBot().choose_fetch(decision), 1)   # Swamp: black is wanted most
+        self.assertEqual(SimpleBot().choose_card(decision), 1)   # Swamp: black is wanted most
 
     def test_simplebot_plays_the_land_it_needs(self):
         state = anhelo_state([ISLAND, ISLAND], BLACK_RED_HAND + [ISLAND, MOUNTAIN])
@@ -65,11 +65,32 @@ class FetchTest(unittest.TestCase):
 
     def test_boy_sees_new_colors(self):
         decision = fetch_decision(anhelo_state([ISLAND, ISLAND], BLACK_RED_HAND))
-        feats = features.fetch_options(decision)
-        self.assertEqual([f["fetch_new_color"] for f in feats], [0.0, 1.0, 1.0])
-        self.assertEqual([f["fetch_only_old_colors"] for f in feats], [1.0, 0.0, 0.0])
+        feats = features.pick_options(decision)
+        self.assertEqual([f["pick_land_new_color"] for f in feats], [0.0, 1.0, 1.0])
+        self.assertEqual([f["pick_land_only_old_colors"] for f in feats], [1.0, 0.0, 0.0])
         self.assertEqual(feats[1]["simple_prior"], 1.0)
-        self.assertIn(BoyBot("tester_f", learn=False, seed=2).choose_fetch(decision), [0, 1, 2])
+        self.assertIn(BoyBot("tester_f", learn=False, seed=2).choose_card(decision), [0, 1, 2])
+
+    def test_terramorphic_expanse_works_too(self):
+        """No card names in the logic: any land search gets the same choice."""
+        decision = fetch_decision(anhelo_state([ISLAND, ISLAND, ISLAND], BLACK_RED_HAND))
+        decision["source"] = {"name": "Terramorphic Expanse"}
+        self.assertEqual(SimpleBot().choose_card(decision), 1)
+
+    def test_drawn_from_dreams_picks_the_right_land(self):
+        """Look at the top 7, take 2: if Forge's pick is a land, take the one with the needed color."""
+        top = [{"name": "Preordain", "type": "Sorcery", "cost": "{U}", "cmc": 1}, ISLAND, SWAMP,
+               {"name": "Bloodghast", "type": "Creature", "cost": "{B}{B}", "cmc": 2}]
+        cands = [dict(c, index=i) for i, c in enumerate(top)]
+        decision = {"kind": "pick_card", "how": "look_at_top", "candidates": cands, "suggested": 1,
+                    "state": anhelo_state([ISLAND, ISLAND], BLACK_RED_HAND), "source": {"name": "Drawn from Dreams"}}
+        self.assertEqual(SimpleBot().choose_card(decision), 2)       # Swamp, not the Island
+        decision["suggested"] = 3
+        self.assertIsNone(SimpleBot().choose_card(decision))         # a spell: keep Forge's pick
+        feats = features.pick_options(decision)
+        self.assertEqual(feats[3]["pick_castable"], 0.0)              # no black source for Bloodghast yet
+        self.assertEqual(feats[0]["pick_castable"], 1.0)
+        self.assertEqual(feats[3]["simple_prior"], 1.0)
 
     def test_mulligan_sees_color_coverage(self):
         state = anhelo_state([], BLACK_RED_HAND + [ISLAND, ISLAND, SWAMP])

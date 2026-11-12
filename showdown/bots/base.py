@@ -59,15 +59,19 @@ class Bot:
         """
         return None
 
-    def choose_fetch(self, decision: Decision) -> int | None:
-        """Which land to take when searching the library (Evolving Wilds, ...).
-        Return a candidate index, or None to take what Forge's AI suggested.
+    def choose_card(self, decision: Decision) -> int | None:
+        """Pick a card for yourself. Return a candidate index, or None to take
+        what Forge's AI suggested. Two situations ask this:
 
-        decision["candidates"]: the lands you may fetch, each with "index" and
+        decision["how"] == "library_search": searching your library for a land,
+            with any card that does it (Evolving Wilds, Terramorphic Expanse...).
+        decision["how"] == "look_at_top": "look at the top N cards, put some
+            into your hand" (Drawn from Dreams, Impulse, ...).
+
+        decision["candidates"]: the cards, each with "index", "cost" and
             "produces" (the colors it makes, e.g. "UB").
         decision["suggested"]: the index Forge's AI would pick (-1 for none).
-        decision["source"]: the card doing the search. Cards that fetch two
-            lands (Myriad Landscape) ask twice.
+        decision["source"]: the card doing it. Picking two cards asks twice.
         """
         return None
 

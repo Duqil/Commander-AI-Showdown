@@ -94,14 +94,22 @@ class SimpleBot(Bot):
             return abilities[0]["index"]
         return None
 
-    def choose_fetch(self, decision: Decision) -> int | None:
-        """Fetch the land whose colors my cards need most (see colors.land_value)."""
-        me = self.me(decision)
+    def choose_card(self, decision: Decision) -> int | None:
+        """Pick cards like Forge's AI does, but when the pick is a land, take
+        the land whose colors my cards need most (see colors.land_value).
+        Works for any card that lets you pick lands, not a list of names."""
         candidates = decision["candidates"]
-        scores = [colors.land_value(c, me) for c in candidates]
-        if not candidates or max(scores) == 0:
-            return None  # no color matters right now: Forge's pick is fine
-        return candidates[scores.index(max(scores))]["index"]
+        lands = [c for c in candidates if colors.is_land(c)]
+        suggested = decision.get("suggested", -1)
+        picking_a_land = lands and (len(lands) == len(candidates) or
+                                    any(c["index"] == suggested for c in lands))
+        if not picking_a_land:
+            return None  # a spell: Forge's pick is fine
+        me = self.me(decision)
+        best = max(lands, key=lambda c: colors.land_value(c, me))  # first one on a tie
+        if colors.land_value(best, me) == 0:
+            return None  # no color matters right now
+        return best["index"]
 
     def declare_attackers(self, decision: Decision) -> dict[str, int]:
         players = {p["name"]: p for p in decision["state"]["players"]}

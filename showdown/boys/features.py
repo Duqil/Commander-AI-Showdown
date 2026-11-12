@@ -332,23 +332,38 @@ def is_harmful(decision: Decision) -> bool:
     return any(word in text for word in HARMFUL_WORDS)
 
 
-def fetch_options(decision: Decision) -> list[Features]:
-    """Which land to fetch from the library (Evolving Wilds, Myriad Landscape...)."""
+def pick_options(decision: Decision) -> list[Features]:
+    """Which card to pick for myself: a land from a library search (any fetch
+    land) or a card from "look at the top N" (Drawn from Dreams, Impulse...)."""
     me = threat.me(decision["state"])
     missing = colors.missing(me)
     have = colors.available(me)
-    simple = _simple.choose_fetch(decision)
+    # Colors I can make now or with the lands already in my hand.
+    reachable = have | set().union(*(colors.produces(c) for c in me.get("hand", []) if colors.is_land(c)), set())
+    my_lands = sum(colors.is_land(c) for c in me.get("battlefield", []) + me.get("hand", []))
+    short_on_lands = max(0, 5 - my_lands) / 5   # 1.0 with no lands, 0 at 5+
+    simple = _simple.choose_card(decision)
     suggested = decision.get("suggested", -1)
+    if simple is None:
+        simple = suggested  # SimpleBot keeps Forge's pick
     result = []
     for cand in decision["candidates"]:
+        land = colors.is_land(cand)
         makes = colors.produces(cand)
-        result.append({
+        f: Features = {
             "simple_prior": _flag(cand["index"] == simple),
             "forge_suggested": _flag(cand["index"] == suggested),
-            "fetch_new_color": _flag(bool(makes & missing)),        # a color I need and lack
-            "fetch_only_old_colors": _flag(bool(makes) and makes <= have),  # nothing new
-            "fetch_color_value": min(colors.land_value(cand, me), 4) / 4,
-        })
+            "pick_land": _flag(land),
+            "pick_land_when_short": short_on_lands if land else 0.0,
+        }
+        if land:
+            f["pick_land_new_color"] = _flag(bool(makes & missing))          # a color I need and lack
+            f["pick_land_only_old_colors"] = _flag(bool(makes) and makes <= have)
+            f["pick_land_color_value"] = min(colors.land_value(cand, me), 4) / 4
+        else:
+            f["pick_castable"] = _flag(colors.castable_by(cand, reachable))  # I have its colors
+            f["pick_cmc"] = cand.get("cmc", 0) / 7
+        result.append(f)
     return result
 
 
