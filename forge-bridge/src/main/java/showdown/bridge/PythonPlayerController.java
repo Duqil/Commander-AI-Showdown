@@ -77,7 +77,12 @@ public class PythonPlayerController extends PlayerControllerAi {
         msg.addProperty("kind", kind);
         msg.addProperty("player", getPlayer().getName());
         msg.add("state", StateSnapshot.of(getGame(), getPlayer()));
-        return bridge.ask(msg);
+        GameLimits.beforeAsk(getGame()); // a game that never ends becomes a draw (GameLimits.java)
+        try {
+            return bridge.ask(msg);
+        } finally {
+            GameLimits.afterAsk();
+        }
     }
 
     private static boolean isNull(JsonElement e) {
