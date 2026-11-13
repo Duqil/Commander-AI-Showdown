@@ -166,6 +166,12 @@ def describe_choice(decision: dict, choice: Any) -> str | None:
     already show up in Forge's own log ("cast X"), so they're left out too.
     """
     kind = decision.get("kind")
+    if kind == "keyword_cost":
+        # Casualty, offspring, ...: "Casualty:2" -> "Casualty". No answer (None)
+        # means "do what Forge's AI does", and Forge pays whenever it can.
+        keyword = str(decision.get("keyword", "an extra cost")).split(":")[0]
+        spell = decision.get("spell", {}).get("name", "a spell")
+        return f"pays {keyword} for {spell}" if choice is None or choice else f"skips {keyword} for {spell}"
     if choice is None:
         return None  # "let Forge decide" or "pass"
     if kind == "mulligan":
@@ -181,4 +187,7 @@ def describe_choice(decision: dict, choice: Any) -> str | None:
             by_target.setdefault(defenders.get(target, "?"), []).append(names.get(card_id, card_id))
         parts = [f"{', '.join(cards)} at {target}" for target, cards in by_target.items()]
         return "attacks with " + "; ".join(parts)
+    if kind == "pick_card":
+        picked = next((c["name"] for c in decision.get("candidates", []) if c.get("index") == choice), None)
+        return f"picks {picked}" if picked else None
     return None

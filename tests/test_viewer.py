@@ -83,6 +83,16 @@ class DescribeChoiceTest(unittest.TestCase):
         self.assertEqual(describe_choice(decision, {"10": 1, "11": 1}), "attacks with Bear, Goblin at 3-Nelly")
         self.assertEqual(describe_choice(decision, {}), "decides not to attack")
 
+    def test_extra_costs_and_picks_are_shown(self):
+        """Forge's own log never mentions casualty, so the bot's choice is the only record."""
+        cost = {"kind": "keyword_cost", "keyword": "Casualty:2", "spell": {"name": "Some Charm"}}
+        self.assertEqual(describe_choice(cost, None), "pays Casualty for Some Charm")  # Forge's choice: pay
+        self.assertEqual(describe_choice(cost, 1), "pays Casualty for Some Charm")
+        self.assertEqual(describe_choice(cost, 0), "skips Casualty for Some Charm")
+        pick = {"kind": "pick_card", "candidates": [{"index": 0, "name": "Island"}, {"index": 1, "name": "Swamp"}]}
+        self.assertEqual(describe_choice(pick, 1), "picks Swamp")
+        self.assertIsNone(describe_choice(pick, None))
+
     def test_passing_is_not_shown(self):
         self.assertIsNone(describe_choice({"kind": "choose_play"}, None))
         self.assertIsNone(describe_choice({"kind": "choose_play"}, 0))
