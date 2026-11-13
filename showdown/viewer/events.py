@@ -167,9 +167,11 @@ def describe_choice(decision: dict, choice: Any) -> str | None:
     """
     kind = decision.get("kind")
     if kind == "keyword_cost":
-        # Casualty, offspring, ...: "Casualty:2" -> "Casualty". No answer (None)
-        # means "do what Forge's AI does", and Forge pays whenever it can.
-        keyword = str(decision.get("keyword", "an extra cost")).split(":")[0]
+        # Casualty, offspring, ...: "Casualty:2" -> "Casualty 2". The number
+        # matters: a spell can have two (its own Casualty 3 and Anhelo's
+        # Casualty 2). No answer (None) means "do what Forge's AI does", and
+        # Forge pays whenever it can.
+        keyword = str(decision.get("keyword", "an extra cost")).replace(":", " ")
         spell = decision.get("spell", {}).get("name", "a spell")
         return f"pays {keyword} for {spell}" if choice is None or choice else f"skips {keyword} for {spell}"
     if choice is None:
