@@ -112,3 +112,30 @@ class AttackTriggerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EquipTimingTest(unittest.TestCase):
+    """Boys see whether an Equip comes before combat, with a creature ready to attack."""
+
+    def equip_option(self):
+        return {"index": 0, "is_spell": False, "is_land": False, "is_ability": True, "api": "Attach",
+                "card": {"name": "Some Sword", "type": "Artifact - Equipment", "cmc": 2}}
+
+    def test_before_combat_with_a_ready_attacker(self):
+        st = state()
+        st["players"][0]["battlefield"] = [{"name": "Bear", "type": "Creature", "power": 2, "tapped": False, "sick": False}]
+        feats = features.play_options({"state": st, "options": [self.equip_option()]})[0]
+        self.assertEqual((feats["attach_ability"], feats["attach_before_combat"], feats["attach_attacker_ready"],
+                          feats["attach_after_combat"]), (1.0, 1.0, 1.0, 0.0))
+
+    def test_after_combat_or_no_attacker(self):
+        st = state(); st["phase"] = "MAIN2"
+        st["players"][0]["battlefield"] = [{"name": "Bear", "type": "Creature", "sick": True}]
+        feats = features.play_options({"state": st, "options": [self.equip_option()]})[0]
+        self.assertEqual((feats["attach_before_combat"], feats["attach_attacker_ready"], feats["attach_after_combat"]),
+                         (0.0, 0.0, 1.0))
+
+    def test_other_abilities_get_nothing(self):
+        option = dict(self.equip_option(), api="Draw")
+        feats = features.play_options({"state": state(), "options": [option]})[0]
+        self.assertNotIn("attach_ability", feats)
