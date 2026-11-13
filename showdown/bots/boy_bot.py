@@ -26,7 +26,8 @@ import random
 from showdown.bots.base import Bot, Decision
 from showdown.boys import critic, features, threat
 from showdown.boys.brain import Step
-from showdown.boys.reward import game_reward, mulligan_bonus, turn_bonus
+from showdown.boys.reward import (BROKE_A_DEAL, PARTNER_BROKE_MY_DEAL, game_reward, mulligan_bonus,
+                                  turn_bonus)
 from showdown.boys.storage import load_brain, save_brain
 
 HAND_LIMIT = 7  # maximum hand size at the end of your turn
@@ -47,6 +48,7 @@ class BoyBot(Bot):
         # What happened on each of our own turns:
         #   {turn: [damage to opponents, knockouts, cards drawn, cards discarded to hand size]}
         self.turn_effects: dict[int, list[int]] = {}
+        self.accepted: dict[int, Step] = {}  # deal id -> the "accept" choice that made the deal
 
     def _observe(self, state: dict) -> None:
         """Compare the table with last time to see what happened on our turn.
@@ -159,7 +161,23 @@ class BoyBot(Bot):
         return offers[self._pick("offer", feats)]
 
     def answer_deal(self, view: Decision) -> bool:
-        return self._pick("answer", features.answer_options(view)) == 0  # option 0 = accept
+        accept = self._pick("answer", features.answer_options(view)) == 0  # option 0 = accept
+        if accept and "id" in view.get("offer", {}):
+            self.accepted[view["offer"]["id"]] = self.steps[-1]  # remembered for deal_broken
+        return accept
+
+    def deal_broken(self, deal: dict, breaker: str, player: str) -> None:
+        """Politics penalties (see "Politics" in showdown/boys/reward.py)."""
+        if breaker == player:
+            # We broke it, with the attack we just chose: our latest attack
+            # choice that went at a deal partner.
+            for step in reversed(self.steps):
+                if step.kind == "attack" and step.options[step.picked].get("attack_breaks_deal"):
+                    step.deal_bonus += BROKE_A_DEAL
+                    break
+        elif deal.get("id") in self.accepted:
+            # We accepted this deal and the partner broke it: that "yes" was a mistake.
+            self.accepted.pop(deal["id"]).deal_bonus += PARTNER_BROKE_MY_DEAL
 
     # --- after the game -------------------------------------------------------------
 
@@ -183,7 +201,7 @@ class BoyBot(Bot):
             if step.pregame:
                 continue  # mulligans got their bonus when they were made
             damage, knockouts, drawn, discarded = self.turn_effects.get(step.turn, (0, 0, 0, 0))
-            step.bonus = turn_bonus(damage, knockouts, drawn, discarded)
+            step.bonus = turn_bonus(damage, knockouts, drawn, discarded) + step.deal_bonus
         damage = sum(e[0] for e in self.turn_effects.values())
         knockouts = sum(e[1] for e in self.turn_effects.values())
 
@@ -198,3 +216,4 @@ class BoyBot(Bot):
                        "discarded": sum(e[3] for e in self.turn_effects.values())}
         self.steps = []
         self.deck = None
+        self.accepted = {}

@@ -150,6 +150,7 @@ def play_options(decision: Decision) -> list[Features]:
             **(commander.cast_features(card, state) if is_spell and card.get("commander") else {}),
             **(commander.engine_features(card, state) if is_spell and not card.get("commander") else {}),
             **(combat_trick_features(fight, state, my_turn) if not is_land else {}),
+            **(attach_features(option, state, my_turn) if is_ability else {}),
         })
     result.append({
         "pass": 1.0,
@@ -159,6 +160,29 @@ def play_options(decision: Decision) -> list[Features]:
         "simple_prior": _flag(simple_pick is None),
     })
     return result
+
+
+def attach_features(option: dict, state: dict, my_turn: bool) -> Features:
+    """Equip (and anything else that attaches a card to a creature).
+
+    Equipping only helps an attack if it happens *before* combat, on a
+    creature that can attack this turn. Without these signals a Boy sees
+    Equip as just "an ability" and can't learn the timing. Recognized by what
+    the ability does (Forge's "Attach" effect), not by card names.
+    """
+    if option.get("api") != "Attach":
+        return {}
+    before_combat = my_turn and state.get("phase") == "MAIN1"
+    me = threat.me(state)
+    # Untapped, not summoning sick: could attack this turn.
+    ready = any("Creature" in c.get("type", "") and not c.get("tapped") and not c.get("sick")
+                for c in me.get("battlefield", []))
+    return {
+        "attach_ability": 1.0,
+        "attach_before_combat": _flag(before_combat),
+        "attach_attacker_ready": _flag(before_combat and ready),
+        "attach_after_combat": _flag(my_turn and state.get("phase") == "MAIN2"),
+    }
 
 
 def combat_trick_features(fight: combat.CombatView, state: dict, my_turn: bool) -> Features:

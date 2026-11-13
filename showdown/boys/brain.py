@@ -64,7 +64,9 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    # always available. Not a rule: training moves it up or down.
                    "cast_commander": 1.0,
                    # Same idea: attacking sets off "whenever ... attacks" abilities.
-                   "attack_triggers": 1.0}
+                   "attack_triggers": 1.0,
+                   # And equipping before combat, when a creature can attack this turn.
+                   "attach_attacker_ready": 2.0}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each
 # game moves it a lot, and whether we won is mostly noise for that one choice.
@@ -84,6 +86,7 @@ class Step:
     turn: int = 0
     bonus: float = 0.0   # reward for what happened in this step's turn (see reward.py)
     pregame: bool = False  # made before turn 1 (mulligans): its bonus isn't a turn's bonus
+    deal_bonus: float = 0.0  # politics penalties (reward.py), added on top of the turn bonus
     situation: dict[str, float] | None = None  # what the critic looks at (critic.situation)
 
 

@@ -520,8 +520,84 @@ public class PythonPlayerController extends PlayerControllerAi {
      * found payable. For sacrifice costs Python sees the creatures that could
      * be sacrificed (Forge picks its least valuable one when paying).
      */
+    // Which spell's extra costs we're being asked about, which keywords of it
+    // we've already seen, and for each sacrifice cost we agreed to pay, the
+    // creatures that could pay it. See enoughCreaturesFor.
+    private SpellAbility keywordCostSpell = null;
+    private final java.util.Set<String> keywordCostsSeen = new java.util.HashSet<>();
+    private final java.util.List<java.util.List<Card>> promisedSacrifices = new java.util.ArrayList<>();
+
+    /**
+     * Two casualties are fine (Flawless Forgery's own Casualty 3 plus Casualty 2
+     * from Anhelo), but each needs its own creature. Forge's AI checks each
+     * casualty on its own, so with a single big creature it said yes to both.
+     * We only agree to another sacrifice cost when every sacrifice we've
+     * agreed to for this cast can get a different creature.
+     *
+     * Forge asks about every keyword of the spell in a row, so seeing a new
+     * spell, or the same keyword again, means a new cast.
+     */
+    private boolean enoughCreaturesFor(SpellAbility sa, forge.game.cost.Cost cost,
+            forge.game.keyword.KeywordInterface keyword) {
+        String key = keyword.getOriginal();
+        if (sa != keywordCostSpell || keywordCostsSeen.contains(key)) {
+            keywordCostSpell = sa;
+            keywordCostsSeen.clear();
+            promisedSacrifices.clear();
+        }
+        keywordCostsSeen.add(key);
+        java.util.List<Card> candidates = sacrificeCandidates(sa, cost);
+        if (candidates.isEmpty()) {
+            return true; // no sacrifice in this cost
+        }
+        java.util.List<java.util.List<Card>> all = new java.util.ArrayList<>(promisedSacrifices);
+        all.add(candidates);
+        return distinctPicks(all, 0, new java.util.HashSet<>());
+    }
+
+    /** Can each list get its own card, no card used twice? (Tiny lists: just try.) */
+    private static boolean distinctPicks(java.util.List<java.util.List<Card>> lists, int i, java.util.Set<Card> used) {
+        if (i == lists.size()) {
+            return true;
+        }
+        for (Card c : lists.get(i)) {
+            if (used.add(c)) {
+                if (distinctPicks(lists, i + 1, used)) {
+                    return true;
+                }
+                used.remove(c);
+            }
+        }
+        return false;
+    }
+
+    /** The creatures (or other permanents) that could pay this cost's sacrifice. */
+    private java.util.List<Card> sacrificeCandidates(SpellAbility sa, forge.game.cost.Cost cost) {
+        java.util.List<Card> result = new java.util.ArrayList<>();
+        for (forge.game.cost.CostPart part : cost.getCostParts()) {
+            if (part instanceof forge.game.cost.CostSacrifice sac) {
+                result.addAll(forge.game.card.CardLists.getValidCards(getPlayer().getCardsIn(ZoneType.Battlefield),
+                        sac.getType().split(";"), getPlayer(), sa.getHostCard(), sa));
+            }
+        }
+        return result;
+    }
+
     @Override
     public int chooseNumberForKeywordCost(SpellAbility sa, forge.game.cost.Cost cost,
+            forge.game.keyword.KeywordInterface keyword, String prompt, int max) {
+        if (!enoughCreaturesFor(sa, cost, keyword)) {
+            return 0; // every creature that could pay is already promised to another casualty
+        }
+        int payable = chooseNumberForKeywordCostPython(sa, cost, keyword, prompt, max);
+        java.util.List<Card> candidates = sacrificeCandidates(sa, cost);
+        if (payable > 0 && !candidates.isEmpty()) {
+            promisedSacrifices.add(candidates);
+        }
+        return payable;
+    }
+
+    private int chooseNumberForKeywordCostPython(SpellAbility sa, forge.game.cost.Cost cost,
             forge.game.keyword.KeywordInterface keyword, String prompt, int max) {
         int payable = super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max);
         if (payable < 1) {
@@ -533,13 +609,8 @@ public class PythonPlayerController extends PlayerControllerAi {
         extra.addProperty("max", payable);
         extra.add("spell", StateSnapshot.card(sa.getHostCard()));
         JsonArray sacrifice = new JsonArray();
-        for (forge.game.cost.CostPart part : cost.getCostParts()) {
-            if (part instanceof forge.game.cost.CostSacrifice sac) {
-                for (Card c : forge.game.card.CardLists.getValidCards(getPlayer().getCardsIn(ZoneType.Battlefield),
-                        sac.getType().split(";"), getPlayer(), sa.getHostCard(), sa)) {
-                    sacrifice.add(StateSnapshot.card(c));
-                }
-            }
+        for (Card c : sacrificeCandidates(sa, cost)) {
+            sacrifice.add(StateSnapshot.card(c));
         }
         extra.add("sacrifice_candidates", sacrifice);
         JsonElement choice = ask("keyword_cost", extra).get("choice");
