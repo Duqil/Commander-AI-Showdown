@@ -229,6 +229,10 @@ public class PythonPlayerController extends PlayerControllerAi {
                 o.addProperty("api", sa.getApi().name()); // e.g. "ChangeZone" for Evolving Wilds
             }
             o.addProperty("forge_would_play", forgeWouldPlay(sa));
+            if (sa.getHostCard().getZone() != null) {
+                // Where the card is: "Hand", "Exile" (impulse draw: playable for a short time), "Graveyard"...
+                o.addProperty("zone", sa.getHostCard().getZone().getZoneType().name());
+            }
             if (sa.costHasManaX()) {
                 o.addProperty("max_x", maxX(sa)); // the biggest X we could pay right now
             }

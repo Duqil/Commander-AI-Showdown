@@ -8,7 +8,15 @@ Rules, in order:
          commander wins ties, and goes first when our hand holds spells it
          powers up (cast Anhelo, then the instants and sorceries).
          Non-creature X spells wait until X is at least SMALL_X.
-    Outside our main phases we pass (no instant-speed tricks yet).
+         Cards we can only play from exile for a while (impulse draws) go
+         before cards in hand, which keep.
+      3. instants (and flash cards) wait: we keep the mana open.
+  * Instant speed (see showdown/boys/timing.py), outside our main phases:
+      - answer an opponent's spell or ability, in a combat (ours or theirs),
+        when Forge's AI says the instant is worth it right now,
+      - at the end of the turn right before ours, cast what we kept: the mana
+        untaps next turn anyway. Only reactive cards (counter, pump, protect)
+        still wait there unless Forge's AI likes them.
   * Attack the opponent with the lowest life, with every creature whose
     power is at least 2 (small creatures stay home to block).
   * Deals (when the game has them on): never break a deal. Attack a player
@@ -28,7 +36,7 @@ first Python exercise.
 from __future__ import annotations
 
 from showdown.bots.base import Bot, Decision
-from showdown.boys import colors, commander, threat
+from showdown.boys import colors, combat, commander, threat, timing
 from showdown.boys.threat import game_round
 
 MAIN_PHASES = {"MAIN1", "MAIN2"}
@@ -60,14 +68,15 @@ def spell_priority(option: dict, hand: list[dict]) -> tuple:
     """How keen we are to cast this spell now. Python compares tuples item by
     item, so the first number matters most:
       1. our commander when it powers up spells in our hand (engine first),
-      2. the mana it uses (bigger first),
-      3. our commander wins a tie on mana.
+      2. a card from exile, which we may only play for a short time,
+      3. the mana it uses (bigger first),
+      4. our commander wins a tie on mana.
     """
     card = option["card"]
     is_cmdr = bool(card.get("commander"))
     kinds = commander.engine_types(card) if is_cmdr else set()
     engine_first = bool(kinds) and any(commander.feeds(c, kinds) for c in hand if not c.get("commander"))
-    return (engine_first, spell_size(option), is_cmdr)
+    return (engine_first, timing.from_exile(option), spell_size(option), is_cmdr)
 
 
 class SimpleBot(Bot):
@@ -84,15 +93,16 @@ class SimpleBot(Bot):
         state = decision["state"]
         my_turn = state["active_player"] == state["you"]
         if not my_turn or state["phase"] not in MAIN_PHASES or state["stack_size"] > 0:
-            return None
+            return self.instant_speed_play(decision)
 
         options = decision["options"]
         lands = [o for o in options if o["is_land"]]
         if lands:
-            # The land whose colors help most (a first Swamp for a hand of
-            # black spells). max() keeps the first one on a tie.
+            # A land from exile first (it won't stay playable), then the land
+            # whose colors help most (a first Swamp for a hand of black
+            # spells). max() keeps the first one on a tie.
             me = self.me(decision)
-            return max(lands, key=lambda o: colors.land_value(o["card"], me))["index"]
+            return max(lands, key=lambda o: (timing.from_exile(o), colors.land_value(o["card"], me)))["index"]
 
         # Abilities (not spells, not land drops) that Forge's own AI would use
         # right now. "forge_would_play" is Forge's hint: it knows when an
@@ -105,7 +115,8 @@ class SimpleBot(Bot):
 
         # X spells that aren't creatures (Starstorm: X damage to every creature)
         # only when Forge's AI sees a good X; otherwise they'd hurt us.
-        spells = [o for o in options if o["is_spell"] and not risky_x_spell(o)]
+        spells = [o for o in options if o["is_spell"] and not risky_x_spell(o)
+                  and not self.keep_for_later(o, decision)]
         if spells:
             # max(..., key=...) picks the option with the highest priority.
             hand = self.me(decision).get("hand", [])
@@ -115,6 +126,35 @@ class SimpleBot(Bot):
         if abilities:
             return abilities[0]["index"]
         return None
+
+    def keep_for_later(self, option: dict, decision: Decision) -> bool:
+        """Hold an instant in our main phase: it can wait for a better moment.
+        Not when it's from exile (it may run out) or we'd discard it at the end
+        of the turn anyway."""
+        if not timing.instant_speed(option) or timing.from_exile(option):
+            return False
+        state = decision["state"]
+        too_many = state["phase"] == "MAIN2" and self.me(decision).get("hand_size", 0) > 7
+        return not too_many
+
+    def instant_speed_play(self, decision: Decision) -> int | None:
+        """Not our main phase (or something is on the stack): an instant, or pass."""
+        state = decision["state"]
+        quick = [o for o in decision["options"] if timing.instant_speed(o) and not risky_x_spell(o)]
+        if not quick:
+            return None
+        if state["stack_size"] > 0:
+            # Only answer opponents (not our own spells), and only when Forge's AI sees a point.
+            picks = [o for o in quick if o.get("forge_would_play")] if timing.opponent_on_stack(state) else []
+        elif combat.view(state).in_trick_window():
+            picks = [o for o in quick if o.get("forge_would_play")]
+        elif timing.end_step_before_mine(state):
+            picks = [o for o in quick if o.get("forge_would_play") or not timing.reactive(o)]
+        else:
+            return None
+        if not picks:
+            return None
+        return max(picks, key=spell_size)["index"]
 
     def pay_keyword_cost(self, decision: Decision) -> int | None:
         """Pay extra costs like Forge's AI does, but never sacrifice our commander."""
