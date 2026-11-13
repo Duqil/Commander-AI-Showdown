@@ -3,7 +3,9 @@ package showdown.bridge;
 import com.google.common.eventbus.Subscribe;
 
 import forge.game.Game;
+import forge.game.GameLogEntryType;
 import forge.game.event.GameEvent;
+import forge.game.event.GameEventCardSacrificed;
 import forge.game.event.GameEventCombatChanged;
 import forge.game.event.GameEventPlayerPriority;
 import forge.game.event.GameEventTurnPhase;
@@ -34,6 +36,15 @@ public final class SpectatorFeed {
     /** Guava's EventBus calls this for every event Forge fires, on the game thread. */
     @Subscribe
     public void onEvent(GameEvent event) {
+        if (event instanceof GameEventCardSacrificed sacrificed
+                && !sacrificed.card().getCurrentState().getType().isLand()) { // fetch lands already say what they do
+            // Forge's log only says "X was put into Graveyard from Battlefield",
+            // which looks the same as dying. Say it was a sacrifice (casualty,
+            // Bloodghast fodder, ...), so the viewer shows what paid for what.
+            var card = sacrificed.card();
+            String who = card.getController() == null ? "Someone" : card.getController().getName();
+            game.getGameLog().add(GameLogEntryType.ZONE_CHANGE, who + " sacrifices " + card.getName());
+        }
         boolean calmMoment = event instanceof GameEventTurnPhase
                 || event instanceof GameEventPlayerPriority
                 || event instanceof GameEventCombatChanged;
