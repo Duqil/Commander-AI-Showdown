@@ -520,8 +520,53 @@ public class PythonPlayerController extends PlayerControllerAi {
      * found payable. For sacrifice costs Python sees the creatures that could
      * be sacrificed (Forge picks its least valuable one when paying).
      */
+    // Which spell's extra costs we're being asked about, and which keywords
+    // of it we've already seen. Used to stop one creature paying two
+    // casualties (see sacrificeAlreadyPromised).
+    private SpellAbility keywordCostSpell = null;
+    private final java.util.Set<String> keywordCostsSeen = new java.util.HashSet<>();
+    private boolean sacrificePromised = false;
+
+    /**
+     * A Forge AI bug: when a spell has two sacrifice costs (Flawless Forgery's
+     * own Casualty 3 plus Casualty 2 from Anhelo), the AI picks a creature for
+     * each cost separately, before sacrificing anything. With one big creature
+     * on the table both picks are that creature: it's sacrificed once and the
+     * spell is still copied twice. Until Forge fixes it, we allow only one
+     * sacrifice cost per cast. The second casualty is then simply not paid.
+     *
+     * Forge asks about every keyword of the spell in a row, so seeing a new
+     * spell, or the same keyword again, means a new cast.
+     */
+    private boolean sacrificeAlreadyPromised(SpellAbility sa, forge.game.cost.Cost cost,
+            forge.game.keyword.KeywordInterface keyword) {
+        String key = keyword.getOriginal();
+        if (sa != keywordCostSpell || keywordCostsSeen.contains(key)) {
+            keywordCostSpell = sa;
+            keywordCostsSeen.clear();
+            sacrificePromised = false;
+        }
+        keywordCostsSeen.add(key);
+        boolean sacrifices = cost.getCostParts().stream()
+                .anyMatch(part -> part instanceof forge.game.cost.CostSacrifice);
+        return sacrifices && sacrificePromised;
+    }
+
     @Override
     public int chooseNumberForKeywordCost(SpellAbility sa, forge.game.cost.Cost cost,
+            forge.game.keyword.KeywordInterface keyword, String prompt, int max) {
+        if (sacrificeAlreadyPromised(sa, cost, keyword)) {
+            return 0; // one creature can't pay two casualties
+        }
+        int payable = chooseNumberForKeywordCostPython(sa, cost, keyword, prompt, max);
+        if (payable > 0 && cost.getCostParts().stream()
+                .anyMatch(part -> part instanceof forge.game.cost.CostSacrifice)) {
+            sacrificePromised = true;
+        }
+        return payable;
+    }
+
+    private int chooseNumberForKeywordCostPython(SpellAbility sa, forge.game.cost.Cost cost,
             forge.game.keyword.KeywordInterface keyword, String prompt, int max) {
         int payable = super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max);
         if (payable < 1) {
