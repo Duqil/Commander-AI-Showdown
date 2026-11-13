@@ -134,7 +134,12 @@ def play(
             if msg.get("kind") == "mulligan" and choice is False:
                 mulligans[msg["player"]] = mulligans.get(msg["player"], 0) + 1
             if book is not None and msg.get("kind") == "attack":
-                deal_messages(book.check_attack(msg["player"], msg, choice))
+                broken = book.check_attack(msg["player"], msg, choice)
+                deal_messages(broken)
+                for m in broken:  # tell both partners (the Boys learn from it)
+                    for partner in (m["deal"]["a"], m["deal"]["b"]):
+                        if partner in bots_by_name:
+                            bots_by_name[partner].deal_broken(m["deal"], m["breaker"], partner)
             conn.answer(msg["id"], choice)
             decisions += 1
             if on_message:

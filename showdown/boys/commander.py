@@ -48,6 +48,26 @@ def traits(card: dict) -> dict[str, float]:
     }
 
 
+AFFINITY = re.compile(r"affinity for (\w+)", re.IGNORECASE)
+
+
+def discount_now(card: dict, me: dict) -> float:
+    """How much cheaper the commander is right now, 0..1 of its mana value.
+
+    "Affinity for Equipment" (Nahiri): {1} less for each Equipment I control,
+    so two Equipment make a 6-drop cost 4 (discount 2/6). Forge already
+    applies the discount when it offers the spell; this tells the Boy how
+    good a deal it is this turn. Other "costs less" text counts as 1.
+    """
+    m = AFFINITY.search(card.get("oracle") or "")
+    if not m:
+        return 1.0
+    kind = m.group(1).lower().rstrip("s")  # "Equipment", "artifacts" -> "artifact"
+    count = sum(1 for c in me.get("battlefield", []) if kind in c.get("type", "").lower())
+    cmc = card.get("cmc", 0) or 1
+    return min(count, cmc) / cmc
+
+
 def engine_types(card: dict) -> set[str]:
     """Which spells the commander rewards: e.g. {"instant", "sorcery"} or {"noncreature"}."""
     found: set[str] = set()
@@ -96,7 +116,7 @@ def cast_features(card: dict, state: dict) -> dict[str, float]:
         "cmdr_makes_tokens": t["makes_tokens"],
         "cmdr_attacker_open_board": t["attack_trigger"] * open_board,
         "cmdr_grows_recast": t["grows_when_recast"] * min(card.get("commander_tax", 0), 6) / 6,
-        "cmdr_gets_cheaper": t["gets_cheaper"],
+        "cmdr_gets_cheaper": t["gets_cheaper"] * discount_now(card, me),  # e.g. Equipment out for Nahiri
         "cmdr_power": min(power, 10) / 10,
         # A small learned adjustment for this particular commander, on top of
         # its traits. Not a rule: it starts at 0 and only moves with training.

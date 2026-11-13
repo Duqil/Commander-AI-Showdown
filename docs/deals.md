@@ -38,6 +38,22 @@ because Python decides attacks. A broken deal is a big event:
 - **Reputation:** the victim's trust in the breaker drops by 0.5, everyone
   else's by 0.25. SimpleBot refuses offers from anyone below 0.5.
 
+## What breaking costs a Boy
+
+Trust and grudges only last one game, so on their own they didn't stop the
+Boys from offering every turn, accepting almost everything and breaking deals
+freely. Two small reward penalties (in `showdown/boys/reward.py`, under "Politics") fix that:
+
+| Constant | Who pays | Why |
+|---|---|---|
+| `BROKE_A_DEAL` (-0.1) | the attack choice that broke a deal | breaking only pays for something big (a knockout is +0.3) |
+| `PARTNER_BROKE_MY_DEAL` (-0.1) | the "accept" choice of a deal the partner then broke | Boys learn to say no to players who break deals |
+
+Make them more negative to turn politics down further, or set them to 0.0 to
+switch them off. `BoyBot.deal_broken` (in `showdown/bots/boy_bot.py`) is
+where they're applied; the game runner calls it for both partners whenever a
+deal breaks.
+
 ## Winning trust back
 
 Trust (0 to 1) can recover during a game:

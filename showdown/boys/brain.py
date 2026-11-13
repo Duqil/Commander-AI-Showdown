@@ -84,6 +84,7 @@ class Step:
     turn: int = 0
     bonus: float = 0.0   # reward for what happened in this step's turn (see reward.py)
     pregame: bool = False  # made before turn 1 (mulligans): its bonus isn't a turn's bonus
+    deal_bonus: float = 0.0  # politics penalties (reward.py), added on top of the turn bonus
     situation: dict[str, float] | None = None  # what the critic looks at (critic.situation)
 
 

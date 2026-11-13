@@ -112,6 +112,15 @@ class Bot:
         """Someone offers you view["offer"]. Return True to accept."""
         return False
 
+    def deal_broken(self, deal: dict, breaker: str, player: str) -> None:
+        """A deal this bot was part of was just broken by an attack.
+
+        ``deal`` is the deal (see Deal.to_dict in showdown/deals.py, it has an
+        "id"), ``breaker`` who attacked, ``player`` this bot's own name. So
+        ``breaker == player`` means we broke it. Learning bots use this for the
+        politics rewards (showdown/boys/reward.py); others can ignore it.
+        """
+
     def game_over(self, result: dict, player: str) -> None:
         """Called once when the game ends. ``player`` is this bot's player name.
 

@@ -56,3 +56,13 @@ class TraitTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DiscountTest(unittest.TestCase):
+    def test_affinity_counts_my_equipment(self):
+        nahiri = {"name": "Nahiri", "cmc": 6, "power": 5, "toughness": 4, "commander": True,
+                  "oracle": "Affinity for Equipment (This spell costs {1} less to cast for each Equipment you control.)"}
+        sword = {"name": "Sword", "type": "Artifact - Equipment"}
+        self.assertEqual(commander.discount_now(nahiri, {"battlefield": []}), 0.0)
+        self.assertAlmostEqual(commander.discount_now(nahiri, {"battlefield": [sword, sword]}), 2 / 6)
+        self.assertEqual(commander.discount_now({"oracle": "Draw a card."}, {}), 1.0)

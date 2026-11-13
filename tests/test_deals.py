@@ -166,3 +166,33 @@ class SimpleBotDealTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PoliticsRewardTest(unittest.TestCase):
+    """Breaking a deal, and accepting one that gets broken, cost a Boy a little."""
+
+    def setUp(self):
+        from showdown.bots.boy_bot import BoyBot
+        self.boy = BoyBot("politics-test", learn=False)
+
+    def test_breaker_pays_on_the_attack_that_broke_it(self):
+        from showdown.boys.brain import Step
+        from showdown.boys.reward import BROKE_A_DEAL
+        home = Step("attack", [{"stay_home": 1.0}, {"attack_breaks_deal": 1.0}], [0.5, 0.5], picked=1)
+        other = Step("attack", [{"stay_home": 1.0}, {"attack": 1.0}], [0.5, 0.5], picked=1)
+        self.boy.steps = [home, other]
+        self.boy.deal_broken({"id": 3, "a": "1-A", "b": "2-B"}, breaker="1-A", player="1-A")
+        self.assertEqual((home.deal_bonus, other.deal_bonus), (BROKE_A_DEAL, 0.0))
+
+    def test_accepting_a_deal_that_gets_broken_hurts(self):
+        from showdown.boys.reward import PARTNER_BROKE_MY_DEAL
+        view = {"state": state(you="2-B"), "offer": {"id": 5, "kind": "peace", "a": "1-A", "b": "2-B"},
+                "deals": {"active": [], "trust": {"1-A": 1.0}, "protected": [], "gang_targets": [], "grudges": []}}
+        self.boy.brain.weights["answer"]["accept"] = 10.0  # make sure it accepts
+        self.boy.explore = False
+        self.assertTrue(self.boy.answer_deal(view))
+        accept = self.boy.steps[-1]
+        self.boy.deal_broken(view["offer"], breaker="1-A", player="2-B")
+        self.assertEqual(accept.deal_bonus, PARTNER_BROKE_MY_DEAL)
+        self.boy.deal_broken(view["offer"], breaker="1-A", player="2-B")  # only once per deal
+        self.assertEqual(accept.deal_bonus, PARTNER_BROKE_MY_DEAL)
