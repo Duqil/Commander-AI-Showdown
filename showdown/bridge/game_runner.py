@@ -45,6 +45,7 @@ class GameResult:
     players: list[dict]
     decisions: int = 0  # how many questions Python answered
     log: list[str] = field(default_factory=list)
+    limit: str | None = None  # set when Forge called it a draw for going on too long (GameLimits.java)
 
 
 def answer_decision(bot: Bot, decision: Decision):
@@ -159,6 +160,7 @@ def play(
                 players=msg.get("players", []),
                 decisions=decisions,
                 log=log,
+                limit=msg.get("limit"),
             )
     raise ConnectionError("Forge disconnected before the game ended (see the Forge log file)")
 
@@ -206,8 +208,15 @@ class Forge:
         on_message: MessageCallback | None = None,
         abort: threading.Event | None = None,
         deals: bool = False,
+        max_seconds: float | None = None,
     ) -> GameResult:
-        """Play one game. Setting ``abort`` (from any thread) kills Forge and raises GameAborted."""
+        """Play one game. Setting ``abort`` (from any thread) kills Forge and raises GameAborted.
+
+        ``max_seconds`` is a last-resort stop for unattended runs: a game still
+        going after that long is killed and counts as crashed. (Forge itself
+        already ends very long games as a draw, see GameLimits.java; this
+        catches a loop where Forge never asks Python anything.)
+        """
         if self.conn is not None and self.games >= self.MAX_GAMES:
             self.close()
         if self.conn is None:
@@ -220,12 +229,20 @@ class Forge:
         assert self.conn is not None and self.process is not None
         process = self.process
         game_done = threading.Event()
-        if abort is not None:
-            # A small helper thread that watches the abort flag while the game runs.
-            # Killing Forge closes its connection, which makes play() below stop.
+        too_long = threading.Event()
+        if abort is not None or max_seconds is not None:
+            # A small helper thread that watches the abort flag (and the clock)
+            # while the game runs. Killing Forge closes its connection, which
+            # makes play() below stop.
+            deadline = None if max_seconds is None else time.monotonic() + max_seconds
+
             def watch() -> None:
                 while not game_done.wait(0.5):
-                    if abort.is_set():
+                    if abort is not None and abort.is_set():
+                        process.kill()
+                        return
+                    if deadline is not None and time.monotonic() > deadline:
+                        too_long.set()
                         process.kill()
                         return
             threading.Thread(target=watch, name="abort-watch", daemon=True).start()
@@ -247,6 +264,8 @@ class Forge:
             if abort is not None and abort.is_set():
                 raise GameAborted("stopped by the user")
             self._keep_crash_log()
+            if too_long.is_set():
+                raise TimeoutError(f"game still running after {max_seconds / 60:.0f} minutes; stopped") from None
             raise
         finally:
             game_done.set()

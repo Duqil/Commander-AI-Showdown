@@ -77,7 +77,12 @@ public class PythonPlayerController extends PlayerControllerAi {
         msg.addProperty("kind", kind);
         msg.addProperty("player", getPlayer().getName());
         msg.add("state", StateSnapshot.of(getGame(), getPlayer()));
-        return bridge.ask(msg);
+        GameLimits.beforeAsk(getGame()); // a game that never ends becomes a draw (GameLimits.java)
+        try {
+            return bridge.ask(msg);
+        } finally {
+            GameLimits.afterAsk();
+        }
     }
 
     private static boolean isNull(JsonElement e) {
@@ -229,6 +234,10 @@ public class PythonPlayerController extends PlayerControllerAi {
                 o.addProperty("api", sa.getApi().name()); // e.g. "ChangeZone" for Evolving Wilds
             }
             o.addProperty("forge_would_play", forgeWouldPlay(sa));
+            if (sa.getHostCard().getZone() != null) {
+                // Where the card is: "Hand", "Exile" (impulse draw: playable for a short time), "Graveyard"...
+                o.addProperty("zone", sa.getHostCard().getZone().getZoneType().name());
+            }
             if (sa.costHasManaX()) {
                 o.addProperty("max_x", maxX(sa)); // the biggest X we could pay right now
             }

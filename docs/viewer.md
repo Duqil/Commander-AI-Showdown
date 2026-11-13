@@ -125,6 +125,16 @@ took 205 s instead of 235 s, with exactly the same results per seed. A slot
 starts a fresh Forge every 25 games, and after any game that crashed or was
 stopped (`Forge` in `showdown/bridge/game_runner.py`).
 
+**Games that never end.** An infinite loop, or a board so big the game
+crawls, used to stall a whole run. Now Forge ends a game as a **draw** after
+200 turns in total, or after 15 minutes of Forge's own thinking time (time
+spent waiting for Python, like a paused viewer, doesn't count). The batch
+output then says e.g. `draw (turn limit (200 turns))`; Boys learn from it like
+any draw. See `forge-bridge/.../GameLimits.java`. As a last resort, Run many
+games kills a game still going after 30 minutes and counts it as crashed.
+The table snapshot sent to the bots is also built in one pass over combat
+now, so boards with thousands of tokens no longer slow every decision down.
+
 ## Where files go
 
 | Folder | What |

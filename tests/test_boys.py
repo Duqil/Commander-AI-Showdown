@@ -183,7 +183,107 @@ class FeatureTest(unittest.TestCase):
         starstorm = {"index": 5, "card": {"name": "Starstorm", "type": "Instant", "cmc": 2},
                      "is_land": False, "is_spell": True, "max_x": 6, "forge_would_play": False}
         self.assertIsNone(pick(starstorm))
-        self.assertEqual(pick(dict(starstorm, forge_would_play=True)), 5)
+        # Even when Forge's AI likes it, an instant waits in our main phase...
+        self.assertIsNone(pick(dict(starstorm, forge_would_play=True)))
+        # ...until the end of the turn right before ours (D plays just before A).
+        end_step = table(active="4-D", phase="END_OF_TURN")
+        self.assertEqual(bot.choose_play({"state": end_step, "options": [dict(starstorm, forge_would_play=True)]}), 5)
+
+
+RIKU = ("Whenever you cast a modal spell, choose up to X, where X is the number of times you chose a mode "
+        "for that spell \u2014\n\u2022 Exile the top card of your library. Until the end of your next turn, "
+        "you may play it.\n\u2022 Put a +1/+1 counter on Riku.\n\u2022 Create a 1/1 blue Bird creature token with flying.")
+
+
+def spell(index, name="Spell", ctype="Sorcery", cmc=2, **extra):
+    return {"index": index, "card": {"name": name, "type": ctype, "cmc": cmc}, "description": name,
+            "is_land": False, "is_spell": True, "is_ability": False, **extra}
+
+
+def land(index, name="Forest", **extra):
+    return {"index": index, "card": {"name": name, "type": "Land", "cmc": 0}, "description": name,
+            "is_land": True, "is_spell": False, "is_ability": False, **extra}
+
+
+class TimingTest(unittest.TestCase):
+    """Instant speed and impulse draws (showdown/boys/timing.py)."""
+
+    def test_end_step_before_mine(self):
+        from showdown.boys import timing
+        self.assertTrue(timing.end_step_before_mine(table(active="4-D", phase="END_OF_TURN")))
+        self.assertFalse(timing.end_step_before_mine(table(active="3-C", phase="END_OF_TURN")))
+        self.assertFalse(timing.end_step_before_mine(table(active="4-D", phase="MAIN2")))
+        # D is out: C's turn is now the one right before mine.
+        state = table(active="3-C", phase="END_OF_TURN")
+        state["players"][3]["lost"] = True
+        self.assertTrue(timing.end_step_before_mine(state))
+
+    def test_impulse_text(self):
+        from showdown.boys import timing
+        self.assertTrue(timing.is_impulse({"oracle": RIKU}))
+        self.assertTrue(timing.is_impulse({"oracle": "Exile the top two cards of your library. Choose one "
+                                                     "of them. Until the end of your next turn, you may play that card."}))
+        self.assertFalse(timing.is_impulse({"oracle": "Exile target creature."}))
+        self.assertFalse(timing.is_impulse({"oracle": "Look at the top card of your library."}))
+
+    def test_simple_bot_answers_opponents_only(self):
+        from showdown.bots.simple_bot import SimpleBot
+        counter = spell(0, "Counter", "Instant", api="Counter", forge_would_play=True)
+        state = table(active="2-B", phase="MAIN1")
+        state["stack_size"] = 1
+        state["stack"] = [{"id": 9, "kind": "spell", "controller": "2-B"}]
+        bot = SimpleBot()
+        self.assertEqual(bot.choose_play({"state": state, "options": [counter]}), 0)
+        state["stack"][0]["controller"] = "1-A"     # my own spell: leave it alone
+        self.assertIsNone(bot.choose_play({"state": state, "options": [counter]}))
+        # A counterspell Forge's AI doesn't want at the end step stays in hand; a draw spell gets cast.
+        end_step = table(active="4-D", phase="END_OF_TURN")
+        idle = dict(counter, forge_would_play=False)
+        draw = spell(1, "Draw", "Instant", api="Draw", forge_would_play=False)
+        self.assertIsNone(bot.choose_play({"state": end_step, "options": [idle]}))
+        self.assertEqual(bot.choose_play({"state": end_step, "options": [idle, draw]}), 1)
+        # Some other player's end step: keep waiting.
+        self.assertIsNone(bot.choose_play({"state": table(active="2-B", phase="END_OF_TURN"), "options": [draw]}))
+
+    def test_simple_bot_plays_exiled_cards_first(self):
+        from showdown.bots.simple_bot import SimpleBot
+        bot = SimpleBot()
+        pick = lambda *opts: bot.choose_play({"state": table(), "options": list(opts)})
+        self.assertEqual(pick(land(0), land(1, zone="Exile")), 1)
+        self.assertEqual(pick(spell(0, cmc=5), spell(1, cmc=2, zone="Exile")), 1)
+        # An instant from exile can't wait: it may run out.
+        self.assertEqual(pick(spell(2, "Quick", "Instant", zone="Exile")), 2)
+
+    def test_timing_features(self):
+        state = table()
+        riku = creature(5, 3, oracle=RIKU)
+        state["players"][0]["battlefield"].append(riku)
+        options = [land(0), spell(1, "Modal"), spell(2, "Counter", "Instant", api="Counter"),
+                   land(3, "Island", zone="Exile")]
+        feats = features.play_options({"state": state, "options": options})
+        self.assertEqual(feats[0]["land_impulse_pending"], 1.0)   # Riku could still exile a land
+        self.assertNotIn("land_impulse_pending", feats[3])        # this land IS the exiled one
+        self.assertEqual(feats[3]["land_from_exile"], 1.0)
+        self.assertEqual(feats[2]["reactive_on_my_main"], 1.0)
+        self.assertEqual(feats[4]["pass_with_exile_card"], 1.0)
+
+        impulse = spell(0, "Impulse", "Instant")
+        impulse["card"]["oracle"] = "Exile the top card of your library. You may play it this turn."
+        feats = features.play_options({"state": table(), "options": [impulse, land(1)]})
+        self.assertEqual(feats[0]["impulse_before_land"], 1.0)
+        self.assertEqual(feats[1]["land_impulse_pending"], 1.0)
+
+        end_step = table(active="4-D", phase="END_OF_TURN")
+        feats = features.play_options({"state": end_step, "options": [spell(0, "Draw", "Instant")]})
+        self.assertEqual(feats[0]["instant_end_step_before_mine"], 1.0)
+        self.assertEqual(feats[1]["pass_end_step_with_instant"], 1.0)
+
+        respond = table(active="2-B")
+        respond["stack_size"] = 1
+        respond["stack"] = [{"id": 9, "kind": "spell", "controller": "2-B"}]
+        feats = features.play_options({"state": respond, "options": [
+            spell(0, "Counter", "Instant", api="Counter", forge_would_play=True)]})
+        self.assertEqual(feats[0]["respond_forge_would_play"], 1.0)
 
 
 class SequencingTest(unittest.TestCase):

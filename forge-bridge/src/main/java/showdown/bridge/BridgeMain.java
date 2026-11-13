@@ -163,8 +163,15 @@ public final class BridgeMain {
         game.subscribeToEvents(new SpectatorFeed(game, bridge, log)); // live feed for the viewer
         String error = null;
         boolean healthy = true;
+        GameLimits.startGame();
         try {
             match.startGame(game); // runs the whole game on this thread
+        } catch (GameLimits.Reached e) {
+            // Too long (an endless loop, a board too big to play on): call it a draw.
+            System.err.println("Game stopped as a draw: " + e.getMessage());
+            if (!game.isGameOver()) {
+                game.setGameOver(GameEndReason.Draw);
+            }
         } catch (Throwable e) {
             // Not just RuntimeException: Forge's AI can also throw Errors (e.g.
             // StackOverflowError), and those used to end the whole program.
@@ -181,10 +188,15 @@ public final class BridgeMain {
         JsonObject over = new JsonObject();
         over.addProperty("type", "game_over");
         GameOutcome outcome = game.getOutcome();
-        boolean draw = outcome == null || outcome.isDraw();
+        // A game stopped by GameLimits is a draw, whatever Forge's outcome says
+        // (Forge would otherwise name a player who hasn't lost as the winner).
+        boolean draw = outcome == null || outcome.isDraw() || GameLimits.reached() != null;
         over.addProperty("draw", draw);
         if (error != null) {
             over.addProperty("error", error); // Python counts this game as crashed, not as a draw
+        }
+        if (GameLimits.reached() != null) {
+            over.addProperty("limit", GameLimits.reached()); // a draw because the game went on too long
         }
         over.addProperty("winner", draw ? null : outcome.getWinningLobbyPlayer().getName());
         over.addProperty("turns", outcome == null ? game.getPhaseHandler().getTurn() : outcome.getLastTurnNumber());

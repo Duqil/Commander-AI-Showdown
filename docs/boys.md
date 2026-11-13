@@ -158,6 +158,35 @@ combat gets `play_in_combat`, `trick_my_unblocked` (damage is sure to land),
 Boy discovers tricks by trying them. Whether a target is helped or hurt also
 reads who may be targeted (`ValidTgts`): "creature you control" counts as
 help even when the text mentions damage. No card names anywhere.
+On someone else's turn, `trick_my_blocker` marks a fight where my creature
+blocks (pump it), and `trick_forge_would_play` says Forge's AI likes the trick.
+
+**Instant speed.** (`showdown/boys/timing.py`) An instant doesn't belong in
+your own main phase: keep the mana open and use it when it matters. Plays get
+`instant_on_my_main` and `reactive_on_my_main` (a counterspell, pump or
+protection spell cast with nothing going on: usually wasted),
+`instant_end_step_before_mine` (the end of the turn right before mine: the
+mana untaps next anyway), `respond_to_opponent` and `respond_forge_would_play`
+(an opponent's spell or ability is on top of the stack), and `reactive_spell`.
+Passing at that end step while an instant is castable gets
+`pass_end_step_with_instant`. "Reactive" is read from what the spell does
+(Forge's effect type: Counter, Pump, Protection...), not from names.
+SimpleBot now does the simple version: it holds instants and flash cards in
+its main phase, answers opponents and casts tricks when Forge's AI says yes,
+and at the end of the turn before its own casts what it kept (reactive cards
+only if Forge's AI likes them).
+
+**Impulse draws.** "Exile the top card of your library. Until the end of your
+next turn, you may play it." Those cards run out. The bridge says which zone a
+playable card is in, so plays get `from_exile` and `land_from_exile`, and
+passing my main phase with one still playable gets `pass_with_exile_card`.
+SimpleBot plays cards from exile before cards in hand. And the land drop:
+an impulse draw might turn up a land, which you can only play if you haven't
+played one yet. `impulse_play` and `impulse_before_land` mark an impulse
+play while the land drop is free; `land_impulse_pending` marks playing a land
+from hand while an impulse draw (a card, or a "whenever you cast" ability I
+control, like Riku of Many Paths) could still come. A Boy learns the order
+itself; SimpleBot still plays its land first.
 
 **Fixing a bad habit.** To reset one kind of decision for a Boy (back to the
 starting weights, everything else kept):

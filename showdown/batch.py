@@ -41,6 +41,7 @@ from showdown.stats import record_game
 
 BASIC_BOTS = ["simple", "random", "forge"]
 MAX_CRASHES_IN_A_ROW = 5
+MAX_GAME_SECONDS = 30 * 60   # last-resort stop for one game (Forge already draws at 15 min of its own time)
 
 
 @dataclass
@@ -56,6 +57,7 @@ class GameRecord:
     seconds: float = 0.0
     rewards: dict[int, float] = field(default_factory=dict)  # seat -> reward, Boys only
     error: str | None = None
+    limit: str | None = None   # a draw because the game went on too long (GameLimits.java)
     saved_path: Path | None = None
 
 
@@ -97,9 +99,11 @@ def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
     try:
         if forge is None:
             with Forge(REPO_ROOT / f"forge-batch-{index % 8}.log") as one_off:
-                result = one_off.play(seats, seed=seed, on_message=on_message, abort=abort, deals=deals)
+                result = one_off.play(seats, seed=seed, on_message=on_message, abort=abort, deals=deals,
+                                      max_seconds=MAX_GAME_SECONDS)
         else:
-            result = forge.play(seats, seed=seed, on_message=on_message, abort=abort, deals=deals)
+            result = forge.play(seats, seed=seed, on_message=on_message, abort=abort, deals=deals,
+                                max_seconds=MAX_GAME_SECONDS)
     except GameAborted:
         return None
     except Exception as e:  # one broken game shouldn't end the whole batch
@@ -108,6 +112,7 @@ def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
         return record
     record.seconds = time.monotonic() - start
     record.draw = result.draw
+    record.limit = result.limit
     record.turns = result.turns
     # Player names look like "2-Kuja": the number is the seat, counted from 1.
     if result.winner and not result.draw:
@@ -227,6 +232,8 @@ def run_many(
 def print_record(r: GameRecord, total: int) -> None:
     if r.error:
         outcome = f"crashed ({r.error})"
+    elif r.limit:
+        outcome = f"draw ({r.limit})"
     elif r.draw or r.winner_seat is None:
         outcome = "draw"
     else:

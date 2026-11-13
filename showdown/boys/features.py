@@ -25,7 +25,7 @@ import re
 from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
-from showdown.boys import colors, combat, commander, threat
+from showdown.boys import colors, combat, commander, threat, timing
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -111,6 +111,7 @@ def play_options(decision: Decision) -> list[Features]:
     gy = graveyard_context(state, decision["options"])
     missing = colors.missing(threat.me(state))  # colors my cards need that I can't make yet
     fight = combat.view(state)  # who attacks whom, who got blocked (combat.py)
+    when = timing_context(state, decision["options"])
 
     result = []
     for option in decision["options"]:
@@ -151,6 +152,7 @@ def play_options(decision: Decision) -> list[Features]:
             **(commander.engine_features(card, state) if is_spell and not card.get("commander") else {}),
             **(combat_trick_features(fight, state, my_turn) if not is_land else {}),
             **(attach_features(option, state, my_turn) if is_ability else {}),
+            **timing_features(option, card, is_land, is_spell, when),
         })
     result.append({
         "pass": 1.0,
@@ -158,8 +160,59 @@ def play_options(decision: Decision) -> list[Features]:
         "pass_with_stack": _flag(stack),
         "pass_in_fight": _flag(fight.in_trick_window()),
         "simple_prior": _flag(simple_pick is None),
+        # Passing while kept-open mana goes to waste (it untaps on my turn).
+        "pass_end_step_with_instant": _flag(when["end_step_before_mine"] and when["instants"]),
+        # Passing my main phase while a card from exile could still be played.
+        "pass_with_exile_card": _flag(my_turn and main and not stack and when["exile_plays"]),
     })
     return result
+
+
+def timing_context(state: dict, options: list[dict]) -> dict[str, Any]:
+    """The timing facts (timing.py) that are the same for every option."""
+    my_turn = state["active_player"] == state["you"]
+    return {
+        "my_main": my_turn and state["phase"] in MAIN_PHASES and not state.get("stack_size", 0),
+        "end_step_before_mine": timing.end_step_before_mine(state),
+        "opponent_on_stack": timing.opponent_on_stack(state),
+        "in_fight": combat.view(state).in_trick_window(),
+        "instants": any(timing.instant_speed(o) for o in options),
+        "exile_plays": any(timing.from_exile(o) for o in options),
+        "impulse_pending": timing.impulse_pending(state, options),
+        "land_drop_left": any(o.get("is_land") for o in options),
+    }
+
+
+def timing_features(option: dict, card: dict, is_land: bool, is_spell: bool, when: dict) -> Features:
+    """When to play it: instant speed and impulse draws (see timing.py).
+
+    These describe the moment, not a rule. A Boy learns, for any card, that a
+    counterspell is wasted in its own main phase, that kept-open mana is best
+    used at the end of the turn before its own, or that casting an impulse
+    draw before the land drop can turn up a land it may still play.
+    """
+    quick = timing.instant_speed(option)
+    react = timing.reactive(option)
+    forge_ok = option.get("forge_would_play", False)
+    exiled = timing.from_exile(option)
+    impulse = not is_land and timing.is_impulse(card)
+    feats = {
+        "instant_on_my_main": _flag(quick and when["my_main"]),
+        "reactive_on_my_main": _flag(quick and react and when["my_main"]),
+        "instant_end_step_before_mine": _flag(quick and when["end_step_before_mine"]),
+        "reactive_spell": _flag(is_spell and react),
+        "respond_to_opponent": _flag(not is_land and when["opponent_on_stack"]),
+        "respond_forge_would_play": _flag(not is_land and when["opponent_on_stack"] and forge_ok),
+        "trick_forge_would_play": _flag(not is_land and when["in_fight"] and forge_ok),
+        "from_exile": _flag(exiled),
+        "land_from_exile": _flag(is_land and exiled),
+        "impulse_play": _flag(impulse),
+        # Impulse first while the land drop is still free: an exiled land can be played.
+        "impulse_before_land": _flag(impulse and when["land_drop_left"]),
+        # Playing a land from hand while an impulse draw could still turn one up.
+        "land_impulse_pending": _flag(is_land and not exiled and when["impulse_pending"]),
+    }
+    return {k: v for k, v in feats.items() if v}
 
 
 def attach_features(option: dict, state: dict, my_turn: bool) -> Features:
@@ -201,6 +254,7 @@ def combat_trick_features(fight: combat.CombatView, state: dict, my_turn: bool) 
         "trick_my_blocked": _flag(my_turn and bool(fight.my_blocked)),       # a fight to win
         "trick_defending": _flag(not my_turn and bool(fight.attacking_me)),  # someone attacks me
         "trick_unblocked_at_me": _flag(not my_turn and bool(fight.unblocked_at_me)),
+        "trick_my_blocker": _flag(not my_turn and bool(fight.my_blockers)),  # pump my blocker
     }
 
 

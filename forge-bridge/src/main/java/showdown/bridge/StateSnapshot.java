@@ -15,6 +15,8 @@ import forge.game.spellability.SpellAbilityStackInstance;
 import forge.game.spellability.TargetChoices;
 import forge.game.zone.ZoneType;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -36,8 +38,56 @@ public final class StateSnapshot {
         return of(game, null);
     }
 
+    /**
+     * Who attacks whom and who blocks what, worked out ONCE per snapshot.
+     *
+     * Asking Forge's Combat about one card ("is it attacking?") walks through
+     * every attacker, so doing it for every card on a huge board (thousands of
+     * tokens) took minutes per snapshot and a game seemed to hang. This index
+     * walks the combat once; then each card is a quick map lookup.
+     */
+    static final class CombatIndex {
+        final Combat combat;
+        final Map<Card, String> attacking = new HashMap<>();     // attacker -> defender's name
+        final Map<Card, List<Integer>> blocks = new HashMap<>(); // blocker -> ids of attackers it blocks
+
+        CombatIndex(Combat combat) {
+            this.combat = combat;
+            for (var defender : combat.getDefenders()) {
+                for (var band : combat.getAttackingBandsOf(defender)) {
+                    for (Card attacker : band.getAttackers()) {
+                        attacking.put(attacker, defender.getName());
+                    }
+                    var blockers = combat.getBlockers(band);
+                    if (blockers == null) {
+                        continue;
+                    }
+                    for (Card blocker : blockers) {
+                        List<Integer> ids = blocks.computeIfAbsent(blocker, k -> new ArrayList<>());
+                        for (Card attacker : band.getAttackers()) {
+                            ids.add(attacker.getId());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** The index for the snapshot being built right now (snapshots are built on one thread at a time). */
+    private static final ThreadLocal<CombatIndex> CURRENT = new ThreadLocal<>();
+
     /** The game as {@code viewer} sees it. {@code viewer == null} means a spectator who sees all hands. */
     public static JsonObject of(Game game, Player viewer) {
+        Combat combat = game.getPhaseHandler().getCombat();
+        CURRENT.set(combat == null ? null : new CombatIndex(combat));
+        try {
+            return build(game, viewer);
+        } finally {
+            CURRENT.remove();
+        }
+    }
+
+    private static JsonObject build(Game game, Player viewer) {
         JsonObject state = new JsonObject();
         state.addProperty("turn", game.getPhaseHandler().getTurn());
         Player active = game.getPhaseHandler().getPlayerTurn();
@@ -245,15 +295,18 @@ public final class StateSnapshot {
         }
         Combat combat = c.getGame() == null ? null : c.getGame().getPhaseHandler().getCombat();
         if (combat != null && c.isCreature()) {
-            if (combat.isAttacking(c)) {
-                cj.addProperty("attacking", combat.getDefenderByAttacker(c) == null
-                        ? "?" : combat.getDefenderByAttacker(c).getName());
-            } else if (combat.isBlocking(c)) {
+            CombatIndex index = CURRENT.get();
+            if (index == null || index.combat != combat) {
+                index = new CombatIndex(combat); // a single card outside a snapshot
+            }
+            String defender = index.attacking.get(c);
+            List<Integer> blocked = index.blocks.get(c);
+            if (defender != null) {
+                cj.addProperty("attacking", defender);
+            } else if (blocked != null) {
                 cj.addProperty("blocking", true);
                 JsonArray blocks = new JsonArray(); // ids of the attackers it blocks
-                for (Card attacker : combat.getAttackersBlockedBy(c)) {
-                    blocks.add(attacker.getId());
-                }
+                blocked.forEach(blocks::add);
                 cj.add("blocks", blocks);
             }
         }
