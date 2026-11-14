@@ -14,12 +14,14 @@ import forge.gui.interfaces.IProgressBar;
  *   {"type": "loading", "percent": 42, "text": "Loading card rules"}
  *
  * "percent" is for the whole wait before the first card is dealt, not just
- * this step. Python says 0-5% (starting Java), Forge's rules take FROM..TO
- * below, then reading decks and dealing fill the rest.
+ * this step. Python says 0-5% (starting Java), reading the card files
+ * (CardFileWarmup) takes FROM..CARDS_READ, the rest of Forge's loading
+ * CARDS_READ..TO, then reading decks and dealing fill the rest.
  */
 final class LoadingProgress implements IProgressBar {
     // Loading the rules is the slow part, so it gets most of the bar.
     static final int FROM = 5;
+    static final int CARDS_READ = 55;
     static final int TO = 80;
 
     private final BridgeConnection bridge;
@@ -50,7 +52,7 @@ final class LoadingProgress implements IProgressBar {
 
     @Override
     public synchronized void setValue(int progress) {
-        int percent = FROM + (int) ((long) (TO - FROM) * Math.max(0, Math.min(progress, maximum)) / Math.max(1, maximum));
+        int percent = CARDS_READ + (int) ((long) (TO - CARDS_READ) * Math.max(0, Math.min(progress, maximum)) / Math.max(1, maximum));
         if (percent != lastPercent) { // Forge reports hundreds of times; send only real changes
             lastPercent = percent;
             send(bridge, percent, text);

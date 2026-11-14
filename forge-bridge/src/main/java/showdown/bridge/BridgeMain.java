@@ -81,7 +81,11 @@ public final class BridgeMain {
             // one works fine headless. Then load cards, editions, AI profiles, ...
             // This is the slow part, and it happens only once per Forge.
             GuiBase.setInterface(new GuiDesktop());
-            LoadingProgress.send(bridge, LoadingProgress.FROM, "Loading card rules");
+            LoadingProgress.send(bridge, LoadingProgress.FROM, "Reading card files");
+            // Open every card file once, with a running count, before Forge
+            // reads them all without a word (minutes on some Windows PCs).
+            CardFileWarmup.run(bridge, new File("res/cardsfolder"), LoadingProgress.FROM, LoadingProgress.CARDS_READ);
+            LoadingProgress.send(bridge, LoadingProgress.CARDS_READ, "Loading card rules");
             // Forge reports its loading steps to this progress bar, which passes
             // them on to Python (the viewer shows them as a percentage).
             FModel.initialize(new LoadingProgress(bridge), null);
