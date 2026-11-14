@@ -51,12 +51,19 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 #game { display: flex; flex-direction: column; height: 100vh; }
 #topbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 12px;
           background: var(--panel); border-bottom: 1px solid var(--line); }
-#turn-info { font-weight: 600; min-width: 260px; }
-#turn-info.failed { color: var(--danger); }
+/* The turn line has a fixed width, so the play buttons next to it stay in the
+   same place while the text changes ("Turn 9 · Upkeep" vs "Turn 10 · Declare
+   blockers"). Text that doesn't fit ends in "…"; hover shows all of it. */
+#turn-info { font-weight: 600; flex: 0 1 420px; min-width: 0; white-space: nowrap;
+             overflow: hidden; text-overflow: ellipsis; }
+#turn-info.failed { color: var(--danger); white-space: normal; }
 .load-bar { height: 4px; margin-top: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .load-bar > div { height: 100%; background: var(--accent); transition: width .4s; }
 #controls { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 300px; }
 #scrub { flex: 1; min-width: 80px; accent-color: var(--accent); }
+/* Same idea for the counter after the slider: a fixed width and digits that are
+   all the same width, so the slider doesn't stretch and shrink as it counts. */
+#progress { flex: 0 0 auto; min-width: 15em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .speed button { padding: 4px 7px; }
 #game-buttons { display: flex; gap: 8px; align-items: center; }
 .size-box { display: inline-flex; align-items: center; gap: 4px; }
