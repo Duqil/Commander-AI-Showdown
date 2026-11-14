@@ -323,6 +323,7 @@ function resetPlayback() {
   app.loading = null;
   $("#turn-info").classList.remove("failed");
   $("#turn-info").textContent = "Starting…";
+  $("#turn-info").title = "";
   // The arrows live in their own layer on top of the page, not in #boards, so
   // clear them too. Otherwise the last game's attack arrows stay up until the
   // new game's first table arrives.
@@ -521,6 +522,7 @@ function render() {
       $("#turn-info").textContent = state.turn
         ? `Round ${app.rounds.byTurn.get(state.turn) ?? "?"} · Turn ${state.turn} · ${state.active_player ?? "–"} · ${phase}`
         : "Opening hands (mulligans)";
+      $("#turn-info").title = $("#turn-info").textContent; // full text on hover if it's cut off
       drawBoards(state);
       drawStack(state);
       if (app.fitSize) scheduleFit();
@@ -536,7 +538,7 @@ function render() {
   // The Politics tab changes with deal events too, which carry no table snapshot.
   if (app.logTab === "politics") drawPolitics(app.shownStateSeq >= 0 ? app.events[app.shownStateSeq].state.turn : 0);
   const last = app.events[app.pos - 1];
-  if (last?.kind === "game_over") $("#turn-info").textContent = last.text;
+  if (last?.kind === "game_over") $("#turn-info").textContent = $("#turn-info").title = last.text;
 }
 
 function seatIndex(name) {
