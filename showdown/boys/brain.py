@@ -66,7 +66,20 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    # Same idea: attacking sets off "whenever ... attacks" abilities.
                    "attack_triggers": 1.0,
                    # And equipping before combat, when a creature can attack this turn.
-                   "attach_attacker_ready": 2.0}
+                   "attach_attacker_ready": 2.0,
+                   # Deals (see "Politics" in reward.py). Starting dislikes, all learnable:
+                   # offering while nobody has creatures to fight with,
+                   "offer_quiet_table": -2.0,
+                   # a gang-up neither partner can act on yet (to offer, or to accept),
+                   "gang_pointless": -3.0, "accept_gang_pointless": -3.0,
+                   # and accepting from someone who broke deals this game
+                   # (1 - trust: a broken deal with you makes this 0.5 -> -2.0).
+                   "accept_low_trust": -4.0,
+                   # The other way around: ganging up on a player far ahead of
+                   # everyone (big board or big life lead, see features.runaway_leader)
+                   # starts out liked, to offer and to accept.
+                   "offer_vs_runaway_leader": 1.0,
+                   "gang_against_runaway": 2.0, "accept_against_runaway": 2.0}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each
 # game moves it a lot, and whether we won is mostly noise for that one choice.

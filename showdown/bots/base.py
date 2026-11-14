@@ -112,6 +112,13 @@ class Bot:
         """Someone offers you view["offer"]. Return True to accept."""
         return False
 
+    def offer_answered(self, deal: dict, accepted: bool) -> None:
+        """The deal this bot just offered was accepted (True) or declined.
+
+        Learning bots use this for the offer fees (showdown/boys/reward.py,
+        "Politics"); others can ignore it.
+        """
+
     def deal_broken(self, deal: dict, breaker: str, player: str) -> None:
         """A deal this bot was part of was just broken by an attack.
 

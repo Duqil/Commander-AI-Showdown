@@ -196,3 +196,78 @@ class PoliticsRewardTest(unittest.TestCase):
         self.assertEqual(accept.deal_bonus, PARTNER_BROKE_MY_DEAL)
         self.boy.deal_broken(view["offer"], breaker="1-A", player="2-B")  # only once per deal
         self.assertEqual(accept.deal_bonus, PARTNER_BROKE_MY_DEAL)
+
+
+class OfferCostTest(unittest.TestCase):
+    """Offering isn't free, a "no" costs more, and low trust and pointless gang-ups look bad."""
+
+    def setUp(self):
+        from showdown.bots.boy_bot import BoyBot
+        self.boy = BoyBot("offer-test", learn=False, explore=False)
+        self.boy.brain.weights["offer_whether"]["make_offer"] = 10.0  # make sure it offers
+
+    def view(self):
+        return {"state": state(turn=9), "deals": {"active": [], "trust": {}, "protected": [],
+                                                   "gang_targets": [], "grudges": []}}
+
+    def test_offer_fee_and_declined_fee(self):
+        from showdown.boys.reward import OFFER_DECLINED, OFFER_MADE
+        self.assertIsNotNone(self.boy.offer_deal(self.view()))
+        whether, which = self.boy.steps[-2:]
+        self.assertEqual((whether.deal_bonus, which.deal_bonus), (OFFER_MADE, 0.0))
+        self.boy.offer_answered({"id": 1}, accepted=False)
+        self.assertEqual((whether.deal_bonus, which.deal_bonus), (OFFER_MADE + OFFER_DECLINED, OFFER_DECLINED))
+
+    def test_accepted_offer_only_pays_the_small_fee(self):
+        from showdown.boys.reward import OFFER_MADE
+        self.boy.offer_deal(self.view())
+        whether = self.boy.steps[-2]
+        self.boy.offer_answered({"id": 1}, accepted=True)
+        self.assertEqual(whether.deal_bonus, OFFER_MADE)
+
+    def test_dealbook_tells_the_offerer(self):
+        answers = []
+
+        class Recorder(Offerer):
+            def offer_answered(self, deal, accepted):
+                answers.append(accepted)
+        book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+        book.offer_phase(state(), {"1-A": Recorder({"type": "peace", "to": "2-B"}), "2-B": Bot()})
+        self.assertEqual(answers, [False])
+
+    def test_low_trust_and_pointless_gang_ups_start_unattractive(self):
+        from showdown.boys import features
+        from showdown.boys.brain import Brain
+        brain = Brain("fresh")
+        offer = {"id": 1, "kind": "gang_up", "a": "1-A", "b": "2-B", "against": "3-C"}
+        trusted = {"state": state(you="2-B"), "offer": offer,
+                   "deals": {"active": [], "trust": {"1-A": 1.0}, "protected": [], "gang_targets": [], "grudges": []}}
+        p_quiet = brain.probabilities("answer", features.answer_options(trusted))[0]
+        st = state(you="2-B")
+        for p in st["players"][:2]:  # both partners now have creatures to fight with
+            p["battlefield"] = [{"name": "Bear", "type": "Creature", "power": 2}]
+        busy = dict(trusted, state=st)
+        p_busy = brain.probabilities("answer", features.answer_options(busy))[0]
+        broken = dict(busy, deals=dict(busy["deals"], trust={"1-A": 0.5}))
+        p_broken = brain.probabilities("answer", features.answer_options(broken))[0]
+        self.assertLess(p_quiet, p_busy)   # pointless gang-up: less likely to accept
+        self.assertLess(p_broken, p_busy)  # they broke a deal with us: less likely
+
+
+class RunawayLeaderTest(unittest.TestCase):
+    def test_gang_up_on_a_runaway_starts_liked(self):
+        from showdown.boys import features
+        from showdown.boys.brain import Brain
+        st = state(you="2-B")
+        big = [{"name": "Dragon", "type": "Creature", "power": 8}, {"name": "Giant", "type": "Creature", "power": 6}]
+        st["players"][2]["battlefield"] = big  # 3-C has an overwhelming board
+        for p in st["players"][:2]:
+            p["battlefield"] = [{"name": "Bear", "type": "Creature", "power": 2}]
+        self.assertEqual(features.runaway_leader(st), "3-C")
+        deals = {"active": [], "trust": {"1-A": 1.0}, "protected": [], "gang_targets": [], "grudges": []}
+        vs_runaway = {"state": st, "deals": deals, "offer": {"id": 1, "kind": "gang_up", "a": "1-A", "b": "2-B", "against": "3-C"}}
+        vs_other = dict(vs_runaway, offer=dict(vs_runaway["offer"], against="4-D"))
+        brain = Brain("fresh")
+        p_runaway = brain.probabilities("answer", features.answer_options(vs_runaway))[0]
+        p_other = brain.probabilities("answer", features.answer_options(vs_other))[0]
+        self.assertGreater(p_runaway, p_other)

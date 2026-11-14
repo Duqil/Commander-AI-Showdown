@@ -142,6 +142,7 @@ class DealBook:
             accepted = bool(responder.answer_deal({
                 "kind": "answer_deal", "player": to, "state": responder_state,
                 "offer": deal.to_dict(), "deals": self.view_for(to, responder_state)}))
+        bot.offer_answered(deal.to_dict(), accepted)  # the Boys pay a small fee per offer
         if accepted:
             self._next_id += 1
             self.deals.append(deal)
