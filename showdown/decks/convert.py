@@ -36,8 +36,10 @@ import re
 import time
 import urllib.parse
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CACHE_FILE = REPO_ROOT / "decks" / "scryfall_names.json"
@@ -95,6 +97,24 @@ _forge_names: set[str] | None = None
 _forge_aliases: dict[str, str] = {}
 
 
+def card_texts() -> Iterator[str]:
+    """The text of every Forge card file, one at a time.
+
+    scripts/pack_cards.sh packs the card files into cardsfolder.zip (and
+    hides the loose files), so read the zip if it is there, and any loose
+    files too, just like Forge does.
+    """
+    zip_path = CARDS_FOLDER / "cardsfolder.zip"
+    if zip_path.exists():
+        # zipfile reads a zip like a folder: namelist() lists the files inside.
+        with zipfile.ZipFile(zip_path) as z:
+            for name in z.namelist():
+                if name.endswith(".txt"):
+                    yield z.read(name).decode("utf-8", errors="ignore")
+    for f in CARDS_FOLDER.rglob("*.txt"):
+        yield f.read_text(encoding="utf-8", errors="ignore")
+
+
 def forge_card_names() -> set[str]:
     """Every card name Forge knows (empty if Forge isn't set up yet).
 
@@ -107,8 +127,7 @@ def forge_card_names() -> set[str]:
     global _forge_names
     if _forge_names is None:
         _forge_names = set()
-        for f in CARDS_FOLDER.rglob("*.txt"):
-            text = f.read_text(encoding="utf-8", errors="ignore")
+        for text in card_texts():
             if not text.startswith("Name:"):
                 continue
             names = [l[5:].strip() for l in text.splitlines() if l.startswith("Name:")]
