@@ -67,6 +67,12 @@ They're where a fresh Boy starts; training can change them:
 | `offer_quiet_table` | -2.0 | offering while the whole table has less than 3 creature power |
 | `gang_pointless` / `accept_gang_pointless` | -3.0 | a gang-up where the two partners have less than 3 power between them |
 | `accept_low_trust` | -4.0 | 1 - trust in whoever offers: someone who broke a deal with you this game (trust 0.5) starts at -2.0 |
+| `gang_against_runaway` / `accept_against_runaway` | +2.0 | a gang-up on a player far ahead of everyone (threat 1.5x the next player: a big board or a big life lead) |
+| `offer_vs_runaway_leader` | +1.0 | offering at all while someone is running away with the game |
+
+The dislikes are tied to how much the partners can fight with, not to the
+turn number, so a gang-up late in the game with real creatures on the table
+doesn't get them.
 
 **Doesn't accepting already depend on trust?** For SimpleBot, yes: it refuses
 anyone below 0.5. Boys only *saw* trust as one signal among many and learned

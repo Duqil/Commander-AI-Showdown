@@ -606,6 +606,21 @@ def target_options(decision: Decision) -> list[Features]:
 # Deals: what to offer at the start of our turn, and whether to accept
 # ----------------------------------------------------------------------------
 
+def runaway_leader(state: dict) -> str | None:
+    """The player far ahead of everyone (1.5x the next biggest threat), if any.
+
+    Threat counts board power (or recent damage), other permanents, cards in
+    hand and life (threat.threat_score), so a big life lead or an overwhelming
+    board both count. That's who a gang-up is for.
+    """
+    alive = [p for p in state.get("players", []) if not p.get("lost")]
+    if len(alive) < 3:
+        return None
+    ranked = sorted(alive, key=threat.threat_score, reverse=True)
+    top, second = threat.threat_score(ranked[0]), threat.threat_score(ranked[1])
+    return ranked[0]["name"] if top > 1.5 * second else None
+
+
 # Less creature power than this (on the whole table, or between two deal
 # partners) and a deal can't change much yet. Same number SimpleBot uses.
 QUIET_TABLE_POWER = 3
@@ -661,6 +676,7 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
     danger = min(threat.danger_to_me(state), 2.0) / 2
     simple = _simple.offer_deal(view)
     protected = set(view["deals"]["protected"])
+    runaway = runaway_leader(state)
 
     feats: list[Features] = []
     offers: list[dict] = []
@@ -688,6 +704,8 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
                           "gang_pointless": _flag(threat.board_power(me) + threat.board_power(to)
                                                   < QUIET_TABLE_POWER),
                           "gang_against_is_leader": _flag(against["name"] == leader),
+                          # Ganging up on someone far ahead: what gang-ups are for (starts positive).
+                          "gang_against_runaway": _flag(against["name"] == runaway),
                           "gang_against_threat_rank": threat.threat_rank(state, against["name"]),
                           "simple_prior": _flag(simple == offer)})
             offers.append(offer)
@@ -716,6 +734,7 @@ def answer_options(view: Decision) -> list[Features]:
     }
     if kind == "gang_up":
         accept["accept_against_leader"] = _flag(offer.get("against") == leader)
+        accept["accept_against_runaway"] = _flag(offer.get("against") == runaway_leader(state))
         # Attacking someone we already have a deal with would break that deal.
         accept["accept_against_partner"] = _flag(offer.get("against") in view["deals"]["protected"])
         # Neither of us could hurt the target much yet: nothing to gain.

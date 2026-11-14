@@ -252,3 +252,22 @@ class OfferCostTest(unittest.TestCase):
         p_broken = brain.probabilities("answer", features.answer_options(broken))[0]
         self.assertLess(p_quiet, p_busy)   # pointless gang-up: less likely to accept
         self.assertLess(p_broken, p_busy)  # they broke a deal with us: less likely
+
+
+class RunawayLeaderTest(unittest.TestCase):
+    def test_gang_up_on_a_runaway_starts_liked(self):
+        from showdown.boys import features
+        from showdown.boys.brain import Brain
+        st = state(you="2-B")
+        big = [{"name": "Dragon", "type": "Creature", "power": 8}, {"name": "Giant", "type": "Creature", "power": 6}]
+        st["players"][2]["battlefield"] = big  # 3-C has an overwhelming board
+        for p in st["players"][:2]:
+            p["battlefield"] = [{"name": "Bear", "type": "Creature", "power": 2}]
+        self.assertEqual(features.runaway_leader(st), "3-C")
+        deals = {"active": [], "trust": {"1-A": 1.0}, "protected": [], "gang_targets": [], "grudges": []}
+        vs_runaway = {"state": st, "deals": deals, "offer": {"id": 1, "kind": "gang_up", "a": "1-A", "b": "2-B", "against": "3-C"}}
+        vs_other = dict(vs_runaway, offer=dict(vs_runaway["offer"], against="4-D"))
+        brain = Brain("fresh")
+        p_runaway = brain.probabilities("answer", features.answer_options(vs_runaway))[0]
+        p_other = brain.probabilities("answer", features.answer_options(vs_other))[0]
+        self.assertGreater(p_runaway, p_other)
