@@ -16,3 +16,7 @@ mapfile -d '' SOURCES < <(find "$ROOT/forge-bridge/src/main/java" -name '*.java'
 javac --release 17 -encoding UTF-8 -cp "$FORGE_JAR" -d "$OUT/classes" "${SOURCES[@]}"
 jar --create --file "$OUT/forge-bridge.jar" -C "$OUT/classes" .
 echo ">> Built $OUT/forge-bridge.jar"
+
+# Forge's card files as one zip: much faster first start on Windows.
+# (Does nothing if the zip is already up to date.)
+"$ROOT/scripts/pack_cards.sh"
