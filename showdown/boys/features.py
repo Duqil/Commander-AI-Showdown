@@ -606,6 +606,11 @@ def target_options(decision: Decision) -> list[Features]:
 # Deals: what to offer at the start of our turn, and whether to accept
 # ----------------------------------------------------------------------------
 
+# Less creature power than this (on the whole table, or between two deal
+# partners) and a deal can't change much yet. Same number SimpleBot uses.
+QUIET_TABLE_POWER = 3
+
+
 def offer_whether_options(view: Decision) -> list[Features]:
     """Step 1 of offering: offer a deal this turn at all? [no, yes].
 
@@ -629,6 +634,9 @@ def offer_whether_options(view: Decision) -> list[Features]:
         "simple_prior": _flag(simple is not None),
         "offer_while_in_deal": _flag(bool(view["deals"]["active"])),
         "offer_in_first_round": _flag(threat.game_round(state) == 1),
+        # Nobody has much to fight with yet: a deal now protects nobody from
+        # anything. Starts negative (brain.py), so early-game deals are rare.
+        "offer_quiet_table": _flag(threat.total_board_power(state) < QUIET_TABLE_POWER),
         # How far into the game (0 at the start, 1 by round 10) and how much
         # fighting there is (0 with an empty board, 1 at 20+ power on the
         # table). A Boy can learn that deals early, or over an empty board,
@@ -676,6 +684,9 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
                 continue
             offer = {"type": "gang_up", "to": to["name"], "against": against["name"]}
             feats.append({"offer_gang_up": 1.0, **{f"gang_{k}": v for k, v in base.items()},
+                          # Neither of us could hurt them much yet: a pointless gang-up.
+                          "gang_pointless": _flag(threat.board_power(me) + threat.board_power(to)
+                                                  < QUIET_TABLE_POWER),
                           "gang_against_is_leader": _flag(against["name"] == leader),
                           "gang_against_threat_rank": threat.threat_rank(state, against["name"]),
                           "simple_prior": _flag(simple == offer)})
@@ -696,6 +707,9 @@ def answer_options(view: Decision) -> list[Features]:
         f"accept_{kind}": 1.0,
         "accept_from_leader": _flag(offerer == leader),
         "accept_offerer_trust": view["deals"]["trust"].get(offerer, 1.0),
+        # How much trust they've lost this game (0 = none, 1 = all). Starts
+        # strongly negative (brain.py): a deal-breaker's offers get a "no".
+        "accept_low_trust": 1.0 - view["deals"]["trust"].get(offerer, 1.0),
         "accept_from_grudge": _flag(offerer in view["deals"].get("grudges", [])),
         "accept_danger": min(threat.danger_to_me(state), 2.0) / 2,
         "simple_prior": _flag(simple_accepts),
@@ -704,4 +718,8 @@ def answer_options(view: Decision) -> list[Features]:
         accept["accept_against_leader"] = _flag(offer.get("against") == leader)
         # Attacking someone we already have a deal with would break that deal.
         accept["accept_against_partner"] = _flag(offer.get("against") in view["deals"]["protected"])
+        # Neither of us could hurt the target much yet: nothing to gain.
+        offerer_p = next((p for p in state.get("players", []) if p["name"] == offerer), {})
+        accept["accept_gang_pointless"] = _flag(threat.board_power(threat.me(state)) + threat.board_power(offerer_p)
+                                                < QUIET_TABLE_POWER)
     return [accept, {"decline": 1.0, "simple_prior": _flag(not simple_accepts)}]

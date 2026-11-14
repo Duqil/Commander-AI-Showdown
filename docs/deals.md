@@ -49,8 +49,33 @@ freely. Two small reward penalties (in `showdown/boys/reward.py`, under "Politic
 | `BROKE_A_DEAL` (-0.1) | the attack choice that broke a deal | breaking only pays for something big (a knockout is +0.3) |
 | `PARTNER_BROKE_MY_DEAL` (-0.1) | the "accept" choice of a deal the partner then broke | Boys learn to say no to players who break deals |
 
-Make them more negative to turn politics down further, or set them to 0.0 to
-switch them off. `BoyBot.deal_broken` (in `showdown/bots/boy_bot.py`) is
+### Offering isn't free either
+
+After those two, offering still cost nothing, so the Boys offered every turn
+(17 to 45 offers a game, from turn 1) and almost every offer got a "yes".
+
+| Constant | Who pays | Why |
+|---|---|---|
+| `OFFER_MADE` (-0.02) | the "offer a deal this turn?" choice, when it says yes | a deal has to be worth asking for |
+| `OFFER_DECLINED` (-0.05) | the same choice and the "which deal" choice, when the answer is no | asking someone who won't say yes costs more |
+
+And a few starting dislikes (in `showdown/boys/brain.py`, `DEFAULT_WEIGHTS`).
+They're where a fresh Boy starts; training can change them:
+
+| Feature | Starts at | Meaning |
+|---|---|---|
+| `offer_quiet_table` | -2.0 | offering while the whole table has less than 3 creature power |
+| `gang_pointless` / `accept_gang_pointless` | -3.0 | a gang-up where the two partners have less than 3 power between them |
+| `accept_low_trust` | -4.0 | 1 - trust in whoever offers: someone who broke a deal with you this game (trust 0.5) starts at -2.0 |
+
+**Doesn't accepting already depend on trust?** For SimpleBot, yes: it refuses
+anyone below 0.5. Boys only *saw* trust as one signal among many and learned
+to mostly ignore it. And everyone starts each game at full trust, so trust
+can only matter after someone breaks a deal. `accept_low_trust` makes that
+moment count. Trust and grudges still last one game only.
+
+Make the constants more negative to turn politics down further, or set them
+to 0.0 to switch them off. `BoyBot.deal_broken` (in `showdown/bots/boy_bot.py`) is
 where they're applied; the game runner calls it for both partners whenever a
 deal breaks.
 

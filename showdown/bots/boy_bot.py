@@ -26,8 +26,8 @@ import random
 from showdown.bots.base import Bot, Decision
 from showdown.boys import critic, features, threat
 from showdown.boys.brain import Step
-from showdown.boys.reward import (BROKE_A_DEAL, PARTNER_BROKE_MY_DEAL, game_reward, mulligan_bonus,
-                                  turn_bonus)
+from showdown.boys.reward import (BROKE_A_DEAL, OFFER_DECLINED, OFFER_MADE, PARTNER_BROKE_MY_DEAL,
+                                  game_reward, mulligan_bonus, turn_bonus)
 from showdown.boys.storage import load_brain, save_brain
 
 HAND_LIMIT = 7  # maximum hand size at the end of your turn
@@ -49,6 +49,7 @@ class BoyBot(Bot):
         #   {turn: [damage to opponents, knockouts, cards drawn, cards discarded to hand size]}
         self.turn_effects: dict[int, list[int]] = {}
         self.accepted: dict[int, Step] = {}  # deal id -> the "accept" choice that made the deal
+        self.offer_steps: list[Step] = []    # the two choices behind the offer we just made
 
     def _observe(self, state: dict) -> None:
         """Compare the table with last time to see what happened on our turn.
@@ -153,12 +154,24 @@ class BoyBot(Bot):
 
     def offer_deal(self, view: Decision) -> dict | None:
         # Two steps: first "offer anything this turn?", then "which deal?".
+        self.offer_steps = []
         if self._pick("offer_whether", features.offer_whether_options(view)) == 0:
             return None
+        whether = self.steps[-1]
         feats, offers = features.offer_options(view)
         if not offers:
             return None  # we already have deals with everyone
-        return offers[self._pick("offer", feats)]
+        offer = offers[self._pick("offer", feats)]
+        whether.deal_bonus += OFFER_MADE  # asking isn't free (reward.py, "Politics")
+        self.offer_steps = [whether, self.steps[-1]]
+        return offer
+
+    def offer_answered(self, deal: dict, accepted: bool) -> None:
+        """A "no" costs both offer choices a little more (reward.py, "Politics")."""
+        if not accepted:
+            for step in self.offer_steps:
+                step.deal_bonus += OFFER_DECLINED
+        self.offer_steps = []
 
     def answer_deal(self, view: Decision) -> bool:
         accept = self._pick("answer", features.answer_options(view)) == 0  # option 0 = accept
@@ -217,3 +230,4 @@ class BoyBot(Bot):
         self.steps = []
         self.deck = None
         self.accepted = {}
+        self.offer_steps = []

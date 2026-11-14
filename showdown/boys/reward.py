@@ -77,12 +77,27 @@ def mulligan_bonus(cards_lost: int) -> float:
 #                        who break deals (they see trust and grudges), which
 #                        makes offering-to-break pay less.
 #
-# Both are the size of one card lost to a mulligan. To turn politics down
-# further, make them more negative; set both to 0.0 to switch them off.
-# Where they're applied: BoyBot.deal_broken in showdown/bots/boy_bot.py.
-# A third knob, not used yet: a cost for an offer that gets declined.
+# Both are the size of one card lost to a mulligan.
+#
+# Night 3 (2026-11-14) showed that wasn't enough: offering was still free, so
+# the Boys offered every turn (17-45 offers a game, from turn 1). Two more:
+#
+#   OFFER_MADE      goes to the "offer a deal this turn?" choice whenever the
+#                   answer was yes. A small fee: a deal has to be worth more
+#                   than this to be worth asking for.
+#   OFFER_DECLINED  goes to the same choice, and to the "which deal" choice,
+#                   when the other player says no. Asking someone who won't
+#                   say yes (low trust, a pointless deal) costs more.
+#
+# To turn politics down further, make these more negative; set all four to
+# 0.0 to switch them off. Where they're applied: BoyBot.deal_broken and
+# BoyBot.offer_answered in showdown/bots/boy_bot.py. The starting weights
+# that make low trust and pointless gang-ups unattractive are in
+# showdown/boys/brain.py (DEFAULT_WEIGHTS, the "deals" lines).
 BROKE_A_DEAL = -0.1
 PARTNER_BROKE_MY_DEAL = -0.1
+OFFER_MADE = -0.02
+OFFER_DECLINED = -0.05
 
 
 def turn_bonus(damage: int, knockouts: int, drawn: int = 0, discarded: int = 0) -> float:
