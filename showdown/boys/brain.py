@@ -43,7 +43,7 @@ import random
 import threading
 from dataclasses import dataclass, field
 
-from showdown.boys import critic
+from showdown.boys import cards, critic
 
 Features = dict[str, float]
 
@@ -92,12 +92,27 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "x_grows_later": -0.8, "x_before_land_drop": -1.0, "x_board_needs_it": 1.0,
                    "x_while_other_plays": -0.4, "x_small": -0.8, "x_before_my_main": -1.0, "combat_spell_outside_combat": -0.8,
                    "combat_spell_in_combat": 0.6, "etb_no_target": -1.2,
+                   # Mana this turn and next (mana.py, 2026-11-16).
+                   "taps_out_holding_instant": -0.4, "taps_out_holding_counter": -0.4,
+                   "pass_keeping_instant_mana": 0.3, "engine_without_fuel_now": -0.6,
+                   "fuel_before_engine": -0.5, "tapland_costs_a_play": -1.0,
+                   "tapland_on_quiet_turn": 0.6, "untapped_land_on_quiet_turn": -0.3,
                    "gang_against_runaway": 2.0, "accept_against_runaway": 2.0}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each
 # game moves it a lot, and whether we won is mostly noise for that one choice.
 # At full speed Yugi's mulligan weights wandered until he threw away good hands.
 KIND_RATE = {"mulligan": 0.25}
+
+# Card memory (cards.py): one learned number per card, for Boys that have it
+# switched on. A single card shows up in only some games, so a lucky win
+# would push its number around a lot. Two things keep that calm:
+#   * CARD_RATE: card numbers learn at half the normal speed;
+#   * CARD_SHRINK: every time a card number is updated it also loses 0.5% of
+#     its size, so it only stays big if the card keeps earning it. A card he
+#     rarely sees can't hold on to an opinion from one lucky game.
+CARD_RATE = 0.5
+CARD_SHRINK = 0.005
 
 DECISION_KINDS = ("mulligan", "play", "attack", "target", "pick_card", "keyword_cost", "offer_whether", "offer", "answer")
 
@@ -127,6 +142,7 @@ class Brain:
     games: int = 0                  # games learned from
     learning_rate: float = 0.1
     temperature: float = 1.0        # higher = more random, lower = greedier
+    card_memory: bool = False       # learn a number per card too (cards.py)
 
     def __post_init__(self) -> None:
         self._lock = threading.Lock()
@@ -136,7 +152,9 @@ class Brain:
     def score(self, kind: str, features: Features) -> float:
         w = self.weights.setdefault(kind, {})
         # A feature the brain has never seen starts at its default weight (usually 0).
-        return sum(w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) * value for name, value in features.items())
+        # Card memory features only count for Boys that have card memory.
+        return sum(w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) * value for name, value in features.items()
+                   if self.card_memory or not cards.is_card_feature(name))
 
     def probabilities(self, kind: str, options: list[Features]) -> list[float]:
         with self._lock:
@@ -194,9 +212,16 @@ class Brain:
                 w = self.weights.setdefault(step.kind, {})
                 names = set().union(*step.options)
                 for name in names:
+                    is_card = cards.is_card_feature(name)
+                    if is_card and not self.card_memory:
+                        continue
                     average = sum(p * f.get(name, 0.0) for p, f in zip(step.probs, step.options))
                     gradient = step.options[step.picked].get(name, 0.0) - average
-                    if gradient:
+                    if not gradient:
+                        continue
+                    if is_card:
+                        w[name] = w.get(name, 0.0) * (1 - CARD_SHRINK) + CARD_RATE * rate * gradient
+                    else:
                         w[name] = w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) + rate * gradient
             # The critic learns from this game too, *after* it was used, so a
             # game is never judged by a guess that already knew its result.
@@ -211,7 +236,7 @@ class Brain:
 
     def to_dict(self) -> dict:
         with self._lock:
-            return {
+            data = {
                 "name": self.name,
                 "games": self.games,
                 "baseline": round(self.baseline, 4),
@@ -222,20 +247,35 @@ class Brain:
                 "critic": dict(sorted(((k, round(v, 4)) for k, v in self.critic.items()),
                                       key=lambda kv: -abs(kv[1]))),
                 # Sorted with the strongest opinions first, so the file is easy to read.
-                "weights": {kind: dict(sorted(((k, round(v, 4)) for k, v in w.items()),
+                "weights": {kind: dict(sorted(((k, round(v, 4)) for k, v in w.items()
+                                               if not cards.is_card_feature(k)),
                                               key=lambda kv: -abs(kv[1])))
                             for kind, w in self.weights.items()},
             }
+            if self.card_memory:
+                # Card numbers get their own section at the end, so the general
+                # weights above stay short and easy to read.
+                data["card_memory"] = True
+                data["cards"] = {kind: dict(sorted(((k.removeprefix(cards.PREFIX), round(v, 4))
+                                                    for k, v in w.items() if cards.is_card_feature(k)),
+                                                   key=lambda kv: -abs(kv[1])))
+                                 for kind, w in self.weights.items()}
+            return data
 
     @classmethod
     def from_dict(cls, data: dict) -> "Brain":
+        weights = {k: dict(v) for k, v in data["weights"].items()}
+        for kind, card_weights in data.get("cards", {}).items():
+            weights.setdefault(kind, {}).update(
+                {cards.PREFIX + k: v for k, v in card_weights.items()})
         return cls(
             name=data["name"],
-            weights={k: dict(v) for k, v in data["weights"].items()},
+            weights=weights,
             baseline=data.get("baseline", 0.0),
             critic=dict(data.get("critic", {})),
             bonus_baseline=data.get("bonus_baseline", 0.0),
             games=data.get("games", 0),
             learning_rate=data.get("learning_rate", 0.1),
             temperature=data.get("temperature", 1.0),
+            card_memory=data.get("card_memory", False),
         )

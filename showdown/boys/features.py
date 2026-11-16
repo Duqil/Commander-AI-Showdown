@@ -25,7 +25,7 @@ import re
 from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
-from showdown.boys import colors, combat, commander, threat, timing
+from showdown.boys import cards, colors, combat, commander, mana, threat, timing
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -222,8 +222,14 @@ def play_options(decision: Decision) -> list[Features]:
             "combat_spell_outside_combat": _flag(combat_spell(option) and state["phase"] not in combat.COMBAT_STEPS),
             **x_timing_features(option, state, decision["options"]),
             "etb_no_target": etb_no_target(option),
+            # Mana this turn and next (mana.py): tapping out, waiting a turn, which land.
+            **mana.tap_out_features(option, threat.me(state), when["my_main"]),
+            **mana.combo_timing_features(option, threat.me(state), when["my_main"]),
+            **(mana.land_fit(card, threat.me(state)) if is_land else {}),
             **(attach_features(option, state, my_turn) if is_ability else {}),
             **timing_features(option, card, is_land, is_spell, when),
+            # Card memory: a learned number for this very card (cards.py).
+            **cards.play_features(option, state),
         })
     result.append({
         "pass": 1.0,
@@ -235,6 +241,7 @@ def play_options(decision: Decision) -> list[Features]:
         "pass_end_step_with_instant": _flag(when["end_step_before_mine"] and when["instants"]),
         # Passing my main phase while a card from exile could still be played.
         "pass_with_exile_card": _flag(my_turn and main and not stack and when["exile_plays"]),
+        **mana.keep_up_on_pass(threat.me(state), state["phase"], when["my_main"]),
     })
     return result
 
@@ -502,6 +509,7 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
             "attack_triggers": min(attack_triggers(attacker, ctx["mine"]), 3) / 3,
             "attack_planeswalker": _flag(target is None),
             "simple_prior": _flag(simple_target == index),
+            **cards.features("attack", attacker, ctx["state"]),  # card memory (cards.py)
         }
         deals = decision.get("deals", {})
         if d["name"] in deals.get("protected", []):
@@ -626,6 +634,7 @@ def pick_options(decision: Decision) -> list[Features]:
         else:
             f["pick_castable"] = _flag(colors.castable_by(cand, reachable))  # I have its colors
             f["pick_cmc"] = cand.get("cmc", 0) / 7
+        f.update(cards.features("pick", cand))  # card memory (cards.py)
         result.append(f)
     return result
 
@@ -687,6 +696,7 @@ def target_options(decision: Decision) -> list[Features]:
             "target_commander": _flag(cand.get("commander", False)),
             "target_of_leader": _flag(owner == leader),
             **target_combat_features(cand, harmful, fight),
+            **cards.target_features(cand, harmful),  # card memory (cards.py)
         }
         if is_player and not mine:
             life = cand.get("life", threat.STARTING_LIFE)
