@@ -66,9 +66,9 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   ✋ decline, 💔 broken (which also gets a red banner). The **Politics** tab
   next to the log shows the deals that are on right now and grudges, and
   every offer, answer and break so far.
-* **Statuses.** A creature that is suspected (🔍) or goaded (🎯) gets a round
-  icon at its top right, like a token on the card. Hover shows the words,
-  including who goaded it. Monstrous, renowned, saddled, ring-bearer,
+* **Statuses.** A creature that is suspected or goaded gets a label with the
+  word ("Suspected", "Goaded") near its top left, like counters. Hover shows
+  the rules and who goaded it. Monstrous, renowned, saddled, ring-bearer,
   detained, phased out, manifested, cloaked and solved Cases work the same
   way (`statuses` in the bridge's card snapshot).
 * **Combat.** A red arrow goes from each attacker to the middle of the board

@@ -740,19 +740,19 @@ function makeCard(card) {
   return node;
 }
 
-// How each status from the bridge (StateSnapshot.statuses) looks on a card.
-const STATUS_LOOK = {
-  Suspected: { icon: "🔍", cls: "suspected", rule: "has menace and can't block" },
-  Goaded: { icon: "🎯", cls: "goaded", rule: "attacks each combat, and not the player who goaded it if it can" },
-  Monstrous: { icon: "👹", cls: "", rule: "became monstrous" },
-  Renowned: { icon: "🏅", cls: "", rule: "became renowned" },
-  Saddled: { icon: "🐎", cls: "", rule: "saddled until end of turn" },
-  Solved: { icon: "✔", cls: "", rule: "this Case is solved" },
-  "Ring-bearer": { icon: "💍", cls: "", rule: "your Ring-bearer" },
-  Detained: { icon: "⛓", cls: "", rule: "can't attack, block or use abilities" },
-  "Phased out": { icon: "👻", cls: "", rule: "treated as though it doesn't exist" },
-  Manifested: { icon: "🂠", cls: "", rule: "a face-down 2/2" },
-  Cloaked: { icon: "🂠", cls: "", rule: "a face-down 2/2 with ward 2" },
+// What each status from the bridge (StateSnapshot.statuses) means, for the hover text.
+const STATUS_RULES = {
+  Suspected: "has menace and can't block",
+  Goaded: "attacks each combat, and not the player who goaded it if it can",
+  Monstrous: "became monstrous",
+  Renowned: "became renowned",
+  Saddled: "saddled until end of turn",
+  Solved: "this Case is solved",
+  "Ring-bearer": "its controller's Ring-bearer",
+  Detained: "can't attack, block or use abilities",
+  "Phased out": "treated as though it doesn't exist",
+  Manifested: "a face-down 2/2",
+  Cloaked: "a face-down 2/2 with ward 2",
 };
 
 function updateCard(node, c, player) {
@@ -775,18 +775,15 @@ function updateCard(node, c, player) {
   const others = otherCounters(c);
   if (others.length) badge("counters", others.map(([k, v]) => `${v} ${shortCounter(k)}`).join(" "));
   if (c.chosen) badge("chosen", Object.values(c.chosen).join(", "), choiceText(c));
-  // Statuses such as Suspected or Goaded: a round icon each, in a row at the top right.
+  // Statuses such as Suspected or Goaded: written out like counters ("1 rope"),
+  // in their own label under the counters. Hover shows who caused them.
   if (c.statuses?.length) {
-    const stack = el("span", "badge statuses");
-    for (const status of c.statuses) {
-      const [name] = status.split(" by "); // "Goaded by 3-Nelly" -> "Goaded"
-      const look = STATUS_LOOK[name] || { icon: "•", cls: "" };
-      // Just the icon: words don't fit on a small card. Hover shows the words.
-      const pill = el("span", `status ${look.cls}`, look.icon);
-      pill.title = status + (look.rule ? `: ${look.rule}` : "");
-      stack.append(pill);
-    }
-    node.append(stack);
+    const names = c.statuses.map((status) => status.split(" by ")[0]); // "Goaded by 3-Nelly" -> "Goaded"
+    const hover = c.statuses.map((status) => {
+      const rule = STATUS_RULES[status.split(" by ")[0]];
+      return rule ? `${status}: ${rule}` : status;
+    }).join("\n");
+    badge("statuses", names.join("\n"), hover); // one per line
   }
   if (c.commander_tax) badge("tax", `+${c.commander_tax}`, `Command tax: {${c.commander_tax}} more to cast`);
   // Controlled by someone who doesn't own it (stolen): a border in the owner's colour.
