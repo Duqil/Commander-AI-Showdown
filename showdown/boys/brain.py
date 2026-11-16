@@ -131,18 +131,22 @@ class Brain:
         # A feature the brain has never seen starts at its default weight (usually 0).
         return sum(w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) * value for name, value in features.items())
 
-    def probabilities(self, kind: str, options: list[Features]) -> list[float]:
+    def probabilities(self, kind: str, options: list[Features], explore: float = 1.0) -> list[float]:
+        """Chance of picking each option. ``explore`` scales the randomness for
+        this game only: 1.0 = the brain's normal dice, 0.5 = half as random."""
+        temperature = self.temperature * (explore if explore > 0 else 1.0)
         with self._lock:
-            scores = [self.score(kind, f) / self.temperature for f in options]
+            scores = [self.score(kind, f) / temperature for f in options]
         top = max(scores)  # subtracting the max avoids overflow in exp(); the result is the same
         exps = [math.exp(s - top) for s in scores]
         total = sum(exps)
         return [e / total for e in exps]
 
     def choose(self, kind: str, options: list[Features], rng: random.Random,
-               explore: bool = True) -> Step:
-        """Pick an option. explore=False always takes the best-scoring one."""
-        probs = self.probabilities(kind, options)
+               explore: float = 1.0) -> Step:
+        """Pick an option. explore=0 (or False) always takes the best-scoring one;
+        between 0 and 1 rolls the dice, but leans harder towards the favorite."""
+        probs = self.probabilities(kind, options, explore)
         if explore:
             picked = rng.choices(range(len(options)), weights=probs)[0]
         else:

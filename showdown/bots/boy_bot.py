@@ -34,7 +34,7 @@ HAND_LIMIT = 7  # maximum hand size at the end of your turn
 
 
 class BoyBot(Bot):
-    def __init__(self, boy_name: str, learn: bool = True, explore: bool = True,
+    def __init__(self, boy_name: str, learn: bool = True, explore: float = 1.0,
                  seed: int | None = None) -> None:
         self.name = f"boy:{boy_name}"
         self.brain = load_brain(boy_name)
