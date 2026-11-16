@@ -474,6 +474,8 @@ def is_harmful(decision: Decision) -> bool:
     if api in ("PutCounter", "PutCounterAll"):
         return "M1M1" in params.get("CounterType", "")        # -1/-1 counters hurt
     if api in ("ChangeZone", "ChangeZoneAll"):
+        if "YouCtrl" in params.get("ValidTgts", "") and "OppCtrl" not in params.get("ValidTgts", ""):
+            return False  # only your own: a blink or a bounce for value (Ephemerate, Cloudshift)
         return params.get("Origin", "") == "Battlefield"       # exile or bounce from play
     # Who may be targeted says a lot: "creature you control" is almost always
     # a gift (Hunter's Insight: "Creature.YouCtrl"), "opponent's creature" a threat.
@@ -563,6 +565,9 @@ def target_options(decision: Decision) -> list[Features]:
     leader = threat.leader(state)
     players = {p["name"]: p for p in state["players"]}
     harmful = is_harmful(decision)
+    # Takes the target off the battlefield without destroying it (exile, bounce, blink).
+    moving = decision.get("api") in ("ChangeZone", "ChangeZoneAll") and \
+        decision.get("params", {}).get("Origin", "") == "Battlefield"
     suggested = set(decision.get("suggested", []))
     # Candidates are fresh card copies; the damage counts live on the state's battlefield cards.
     recent = {c.get("id"): c.get("recent_damage", 0) for p in state["players"] for c in p.get("battlefield", [])}
@@ -576,7 +581,11 @@ def target_options(decision: Decision) -> list[Features]:
         ctype = cand.get("type", "")
         f: Features = {
             "forge_suggested": _flag(cand["index"] in suggested),  # Forge's AI would pick this
-            "hurt_mine": _flag(harmful and mine),
+            # Destroy/damage/shrink on my own card. Moving it (blink, bounce)
+            # is "move_mine" instead: that's often value, and mixing the two
+            # taught a Boy that removing his own creatures is good.
+            "hurt_mine": _flag(harmful and mine and not moving),
+            "move_mine": _flag(moving and mine),
             "hurt_opponent": _flag(harmful and not mine),
             "help_mine": _flag(not harmful and mine),
             "help_opponent": _flag(not harmful and not mine),

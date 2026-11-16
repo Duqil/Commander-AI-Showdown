@@ -60,6 +60,10 @@ Features = dict[str, float]
 DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_suggested": 2.0,
                    "attack_breaks_deal": -1.0, "attack_grudge": 1.0,
                    "mulligan_deeper": -2.0, "hurt_damage_dealer": 2.0,
+                   # Removal, damage, -X/-X on your OWN permanent starts strongly
+                   # disliked (still learnable: sometimes it pays). Moving your own
+                   # creature (blink, bounce) is a separate feature, "move_mine".
+                   "hurt_mine": -2.0,
                    # A mild starting liking for casting the commander, which is
                    # always available. Not a rule: training moves it up or down.
                    "cast_commander": 1.0,

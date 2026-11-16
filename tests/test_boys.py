@@ -148,6 +148,25 @@ class FeatureTest(unittest.TestCase):
         self.assertTrue(features.is_harmful({"api": "ChangeZone", "params": {"Origin": "Battlefield"}}))
         self.assertFalse(features.is_harmful({"api": "ChangeZone", "params": {"Origin": "Graveyard"}}))
         self.assertTrue(features.is_harmful({"api": None, "description": "Exile target creature"}))
+        # A blink of your own creature (Ephemerate) is not harmful.
+        self.assertFalse(features.is_harmful({"api": "ChangeZone",
+                                              "params": {"Origin": "Battlefield", "ValidTgts": "Creature.YouCtrl"}}))
+
+    def test_moving_my_creature_is_not_hurting_it(self):
+        # Swords to Plowshares can hit any creature: on my own, that's a move, not "hurt_mine".
+        decision = {"state": table(), "description": "Exile target creature", "suggested": [],
+                    "api": "ChangeZone", "params": {"Origin": "Battlefield", "Destination": "Exile",
+                                                    "ValidTgts": "Creature"},
+                    "min": 1, "max": 1, "candidates": [
+                        {"index": 0, **creature(1, 3, controller="1-A"), "is_player": False},
+                        {"index": 1, **creature(5, 5, controller="2-B"), "is_player": False}]}
+        mine, theirs = features.target_options(decision)
+        self.assertEqual((mine["hurt_mine"], mine["move_mine"]), (0.0, 1.0))
+        self.assertEqual((theirs["hurt_opponent"], theirs["move_mine"]), (1.0, 0.0))
+        # A new Boy starts out strongly against destroying his own things.
+        kill = dict(decision, api="Destroy", params={})
+        probs = Brain("t").probabilities("target", features.target_options(kill))
+        self.assertLess(probs[0], probs[1])
 
     def test_play_options_add_pass(self):
         decision = {"state": table(), "options": [
