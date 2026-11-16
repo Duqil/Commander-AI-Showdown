@@ -328,7 +328,38 @@ public final class StateSnapshot {
             }
             cj.add("counters", counters); // e.g. {"+1/+1": 2, "Loyalty": 4}
         }
+        JsonArray statuses = statuses(c);
+        if (statuses.size() > 0) {
+            cj.add("statuses", statuses); // e.g. ["Suspected", "Goaded by 3-Nelly"]
+        }
         return cj;
+    }
+
+    /**
+     * Rules states a card can be in that aren't counters, keywords or tapped:
+     * the viewer shows each as a badge on the card. Bots may use them too
+     * (they're public: every player can see that a creature is suspected).
+     */
+    static JsonArray statuses(Card c) {
+        JsonArray out = new JsonArray();
+        if (c.isSuspected()) out.add("Suspected");   // menace, can't block
+        if (c.isGoaded()) {                           // must attack, not the goader
+            StringBuilder by = new StringBuilder();
+            for (Player p : c.getGoaded()) {
+                by.append(by.length() == 0 ? " by " : ", ").append(p.getName());
+            }
+            out.add("Goaded" + by);
+        }
+        if (c.isMonstrous()) out.add("Monstrous");
+        if (c.isRenowned()) out.add("Renowned");
+        if (c.isSaddled()) out.add("Saddled");
+        if (c.isSolved()) out.add("Solved");         // a Case
+        if (c.isRingBearer()) out.add("Ring-bearer");
+        if (c.isDetained()) out.add("Detained");     // can't attack, block or activate
+        if (c.isPhasedOut()) out.add("Phased out");
+        if (c.isManifested()) out.add("Manifested");
+        if (c.isCloaked()) out.add("Cloaked");
+        return out;
     }
 
     /**

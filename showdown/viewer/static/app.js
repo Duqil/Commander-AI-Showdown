@@ -669,7 +669,8 @@ function updateBoard(board, p, state) {
 function groupSame(cards) {
   const groups = new Map();
   for (const c of cards) {
-    const key = c.name + (c.counters ? JSON.stringify(c.counters) : "") + (c.controller !== c.owner ? "s" : "");
+    const key = c.name + (c.counters ? JSON.stringify(c.counters) : "") + (c.statuses || []).join() +
+      (c.controller !== c.owner ? "s" : "");
     if (!groups.has(key)) groups.set(key, { ...c, _count: 0, _tapped: 0, _ids: [] });
     const g = groups.get(key);
     g._count++;
@@ -739,6 +740,21 @@ function makeCard(card) {
   return node;
 }
 
+// What each status from the bridge (StateSnapshot.statuses) means, for the hover text.
+const STATUS_RULES = {
+  Suspected: "has menace and can't block",
+  Goaded: "attacks each combat, and not the player who goaded it if it can",
+  Monstrous: "became monstrous",
+  Renowned: "became renowned",
+  Saddled: "saddled until end of turn",
+  Solved: "this Case is solved",
+  "Ring-bearer": "its controller's Ring-bearer",
+  Detained: "can't attack, block or use abilities",
+  "Phased out": "treated as though it doesn't exist",
+  Manifested: "a face-down 2/2",
+  Cloaked: "a face-down 2/2 with ward 2",
+};
+
 function updateCard(node, c, player) {
   node._card = c;
   node.classList.toggle("tapped", !!c.tapped);
@@ -759,6 +775,16 @@ function updateCard(node, c, player) {
   const others = otherCounters(c);
   if (others.length) badge("counters", others.map(([k, v]) => `${v} ${shortCounter(k)}`).join(" "));
   if (c.chosen) badge("chosen", Object.values(c.chosen).join(", "), choiceText(c));
+  // Statuses such as Suspected or Goaded: written out like counters ("1 rope"),
+  // in their own label under the counters. Hover shows who caused them.
+  if (c.statuses?.length) {
+    const names = c.statuses.map((status) => status.split(" by ")[0]); // "Goaded by 3-Nelly" -> "Goaded"
+    const hover = c.statuses.map((status) => {
+      const rule = STATUS_RULES[status.split(" by ")[0]];
+      return rule ? `${status}: ${rule}` : status;
+    }).join("\n");
+    badge("statuses", names.join("\n"), hover); // one per line
+  }
   if (c.commander_tax) badge("tax", `+${c.commander_tax}`, `Command tax: {${c.commander_tax}} more to cast`);
   // Controlled by someone who doesn't own it (stolen): a border in the owner's colour.
   // The hover preview says "owned by ...".
@@ -827,6 +853,7 @@ function showPreview(card) {
     }
   }
   for (const [k, v] of otherCounters(card)) bits.push(`${v} ${shortCounter(k)} counter${v > 1 ? "s" : ""}`);
+  for (const status of card.statuses || []) bits.push(status);
   if (card.chosen) bits.push(choiceText(card));
   if (card.commander) bits.push(`command tax ${card.commander_tax || 0}`);
   if (card.owner && card.controller && card.owner !== card.controller) bits.push(`owned by ${card.owner}`);
