@@ -62,7 +62,7 @@ def card_key(card: dict) -> str:
     colours, power/toughness and rules text.
     """
     if not card.get("token"):
-        return card["name"]
+        return card.get("real_name") or card["name"]  # face-down cards show the real card
     pt = f"{card['base_power']}/{card['base_toughness']}" if card.get("base_power") is not None else ""
     return "|".join([card["name"], card.get("colors") or "", pt, card.get("oracle") or ""])
 
@@ -86,10 +86,11 @@ def find_image_urls(events: list[dict]) -> dict[str, str]:
     urls: dict[str, str] = {}
     for i, (key, card) in enumerate(sorted(cards.items()), 1):
         token = bool(card.get("token"))
-        wanted = re.sub(r"\s+Token$", "", card["name"])
+        name = card.get("real_name") or card["name"]
+        wanted = re.sub(r"\s+Token$", "", name)
         details = token_details(card) if token else None
         try:
-            for candidate in images._candidate_urls(card["name"], token):
+            for candidate in images._candidate_urls(name, token):
                 url = images._image_url(candidate, wanted, details)
                 if url:
                     urls[key] = url

@@ -124,7 +124,18 @@ public class PythonPlayerController extends PlayerControllerAi {
         Player me = getPlayer();
         CardCollection available = playableCards(me);
         List<SpellAbility> result = new ArrayList<>();
+        // "As an additional cost, sacrifice an artifact or discard a card"
+        // (Demand Answers): Forge lists such a spell once, without the extra
+        // cost. Its own AI swaps in one version per way of paying, and so do
+        // we; otherwise the plain version gets cast and nobody pays anything.
+        // (Only that step: Forge's helper for it would also recheck every
+        // alternative cost again, which is slow with Anhelo on the table.)
+        List<SpellAbility> all = new ArrayList<>();
         for (SpellAbility sa : ComputerUtilAbility.getSpellAbilities(available, me)) {
+            sa.setActivatingPlayer(me);
+            all.addAll(forge.game.GameActionUtil.getAdditionalCostSpell(sa));
+        }
+        for (SpellAbility sa : all) {
             try {
                 if (sa.isManaAbility()) {
                     continue; // mana abilities are used while paying, not "played"
@@ -515,6 +526,53 @@ public class PythonPlayerController extends PlayerControllerAi {
             combat.clearAttackers();
             super.declareAttackers(attacker, combat);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // 2a. Scry and surveil: Forge's AI decides, we write down what it did
+    // ------------------------------------------------------------------
+
+    /**
+     * Forge's log only says "scry 2", not which cards went where. Add a
+     * "Detail:" line to the game log (the viewer shows those in the
+     * "Phases & mana" tab, not the main log), e.g.
+     * "Detail: 1-Riku scry: Island on top, Shock to the bottom".
+     */
+    @Override
+    public org.apache.commons.lang3.tuple.ImmutablePair<CardCollection, CardCollection> arrangeForScry(CardCollection topN) {
+        org.apache.commons.lang3.tuple.ImmutablePair<CardCollection, CardCollection> result = super.arrangeForScry(topN);
+        logDetail("scry", result.getLeft(), result.getRight(), "the bottom");
+        return result;
+    }
+
+    @Override
+    public org.apache.commons.lang3.tuple.ImmutablePair<CardCollection, CardCollection> arrangeForSurveil(CardCollection topN) {
+        org.apache.commons.lang3.tuple.ImmutablePair<CardCollection, CardCollection> result = super.arrangeForSurveil(topN);
+        logDetail("surveil", result.getLeft(), result.getRight(), "the graveyard");
+        return result;
+    }
+
+    private void logDetail(String what, CardCollection top, CardCollection away, String awayName) {
+        List<String> parts = new ArrayList<>();
+        if (top != null && !top.isEmpty()) {
+            parts.add(names(top) + " on top");
+        }
+        if (away != null && !away.isEmpty()) {
+            parts.add(names(away) + " to " + awayName);
+        }
+        if (parts.isEmpty()) {
+            return;
+        }
+        getGame().getGameLog().add(forge.game.GameLogEntryType.INFORMATION,
+                "Detail: " + getPlayer().getName() + " " + what + ": " + String.join(", ", parts));
+    }
+
+    private static String names(CardCollection cards) {
+        List<String> out = new ArrayList<>();
+        for (Card c : cards) {
+            out.add(c.getName());
+        }
+        return String.join(" and ", out);
     }
 
     // ------------------------------------------------------------------

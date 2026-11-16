@@ -66,6 +66,18 @@ def make_event(kind: str, text: str, *, turn: int = 0, player: str | None = None
     return event
 
 
+DETAIL_PREFIX = "Detail: "  # the bridge's own extra lines, e.g. which cards a scry moved
+
+
+def _detail_or_line(entry: dict) -> tuple[str, str]:
+    """(text, category) for one Forge log entry. The bridge's "Detail: ..."
+    lines become category DETAIL, shown with phases and mana, not in the main log."""
+    text = entry["text"]
+    if text.startswith(DETAIL_PREFIX):
+        return text[len(DETAIL_PREFIX):], "DETAIL"
+    return text, entry["type"]
+
+
 class TimelineBuilder:
     """Turns bridge messages into timeline events, one message at a time.
 
@@ -80,6 +92,8 @@ class TimelineBuilder:
         self.turn = 0
         self.controllers: dict[str, str] = {}  # player name -> "python" / "forge"
         self.seen_choices: dict[int, dict] = {}  # card id -> its "chosen" dict, last time we looked
+        self.seen_exile: set = set()  # ids of cards we've already seen in an exile zone
+        self.exile_started = False  # the first snapshot only fills seen_exile
 
     def feed(self, msg: dict) -> list[Event]:
         kind = msg.get("type")
@@ -102,15 +116,39 @@ class TimelineBuilder:
             self.turn = state.get("turn", self.turn)
         # Newer bridges send "entries" (text + category); older ones only "log".
         entries = msg.get("entries") or [{"type": "INFORMATION", "text": t} for t in msg.get("log", [])]
-        events = [make_event("log", e["text"], turn=self.turn, category=e["type"],
-                             player=state.get("active_player") if state else None)
-                  for e in entries]
+        events = []
+        for e in entries:
+            text, category = _detail_or_line(e)
+            events.append(make_event("log", text, turn=self.turn, category=category,
+                                     player=state.get("active_player") if state else None))
         if state:
             if events:
                 events[-1]["state"] = state  # the table as it is after these lines
             else:
                 events.append(make_event("log", "", turn=self.turn, category="STATE", state=state))
             events += self._new_choices(state)
+            events += self._new_exiles(state)
+        return events
+
+    def _new_exiles(self, state: dict) -> list[Event]:
+        """Name the cards that just went to exile ("exiles the top two cards"
+        doesn't say which). A DETAIL line: the viewer shows it in the
+        "Phases & mana" tab, not the main log. Face-down cards show their
+        real name, since the viewer shows spectators everything."""
+        events = []
+        for player in state.get("players", []):
+            ids = set()
+            new = []
+            for card in player.get("exile", []):
+                ids.add(card.get("id"))
+                if card.get("id") not in self.seen_exile:
+                    name = card.get("real_name") or card.get("name") or "a hidden card"
+                    new.append(f"{name} (face down)" if card.get("face_down") else name)
+            if new and self.exile_started:
+                events.append(make_event("log", f"{player['name']}'s exile gets: {', '.join(new)}",
+                                         turn=self.turn, player=player["name"], category="DETAIL"))
+            self.seen_exile |= ids
+        self.exile_started = True
         return events
 
     def _new_choices(self, state: dict) -> list[Event]:

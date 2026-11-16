@@ -359,3 +359,29 @@ class ServerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DetailLinesTest(unittest.TestCase):
+    """Scry/exile details go in category DETAIL (the "Phases & mana" tab)."""
+
+    def _state(self, exile):
+        return {"turn": 3, "active_player": "1-Zuko",
+                "players": [{"name": "3-Kuja", "exile": exile, "battlefield": []}]}
+
+    def test_bridge_detail_line(self):
+        from showdown.viewer.events import TimelineBuilder
+        msg = {"type": "event", "entries": [{"type": "INFORMATION", "text": "Detail: 1-Riku scry: Island on top"}]}
+        ev = TimelineBuilder().feed(msg)[0]
+        self.assertEqual((ev["category"], ev["text"]), ("DETAIL", "1-Riku scry: Island on top"))
+
+    def test_new_exile_names_face_down_cards(self):
+        from showdown.viewer.events import TimelineBuilder
+        b = TimelineBuilder()
+        b.feed({"type": "event", "entries": [], "state": self._state([])})
+        hidden = {"id": 7, "name": "", "face_down": True, "real_name": "Shock"}
+        events = b.feed({"type": "event", "entries": [], "state": self._state([hidden])})
+        details = [e for e in events if e["category"] == "DETAIL"]
+        self.assertEqual(details[0]["text"], "3-Kuja's exile gets: Shock (face down)")
+        # Seen once: no second line for the same card.
+        again = b.feed({"type": "event", "entries": [], "state": self._state([hidden])})
+        self.assertFalse([e for e in again if e["category"] == "DETAIL"])
