@@ -670,6 +670,7 @@ function groupSame(cards) {
   const groups = new Map();
   for (const c of cards) {
     const key = c.name + (c.counters ? JSON.stringify(c.counters) : "") + (c.statuses || []).join() +
+      (c.gained_keywords || []).join() +
       (c.controller !== c.owner ? "s" : "");
     if (!groups.has(key)) groups.set(key, { ...c, _count: 0, _tapped: 0, _ids: [] });
     const g = groups.get(key);
@@ -775,15 +776,24 @@ function updateCard(node, c, player) {
   const others = otherCounters(c);
   if (others.length) badge("counters", others.map(([k, v]) => `${v} ${shortCounter(k)}`).join(" "));
   if (c.chosen) badge("chosen", Object.values(c.chosen).join(", "), choiceText(c));
-  // Statuses such as Suspected or Goaded: written out like counters ("1 rope"),
-  // in their own label under the counters. Hover shows who caused them.
-  if (c.statuses?.length) {
-    const names = c.statuses.map((status) => status.split(" by ")[0]); // "Goaded by 3-Nelly" -> "Goaded"
-    const hover = c.statuses.map((status) => {
-      const rule = STATUS_RULES[status.split(" by ")[0]];
-      return rule ? `${status}: ${rule}` : status;
-    }).join("\n");
-    badge("statuses", names.join("\n"), hover); // one per line
+  // Word labels near the top left, one per line:
+  //  * statuses such as Suspected or Goaded (rust red). Hover shows who caused them.
+  //  * keywords gained until end of turn, such as Flying from a pump spell (blue).
+  if (c.statuses?.length || c.gained_keywords?.length) {
+    const box = el("span", "badge labels");
+    for (const status of c.statuses || []) {
+      const name = status.split(" by ")[0]; // "Goaded by 3-Nelly" -> "Goaded"
+      const rule = STATUS_RULES[name];
+      const label = el("span", "label status", name);
+      label.title = rule ? `${status}: ${rule}` : status;
+      box.append(label);
+    }
+    for (const kw of c.gained_keywords || []) {
+      const label = el("span", "label gained", kw);
+      label.title = `${kw}: gained from a spell or ability (usually until end of turn)`;
+      box.append(label);
+    }
+    node.append(box);
   }
   if (c.commander_tax) badge("tax", `+${c.commander_tax}`, `Command tax: {${c.commander_tax}} more to cast`);
   // Controlled by someone who doesn't own it (stolen): a border in the owner's colour.
@@ -854,6 +864,7 @@ function showPreview(card) {
   }
   for (const [k, v] of otherCounters(card)) bits.push(`${v} ${shortCounter(k)} counter${v > 1 ? "s" : ""}`);
   for (const status of card.statuses || []) bits.push(status);
+  if (card.gained_keywords?.length) bits.push(`gained ${card.gained_keywords.join(", ")} (this turn)`);
   if (card.chosen) bits.push(choiceText(card));
   if (card.commander) bits.push(`command tax ${card.commander_tax || 0}`);
   if (card.owner && card.controller && card.owner !== card.controller) bits.push(`owned by ${card.owner}`);
