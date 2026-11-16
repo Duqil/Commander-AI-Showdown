@@ -100,7 +100,8 @@ class SimpleBot(Bot):
             return self.instant_speed_play(decision)
 
         options = decision["options"]
-        lands = [o for o in options if o["is_land"]]
+        # A bounce land as our only land would just return to our hand: skip it.
+        lands = [o for o in options if o["is_land"] and not colors.wasted_land_drop(o["card"], self.me(decision))]
         if lands:
             # A land from exile first (it won't stay playable), then the land
             # whose colors help most (a first Swamp for a hand of black

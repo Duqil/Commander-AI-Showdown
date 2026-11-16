@@ -100,3 +100,17 @@ class FetchTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BounceLandTest(unittest.TestCase):
+    TURF = {"name": "Gruul Turf", "type": "Land", "produces": "RG",
+            "oracle": "Gruul Turf enters tapped.\nWhen Gruul Turf enters, return a land you control to its owner's hand."}
+
+    def test_only_land_is_wasted(self):
+        from showdown.boys import colors
+        self.assertTrue(colors.wasted_land_drop(self.TURF, {"battlefield": []}))
+        forest = {"name": "Forest", "type": "Basic Land - Forest", "produces": "G"}
+        self.assertFalse(colors.wasted_land_drop(self.TURF, {"battlefield": [forest]}))
+        self.assertFalse(colors.wasted_land_drop(forest, {"battlefield": []}))
+        # Only another bounce land out: it would just send that one back.
+        self.assertTrue(colors.wasted_land_drop(self.TURF, {"battlefield": [self.TURF]}))
