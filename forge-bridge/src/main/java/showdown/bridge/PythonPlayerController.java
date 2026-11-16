@@ -131,7 +131,7 @@ public class PythonPlayerController extends PlayerControllerAi {
         // (Only that step: Forge's helper for it would also recheck every
         // alternative cost again, which is slow with Anhelo on the table.)
         List<SpellAbility> all = new ArrayList<>();
-        for (SpellAbility sa : ComputerUtilAbility.getSpellAbilities(available, me)) {
+        for (SpellAbility sa : candidateAbilities(available, me)) {
             sa.setActivatingPlayer(me);
             all.addAll(forge.game.GameActionUtil.getAdditionalCostSpell(sa));
         }
@@ -171,17 +171,98 @@ public class PythonPlayerController extends PlayerControllerAi {
      * of cards (Virtue of Courage exiles a lot), which made one game take 45
      * minutes. Leaving out cards nobody may cast keeps every legal play.
      */
+    /**
+     * The spells and abilities of these cards, before checking if they can be
+     * paid for or are allowed right now.
+     *
+     * Why not just ask Forge for all of them? For every card it also works out
+     * "could this be cast in some other way?" (alternative costs). When a
+     * permanent gives spells a keyword on the stack (Anhelo gives Casualty),
+     * that question makes Forge recheck every static ability on the table,
+     * twice, for every spell-shaped thing it looks at. A permanent on the
+     * battlefield still carries its own "cast me" spell, and a land its own
+     * "play me" land drop. Forge runs the slow question for those land drops,
+     * so a board with 40 lands meant 80 full rechecks at every priority stop,
+     * for land drops that can't happen from the battlefield anyway.
+     *
+     * So for ordinary face-up permanents we take their abilities directly and
+     * skip their spells and land drops. Unusual permanents (face-down, Rooms, phased out) and
+     * every card outside the battlefield still go the full Forge way, so
+     * alternative costs like Gut Shot's "pay 2 life" are still found.
+     */
+    private static List<SpellAbility> candidateAbilities(CardCollection cards, Player me) {
+        CardCollection fullCheck = new CardCollection();
+        List<SpellAbility> result = new ArrayList<>();
+        for (Card c : cards) {
+            if (!c.isInPlay() || c.isFaceDown() || c.isPhasedOut() || isRoomState(c)) {
+                fullCheck.add(c);
+                continue;
+            }
+            for (SpellAbility sa : c.getSpellAbilities()) {
+                if (sa.isSpell() || sa.isLandAbility()) {
+                    continue; // "cast me" / "play me as my land drop": not from here
+                }
+                result.add(sa);
+                // Only cheap non-spell extras here (e.g. Piracy mana).
+                result.addAll(forge.game.GameActionUtil.getAlternativeCosts(sa, me, false));
+            }
+        }
+        result.addAll(ComputerUtilAbility.getSpellAbilities(fullCheck, me));
+        return result;
+    }
+
+    /** Rooms (split-door enchantments) get unlock abilities Forge adds separately. */
+    private static boolean isRoomState(Card c) {
+        forge.card.CardStateName s = c.getCurrentStateName();
+        return s == forge.card.CardStateName.LeftSplit || s == forge.card.CardStateName.RightSplit
+                || s == forge.card.CardStateName.EmptyRoom;
+    }
+
     private CardCollection playableCards(Player me) {
         CardCollection result = new CardCollection();
+        boolean sorcerySpeed = me.canCastSorcery(); // my main phase, empty stack
         for (Card c : ComputerUtilAbility.getAvailableCards(getGame(), me)) {
             ZoneType zone = c.getZone() == null ? null : c.getZone().getZoneType();
             boolean hidden = zone == ZoneType.Exile || zone == ZoneType.Library || zone == ZoneType.Graveyard;
             if (hidden && !mayCastFrom(c, me, zone)) {
                 continue;
             }
+            if (!sorcerySpeed && zone != ZoneType.Battlefield && !usableAtInstantSpeed(c, me)) {
+                continue;
+            }
             result.add(c);
         }
         return result;
+    }
+
+    /**
+     * Outside my own main phase, could anything on this card (in hand, the
+     * command zone, exile...) be used right now?
+     *
+     * Why: checking a card is slow when something changes spells on the stack
+     * (Anhelo gives spells casualty: Forge then re-runs every static ability
+     * for each card). We check every player at every priority stop, so on big
+     * tables games took minutes. A creature or sorcery in hand can't be cast
+     * on someone else's turn anyway, so we skip it there.
+     *
+     * Kept: instants, flash, cards given flash by another card, and abilities
+     * that work from the hand (cycling, ninjutsu, channel...). Mana isn't
+     * checked here, so a spell you can pay for with life still counts.
+     * Abilities of permanents on the battlefield are always checked.
+     */
+    private static boolean usableAtInstantSpeed(Card c, Player me) {
+        for (SpellAbility sa : c.getAllSpellAbilities()) { // every face: adventures, split and MDFC cards
+            if (sa.isManaAbility()) {
+                continue;
+            }
+            if (!sa.isSpell() && !sa.isLandAbility()) {
+                return true; // an ability (cycling, ninjutsu...): Forge checks its timing later
+            }
+            if (sa.isSpell() && sa.withFlash(c, me)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Could this player cast or play this card from its graveyard, exile or library? */
