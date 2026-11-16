@@ -71,6 +71,10 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   the rules and who goaded it. Monstrous, renowned, saddled, ring-bearer,
   detained, phased out, manifested, cloaked and solved Cases work the same
   way (`statuses` in the bridge's card snapshot).
+* **Gained keywords.** Keywords a creature got from a spell or ability, like
+  Lifelink and Haste from Zidane or Flying from Jolly Balloon Man, get blue
+  labels under the statuses. Nearly all of these last until end of turn.
+  (Grey labels are counters, which stay; rust red ones are statuses.)
 * **Combat.** A red arrow goes from each attacker to the middle of the board
   it attacks, ending in a sword. A blocker shows a shield and a blue arrow to
   the creature it blocks. Once an attacker is blocked, its red arrow goes

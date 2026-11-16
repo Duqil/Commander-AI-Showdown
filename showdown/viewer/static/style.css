@@ -155,8 +155,13 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .badge.pt.debuffed { background: #9e2b25; } /* has -1/-1 counters */
 .badge.counters { left: 2px; top: 50%; background: #3d4b60; }
 /* Statuses (Suspected, Goaded, ...): written out like counters, just below them. */
-.badge.statuses { left: 2px; top: 22px; background: #7a2e1d; cursor: help; font-size: 10px;
-  white-space: pre; line-height: 1.3; }
+/* Word labels at the top left: statuses (rust red) and keywords gained this turn (blue).
+   The grey label in the middle is for counters, which last. */
+.badge.labels { left: 2px; top: 22px; background: none; padding: 0; display: flex; flex-direction: column;
+  align-items: flex-start; gap: 1px; }
+.label { font-size: 10px; line-height: 1.3; padding: 0 4px; border-radius: 4px; white-space: nowrap; cursor: help; }
+.label.status { background: #7a2e1d; }
+.label.gained { background: #1d5fa8; }
 .badge.chosen { left: 50%; top: 2px; transform: translateX(-50%); background: #6b4fa0; white-space: nowrap; }
 .card.stolen { outline: 3px solid var(--owner); outline-offset: 1px; } /* owner's seat colour */
 .badge.tapped-n { left: 2px; top: 20px; }

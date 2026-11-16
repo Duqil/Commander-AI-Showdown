@@ -328,11 +328,36 @@ public final class StateSnapshot {
             }
             cj.add("counters", counters); // e.g. {"+1/+1": 2, "Loyalty": 4}
         }
+        JsonArray gained = gainedKeywords(c);
+        if (gained.size() > 0) {
+            cj.add("gained_keywords", gained); // e.g. ["Flying", "Haste"] from a pump spell
+        }
         JsonArray statuses = statuses(c);
         if (statuses.size() > 0) {
             cj.add("statuses", statuses); // e.g. ["Suspected", "Goaded by 3-Nelly"]
         }
         return cj;
+    }
+
+    /**
+     * Keywords a card got from a spell or ability, e.g. "target creature gains
+     * flying and haste until end of turn". Forge files every keyword change
+     * under (timestamp, static ability id). Id 0 means it came from something
+     * that resolved (nearly always "until end of turn"); other ids are lasting
+     * effects like equipment or anthems, which we leave out here.
+     */
+    static JsonArray gainedKeywords(Card c) {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        for (java.util.Map.Entry<Long, forge.game.keyword.KeywordsChange> e
+                : c.getChangedCardKeywords().column(0L).entrySet()) {
+            for (forge.game.keyword.KeywordInterface kw : e.getValue().getKeywords()) {
+                String title = kw.getTitle();
+                if (title != null && !title.isEmpty()) names.add(title);
+            }
+        }
+        JsonArray out = new JsonArray();
+        names.forEach(out::add);
+        return out;
     }
 
     /**
