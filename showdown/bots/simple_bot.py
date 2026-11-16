@@ -2,7 +2,7 @@
 
 Rules, in order:
   * Mulligan: keep a 7-card hand with 2 to 5 lands; after one mulligan,
-    keep whatever comes.
+    keep any hand with at least one land (even all lands).
   * With priority, in our own main phase:
       1. play a land if we can,
       2. otherwise cast the most expensive spell we can afford. Our
@@ -90,7 +90,9 @@ class SimpleBot(Bot):
         # to the bottom only after keeping), so the hand size can't tell us
         # whether we already mulliganed. game_runner counts it for us instead.
         if decision.get("mulligans_so_far", 0) > 0:
-            return True  # already mulliganed once; don't go lower
+            # Already mulliganed once: a hand with no lands can't play, so throw
+            # it back; anything else (even all lands) beats going down a card.
+            return lands > 0
         return 2 <= lands <= 5
 
     def choose_play(self, decision: Decision) -> int | None:

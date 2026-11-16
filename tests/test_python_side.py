@@ -81,12 +81,18 @@ class SimpleBotTest(unittest.TestCase):
         self.assertTrue(self.bot.keep_hand({"state": make_state(hand=lands + spells)}))
         self.assertFalse(self.bot.keep_hand({"state": make_state(hand=(spells * 2)[:7])}))  # 0 lands
 
-    def test_mulligan_only_once(self):
+    def test_mulligan_after_one(self):
         # London mulligan: the new hand has 7 cards again, so only the
-        # mulligan count says we already took one. Keep the second hand.
+        # mulligan count says we already took one. After that, throw back
+        # only a hand with no lands; keep all lands rather than go down a card.
         no_lands = [card(10 + i, "Spell", 2, "Instant") for i in range(7)]
-        self.assertFalse(self.bot.keep_hand({"state": make_state(hand=no_lands), "mulligans_so_far": 0}))
-        self.assertTrue(self.bot.keep_hand({"state": make_state(hand=no_lands), "mulligans_so_far": 1}))
+        all_lands = [card(i, "Mountain", 0, "Basic Land") for i in range(7)]
+        one_land = all_lands[:1] + no_lands[:6]
+        self.assertFalse(self.bot.keep_hand({"state": make_state(hand=all_lands), "mulligans_so_far": 0}))
+        for mulligans in (1, 2):
+            self.assertFalse(self.bot.keep_hand({"state": make_state(hand=no_lands), "mulligans_so_far": mulligans}))
+            self.assertTrue(self.bot.keep_hand({"state": make_state(hand=all_lands), "mulligans_so_far": mulligans}))
+            self.assertTrue(self.bot.keep_hand({"state": make_state(hand=one_land), "mulligans_so_far": mulligans}))
 
 
 class DeckLineTest(unittest.TestCase):
