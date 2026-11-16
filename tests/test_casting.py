@@ -135,6 +135,22 @@ class EquipTimingTest(unittest.TestCase):
         self.assertEqual((feats["attach_before_combat"], feats["attach_attacker_ready"], feats["attach_after_combat"]),
                          (0.0, 0.0, 1.0))
 
+    def test_moving_gear_off_a_ready_attacker(self):
+        # A free equip already on a creature that can attack: moving it gains
+        # nothing, so the "before combat" signals stay off (no endless loop).
+        st = state()
+        st["players"][0]["battlefield"] = [{"id": 2, "name": "Bear", "type": "Creature", "tapped": False, "sick": False},
+                                           {"id": 3, "name": "Wolf", "type": "Creature", "tapped": False, "sick": False}]
+        option = self.equip_option(); option["card"] = dict(option["card"], id=4, attached_to=2)
+        feats = features.play_options({"state": st, "options": [option]})[0]
+        self.assertEqual(feats.get("attach_already_on_attacker"), 1.0)
+        self.assertNotIn("attach_attacker_ready", feats)
+        # On a summoning-sick creature it can still help: the normal signals apply.
+        st["players"][0]["battlefield"][0]["sick"] = True
+        feats = features.play_options({"state": st, "options": [option]})[0]
+        self.assertEqual(feats["attach_attacker_ready"], 1.0)
+        self.assertNotIn("attach_already_on_attacker", feats)
+
     def test_other_abilities_get_nothing(self):
         option = dict(self.equip_option(), api="Draw")
         feats = features.play_options({"state": state(), "options": [option]})[0]

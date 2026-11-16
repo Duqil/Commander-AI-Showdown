@@ -71,6 +71,8 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "attack_triggers": 1.0,
                    # And equipping before combat, when a creature can attack this turn.
                    "attach_attacker_ready": 2.0,
+                   # but not moving gear that already sits on a ready attacker.
+                   "attach_already_on_attacker": -2.0,
                    # Deals (see "Politics" in reward.py). Starting dislikes, all learnable:
                    # offering while nobody has creatures to fight with,
                    "offer_quiet_table": -2.0,

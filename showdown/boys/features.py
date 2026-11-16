@@ -215,6 +215,13 @@ def timing_features(option: dict, card: dict, is_land: bool, is_spell: bool, whe
     return {k: v for k, v in feats.items() if v}
 
 
+def card_by_id(player: dict, card_id) -> dict | None:
+    """The card with this id on the player's battlefield, or None."""
+    if card_id is None:
+        return None
+    return next((c for c in player.get("battlefield", []) if c.get("id") == card_id), None)
+
+
 def attach_features(option: dict, state: dict, my_turn: bool) -> Features:
     """Equip (and anything else that attaches a card to a creature).
 
@@ -227,9 +234,18 @@ def attach_features(option: dict, state: dict, my_turn: bool) -> Features:
         return {}
     before_combat = my_turn and state.get("phase") == "MAIN1"
     me = threat.me(state)
-    # Untapped, not summoning sick: could attack this turn.
-    ready = any("Creature" in c.get("type", "") and not c.get("tapped") and not c.get("sick")
-                for c in me.get("battlefield", []))
+
+    def can_attack(c: dict) -> bool:  # untapped, not summoning sick
+        return "Creature" in c.get("type", "") and not c.get("tapped") and not c.get("sick")
+
+    ready = any(can_attack(c) for c in me.get("battlefield", []))
+    # Already on a creature that can attack? Then moving it to another one
+    # gains (almost) nothing. Without this, a free equip (Lightning Greaves,
+    # Equip {0}) looked just as good every time, and a greedy Boy moved it
+    # back and forth thousands of times until the game hit its time limit.
+    holder = card_by_id(me, option.get("card", {}).get("attached_to"))
+    if holder is not None and can_attack(holder):
+        return {"attach_ability": 1.0, "attach_already_on_attacker": 1.0}
     return {
         "attach_ability": 1.0,
         "attach_before_combat": _flag(before_combat),
