@@ -108,8 +108,28 @@ def forget(name: str, kind: str) -> Path:
     return save_brain(brain)
 
 
+def copy_boy(source: str, new_name: str, card_memory: bool = False) -> Path:
+    """Make a new Boy that starts with everything ``source`` has learned.
+
+    The copy gets its own file and its own name, so training it never changes
+    the original. With card_memory=True the copy also learns a number per card
+    (cards.py). Copying the file by hand works too, but then you must change
+    the "name" inside it, or the copy saves over the original.
+    """
+    if not brain_path(source).exists():
+        raise FileNotFoundError(f"No Boy called {source!r} in {BOYS_DIR}")
+    if brain_path(new_name).exists():
+        raise FileExistsError(f"There is already a Boy called {new_name!r}; pick another name")
+    data = json.loads(brain_path(source).read_text(encoding="utf-8"))
+    brain = Brain.from_dict(data)
+    brain.name = new_name
+    brain.card_memory = brain.card_memory or card_memory
+    return save_brain(brain)
+
+
 if __name__ == "__main__":
     # python -m showdown.boys.storage forget Yugi mulligan
+    # python -m showdown.boys.storage copy Kaiba "Kaiba Prime" --card-memory
     import argparse
 
     parser = argparse.ArgumentParser(description="Manage saved Boys.")
@@ -117,7 +137,15 @@ if __name__ == "__main__":
     f = sub.add_parser("forget", help="reset one kind of decision for a Boy")
     f.add_argument("name")
     f.add_argument("kind", help=", ".join(DECISION_KINDS))
+    c = sub.add_parser("copy", help="make a new Boy from an existing one")
+    c.add_argument("source")
+    c.add_argument("new_name")
+    c.add_argument("--card-memory", action="store_true", help="the copy also learns a number per card")
     args = parser.parse_args()
+    if args.command == "copy":
+        path = copy_boy(args.source, args.new_name, args.card_memory)
+        print(f"{args.new_name} starts from {args.source}'s brain: {path}")
+        raise SystemExit
     if args.kind not in DECISION_KINDS:
         parser.error(f"kind must be one of {', '.join(DECISION_KINDS)}")
     print(f"{args.name} forgot their {args.kind} habits: {forget(args.name, args.kind)}")

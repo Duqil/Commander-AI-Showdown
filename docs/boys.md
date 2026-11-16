@@ -232,6 +232,48 @@ sacrificing a returner, while the land drop is still unused) and its opposite
 `land_before_casualty`. Discarding a graveyard-useful card to hand size isn't
 penalised.
 
+## Card memory: a generalist that learns single cards
+
+Every feature above describes what a card *is* (a creature, an X spell...),
+so it works for any deck. Card memory adds one learned number per card on top
+(`showdown/boys/cards.py`), for example:
+
+```json
+"cards": {
+  "play": {
+    "cast:lightning_greaves": 0.31,
+    "cast:lightning_greaves@early": 0.12,
+    ...
+  },
+  "target": {"hurt:sol_ring": 0.2, ...}
+}
+```
+
+The verbs are `cast`, `use` (an ability), `pick` (from a search),
+`hurt`/`help` (as a target) and `attack`. `@early` means rounds 1-3 and `@late`
+means round 8 on. Every card starts at 0, so on day one the Boy plays exactly
+like before, and he learns on his own which cards are better or worse than the
+general rules think. Nothing is written by hand for any card.
+
+Card numbers learn at half speed and lose 0.5% each time they're updated
+(`CARD_RATE`, `CARD_SHRINK` in brain.py), so a single lucky game can't give a
+rarely seen card a strong opinion.
+
+It's off for every Boy unless switched on. Make a copy of a trained Boy with
+card memory, so the original stays as it was for comparison:
+
+```bash
+python -m showdown.boys.storage copy Kaiba "Kaiba Prime" --card-memory
+```
+
+Several seats can play the same Boy at once and they all learn into one brain,
+so a table of three Kaiba Primes and one other bot learns three times as fast:
+
+```bash
+python -m showdown.batch --decks zuko terra nahiri kuja \
+    --bots "boy:Kaiba Prime" "boy:Kaiba Prime" "boy:Kaiba Prime" boy:Yugi --games 100 --parallel 3
+```
+
 ## Things to try (good Python exercises)
 
 - Change the weights in `threat.threat_score()` and see if training improves.
