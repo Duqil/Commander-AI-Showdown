@@ -77,7 +77,7 @@
     window.imageUrl = (card) => {
       const images = (replay.current && replay.current.images) || {};
       const pt = card.base_power !== undefined && card.base_power !== null ? `${card.base_power}/${card.base_toughness}` : "";
-      const key = card.token ? [card.name, card.colors || "", pt, card.oracle || ""].join("|") : card.name;
+      const key = card.token ? [card.name, card.colors || "", pt, card.oracle || ""].join("|") : (card.real_name || card.name);
       return images[key] || "data:,";
     };
 

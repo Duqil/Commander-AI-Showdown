@@ -288,6 +288,13 @@ public final class StateSnapshot {
         }
         if (c.isFaceDown()) {
             cj.addProperty("face_down", true);
+            // The real card, for the viewer only (it shows everything to
+            // spectators). Bots must not use "real_*": players can't see it.
+            forge.game.card.CardState real = c.getState(forge.card.CardStateName.Original);
+            if (real != null && real.getName() != null && !real.getName().isEmpty()) {
+                cj.addProperty("real_name", real.getName());
+                cj.addProperty("real_type", real.getType().toString());
+            }
         }
         Card attachedTo = c.getAttachedTo();
         if (attachedTo != null) {

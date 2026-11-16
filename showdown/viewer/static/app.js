@@ -32,7 +32,7 @@ const EVENT_STYLES = {
 };
 // Forge log categories that get their own pacing.
 const CATEGORY_DELAY = { TURN: 1000, PHASE: 120, MANA: 40, STATE: 150, COMBAT: 700, DAMAGE: 600 };
-const NOISY = new Set(["PHASE", "MANA", "STATE"]); // hidden from the log unless the box is ticked
+const NOISY = new Set(["PHASE", "MANA", "STATE", "DETAIL"]); // only in the "Phases & mana" tab (DETAIL: scry and exile details)
 const SPEEDS = [0.5, 0.75, 1, 2, 4, Infinity];    // Infinity = "Max": jump straight to the latest event
 const PHASE_NAMES = {
   UNTAP: "Untap", UPKEEP: "Upkeep", DRAW: "Draw", MAIN1: "Main 1",
@@ -708,7 +708,8 @@ function fillRow(board, zone, cards, player) {
 }
 
 function imageUrl(card) {
-  const params = new URLSearchParams({ name: card.name });
+  // Face-down cards (morph, "exile face down"): spectators see the real card.
+  const params = new URLSearchParams({ name: card.real_name || card.name });
   if (card.token) {
     params.set("token", "1");
     // Many tokens share a name: these pick the right picture (e.g. which "Knight").
@@ -752,6 +753,7 @@ function updateCard(node, c, player) {
     const net = ptCounters(c);
     badge(`pt ${net > 0 ? "buffed" : net < 0 ? "debuffed" : ""}`, `${c.power}/${c.toughness}`);
   }
+  if (c.face_down) badge("facedown", "face down", "Face down: the players can't see it, the viewer shows the real card");
   if (c._count > 1) badge("count", `×${c._count}`);
   if (c._count > 1 && c._tapped && c._tapped < c._count) badge("tapped-n", `${c._tapped} tapped`);
   const others = otherCounters(c);
@@ -811,7 +813,9 @@ function showPreview(card) {
   if (!card) return;
   const box = $("#preview");
   box.querySelector("img").src = imageUrl(card);
-  const bits = [card.name, card.type];
+  const bits = card.face_down && card.real_name
+    ? [card.real_name, card.real_type, "face down"]
+    : [card.name, card.type];
   if (card.power !== undefined) {
     const net = ptCounters(card);
     if (net) {
