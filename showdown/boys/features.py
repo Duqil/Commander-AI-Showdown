@@ -127,6 +127,8 @@ def play_options(decision: Decision) -> list[Features]:
             "commander_tax": card.get("commander_tax", 0) / 10 if is_spell and card.get("commander") else 0.0,
             # A land that makes a color my cards need and I don't have yet.
             "land_new_color": _flag(is_land and bool(colors.produces(card) & missing)),
+            # A bounce land with no other land out: it returns itself, the land drop is wasted.
+            "land_bounces_itself": _flag(is_land and colors.wasted_land_drop(card, threat.me(state))),
             "spell": _flag(is_spell),
             "spell_cmc": (card.get("cmc", 0) + option.get("max_x", 0)) / 7 if is_spell else 0.0,
             "x_spell": _flag("max_x" in option),

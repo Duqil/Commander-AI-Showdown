@@ -96,6 +96,25 @@ def castable_by(card: dict, colors: set[str]) -> bool:
     return all(pip & colors for pip in pips(card.get("cost")))
 
 
+BOUNCES_A_LAND = re.compile(r"return an? (untapped )?land you control to its owner's hand", re.I)
+
+
+def returns_a_land(card: dict) -> bool:
+    """A land that sends one of your lands back to your hand when it enters
+    (the "bounce lands": Gruul Turf, Boros Garrison, ...). Read from the
+    rules text, so any card that does this counts."""
+    return bool(BOUNCES_A_LAND.search(card.get("oracle", "") or ""))
+
+
+def wasted_land_drop(land: dict, player: dict) -> bool:
+    """Playing this land would undo itself: it returns a land, and the only
+    lands we control are other bounce lands (or none). With none it bounces
+    itself; with only bounce lands it sends one of those back, and we end the
+    turn with no more lands than before."""
+    others = [c for c in player.get("battlefield", []) if is_land(c) and not returns_a_land(c)]
+    return returns_a_land(land) and not others
+
+
 def land_value(land: dict, player: dict) -> float:
     """How much a new land with these colors would help.
 

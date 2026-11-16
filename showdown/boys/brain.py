@@ -64,6 +64,8 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    # disliked (still learnable: sometimes it pays). Moving your own
                    # creature (blink, bounce) is a separate feature, "move_mine".
                    "hurt_mine": -2.0,
+                   # Playing a bounce land as your only land wastes the land drop.
+                   "land_bounces_itself": -3.0,
                    # A mild starting liking for casting the commander, which is
                    # always available. Not a rule: training moves it up or down.
                    "cast_commander": 1.0,
