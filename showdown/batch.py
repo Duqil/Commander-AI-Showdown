@@ -276,7 +276,7 @@ def main() -> None:
     parser.add_argument("--greedy", action="store_true",
                         help="Boys always take their best option, no exploring (same as --explore 0)")
     parser.add_argument("--explore", type=float, default=1.0,
-                        help="how much Boys roll dice, from 1.0 (full exploring) to 0 (serious)")
+                        help="how much Boys explore, from 1.0 (a lot) to 0 (not at all: always their best option)")
     parser.add_argument("--deals", action="store_true", help="let bots make deals with each other")
     parser.add_argument("--report", action="store_true", help="only show the training history")
     args = parser.parse_args()
