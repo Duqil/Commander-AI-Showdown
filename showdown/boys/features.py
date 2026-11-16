@@ -25,7 +25,7 @@ import re
 from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
-from showdown.boys import colors, combat, commander, threat, timing
+from showdown.boys import colors, combat, commander, mana, threat, timing
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -222,6 +222,10 @@ def play_options(decision: Decision) -> list[Features]:
             "combat_spell_outside_combat": _flag(combat_spell(option) and state["phase"] not in combat.COMBAT_STEPS),
             **x_timing_features(option, state, decision["options"]),
             "etb_no_target": etb_no_target(option),
+            # Mana this turn and next (mana.py): tapping out, waiting a turn, which land.
+            **mana.tap_out_features(option, threat.me(state), when["my_main"]),
+            **mana.combo_timing_features(option, threat.me(state), when["my_main"]),
+            **(mana.land_fit(card, threat.me(state)) if is_land else {}),
             **(attach_features(option, state, my_turn) if is_ability else {}),
             **timing_features(option, card, is_land, is_spell, when),
         })
@@ -235,6 +239,7 @@ def play_options(decision: Decision) -> list[Features]:
         "pass_end_step_with_instant": _flag(when["end_step_before_mine"] and when["instants"]),
         # Passing my main phase while a card from exile could still be played.
         "pass_with_exile_card": _flag(my_turn and main and not stack and when["exile_plays"]),
+        **mana.keep_up_on_pass(threat.me(state), state["phase"], when["my_main"]),
     })
     return result
 

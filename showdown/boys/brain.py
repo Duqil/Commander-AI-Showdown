@@ -92,6 +92,11 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "x_grows_later": -0.8, "x_before_land_drop": -1.0, "x_board_needs_it": 1.0,
                    "x_while_other_plays": -0.4, "x_small": -0.8, "x_before_my_main": -1.0, "combat_spell_outside_combat": -0.8,
                    "combat_spell_in_combat": 0.6, "etb_no_target": -1.2,
+                   # Mana this turn and next (mana.py, 2026-11-16).
+                   "taps_out_holding_instant": -0.4, "taps_out_holding_counter": -0.4,
+                   "pass_keeping_instant_mana": 0.3, "engine_without_fuel_now": -0.6,
+                   "fuel_before_engine": -0.5, "tapland_costs_a_play": -1.0,
+                   "tapland_on_quiet_turn": 0.6, "untapped_land_on_quiet_turn": -0.3,
                    "gang_against_runaway": 2.0, "accept_against_runaway": 2.0}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each
