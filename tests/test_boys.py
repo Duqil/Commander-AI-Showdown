@@ -323,6 +323,65 @@ class SequencingTest(unittest.TestCase):
         self.assertNotIn("before_x_creature", feats[1])           # the X creature itself
 
 
+class SmarterCastingTest(unittest.TestCase):
+    """X spells that can grow, fight-only spells, creatures whose ETB has no target."""
+
+    def test_x_spell_looks_ahead(self):
+        state = table()
+        state["players"][0]["hand"] = [{"name": "Forest", "type": "Land", "cmc": 0}] * 2
+        state["players"][0]["battlefield"].append(creature(3, 3))  # my board: 8 power vs B's 11
+        x = spell(0, "Secure", "Instant", max_x=2)
+        options = [x, land(1), spell(2, "Bear", "Creature")]
+        f = features.x_timing_features(x, state, options)
+        self.assertAlmostEqual(f["x_grows_later"], 2 / 3)   # 2 lands in hand: X up to 2 bigger later
+        self.assertEqual(f["x_before_land_drop"], 1.0)      # the land first makes X bigger now
+        self.assertEqual(f["x_while_other_plays"], 1.0)
+        self.assertNotIn("x_board_needs_it", f)             # B hits for 11, I have 30 life
+        state["players"][0]["life"] = 20                    # now 11 * 2 >= 20: the board needs it
+        self.assertEqual(features.x_timing_features(x, state, [x])["x_board_needs_it"], 1.0)
+        self.assertEqual(features.x_timing_features(spell(3), state, [x]), {})
+        self.assertEqual(f["x_small"], 1.0)
+        upkeep = table(phase="UPKEEP")
+        self.assertEqual(features.x_timing_features(x, upkeep, [x])["x_before_my_main"], 1.0)
+
+    def test_combat_spell(self):
+        heist = spell(0, "Heist", "Instant", api="Charm")
+        heist["card"]["oracle"] = "Spree\n+ {2} - Creatures you control get +1/+0 and gain first strike until end of turn."
+        self.assertTrue(features.combat_spell(heist))
+        growth = spell(1, "Growth", "Instant", api="Pump")
+        growth["card"]["oracle"] = "Target creature gets +3/+3 until end of turn."
+        self.assertTrue(features.combat_spell(growth))
+        offering = spell(4, "Offering", "Sorcery", api="Pump")
+        offering["card"]["oracle"] = "Target opponent gains control of target permanent you control."
+        self.assertFalse(features.combat_spell(offering))
+        draw = spell(2, "Draw", "Instant")
+        draw["card"]["oracle"] = "Draw two cards."
+        self.assertFalse(features.combat_spell(draw))
+        anthem = spell(3, "Anthem", "Enchantment")
+        anthem["card"]["oracle"] = "Creatures you control get +1/+1."
+        self.assertFalse(features.combat_spell(anthem))     # a permanent helps every turn
+        opts = features.play_options({"state": table(phase="MAIN1"), "options": [heist]})
+        self.assertEqual(opts[0]["combat_spell_outside_combat"], 1.0)
+        opts = features.play_options({"state": table(phase="COMBAT_DECLARE_BLOCKERS"), "options": [heist]})
+        self.assertEqual(opts[0]["combat_spell_in_combat"], 1.0)
+
+    def test_etb_without_target(self):
+        witch = spell(0, "Witch", "Creature", cmc=4, etb_no_target=True)
+        witch["card"].update(power=2, toughness=2)
+        big = spell(1, "Big", "Creature", cmc=5, etb_no_target=True)
+        big["card"].update(power=5, toughness=5)
+        self.assertAlmostEqual(features.etb_no_target(witch), 0.5)
+        self.assertAlmostEqual(features.etb_no_target(big), 0.25)  # a fine body anyway
+        self.assertEqual(features.etb_no_target(spell(2, "Bear", "Creature")), 0.0)
+        # SimpleBot casts another 4-drop first, but the Witch when it's the only play.
+        from showdown.bots.simple_bot import SimpleBot
+        solemn = spell(2, "Solemn", "Creature", cmc=4)
+        solemn["card"].update(power=2, toughness=2)
+        bot = SimpleBot()
+        self.assertEqual(bot.choose_play({"state": table(), "options": [witch, solemn]}), 2)
+        self.assertEqual(bot.choose_play({"state": table(), "options": [witch]}), 0)
+
+
 class GraveyardTest(unittest.TestCase):
     def options(self):
         land = {"index": 0, "card": {"name": "Swamp", "type": "Land", "cmc": 0}, "is_land": True, "is_spell": False}

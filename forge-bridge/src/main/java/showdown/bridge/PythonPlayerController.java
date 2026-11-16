@@ -153,6 +153,9 @@ public class PythonPlayerController extends PlayerControllerAi {
                 if (sa.costHasManaX() && maxX(sa) < 1) {
                     continue; // X would be 0: a Ravenous 0/0 just dies, an X burn spell does nothing
                 }
+                if (lacksTargets(sa)) {
+                    continue; // "destroy target artifact" with no artifact around: nothing would happen
+                }
                 result.add(sa);
             } catch (RuntimeException e) {
                 // A few odd cards throw while being checked; just leave them out.
@@ -310,6 +313,27 @@ public class PythonPlayerController extends PlayerControllerAi {
             return null;
         }
 
+        // Forge's AI also judges each play (forgeWouldPlay). For a modal spell
+        // (Charm: "choose one or more", Spree, Escalate) that check is also
+        // where the modes get picked, and Forge's AI picks them again at cast
+        // time. If it finds no mode worth choosing, the spell would resolve
+        // doing nothing (Collective Resistance cast with no mode), so it isn't
+        // offered at all.
+        List<SpellAbility> offered = new ArrayList<>();
+        List<Boolean> forgeOk = new ArrayList<>();
+        for (SpellAbility sa : plays) {
+            boolean ok = forgeWouldPlay(sa);
+            if (isModal(sa) && (sa.getChosenList() == null || sa.getChosenList().isEmpty())) {
+                continue;
+            }
+            offered.add(sa);
+            forgeOk.add(ok);
+        }
+        plays = offered;
+        if (plays.isEmpty()) {
+            return null;
+        }
+
         JsonArray options = new JsonArray();
         for (int i = 0; i < plays.size(); i++) {
             SpellAbility sa = plays.get(i);
@@ -325,7 +349,12 @@ public class PythonPlayerController extends PlayerControllerAi {
             if (sa.getApi() != null) {
                 o.addProperty("api", sa.getApi().name()); // e.g. "ChangeZone" for Evolving Wilds
             }
-            o.addProperty("forge_would_play", forgeWouldPlay(sa));
+            o.addProperty("forge_would_play", forgeOk.get(i));
+            if (sa.isSpell() && sa.getHostCard().isPermanent() && etbHasNoTarget(sa)) {
+                // A creature whose "when this enters, destroy target ..." has
+                // nothing to hit right now: it would only be its body.
+                o.addProperty("etb_no_target", true);
+            }
             if (sa.getHostCard().getZone() != null) {
                 // Where the card is: "Hand", "Exile" (impulse draw: playable for a short time), "Graveyard"...
                 o.addProperty("zone", sa.getHostCard().getZone().getZoneType().name());
@@ -438,6 +467,58 @@ public class PythonPlayerController extends PlayerControllerAi {
     // ------------------------------------------------------------------
     // 2b. Targets for the play Python just chose
     // ------------------------------------------------------------------
+
+    /** A "choose one or more" spell or ability (Charm, Spree, Escalate...). */
+    private static boolean isModal(SpellAbility sa) {
+        return sa.getApi() == forge.game.ability.ApiType.Charm && !sa.isTrigger();
+    }
+
+    /**
+     * Does some part of this play need a target that doesn't exist right now?
+     * Then casting it would do nothing (or fail), so it isn't offered.
+     * Modal spells pick their targets per mode later: see isModal.
+     */
+    private static boolean lacksTargets(SpellAbility sa) {
+        try {
+            for (SpellAbility a = sa; a != null; a = a.getSubAbility()) {
+                if (a.usesTargeting() && a.getMinTargets() > 0
+                        && a.getTargetRestrictions().getAllCandidates(a).isEmpty()) {
+                    return true;
+                }
+            }
+        } catch (RuntimeException e) {
+            // odd cards: assume it has targets
+        }
+        return false;
+    }
+
+    /**
+     * A permanent spell whose "when this enters" trigger needs a target, and
+     * there is none right now (Witch Enchanter with no opposing artifact or
+     * enchantment). The spell is still worth its body; Python decides.
+     */
+    private boolean etbHasNoTarget(SpellAbility sa) {
+        try {
+            for (forge.game.trigger.Trigger t : sa.getHostCard().getTriggers()) {
+                if (t.getMode() != forge.game.trigger.TriggerType.ChangesZone
+                        || !"Battlefield".equals(t.getParam("Destination"))
+                        || !String.valueOf(t.getParam("ValidCard")).contains("Card.Self")) {
+                    continue;
+                }
+                SpellAbility effect = t.ensureAbility();
+                if (effect == null) {
+                    continue;
+                }
+                effect.setActivatingPlayer(getPlayer());
+                if (effect.usesTargeting()) {
+                    return lacksTargets(effect);
+                }
+            }
+        } catch (RuntimeException e) {
+            // odd cards: say nothing
+        }
+        return false;
+    }
 
     /** Whether the ability or any of its sub-abilities ("then ...") has targets. */
     private static boolean usesTargeting(SpellAbility sa) {

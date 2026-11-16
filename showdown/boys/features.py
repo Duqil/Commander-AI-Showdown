@@ -101,6 +101,70 @@ def x_context(options: list[dict]) -> dict[str, float]:
     return {"max_x": best["max_x"], "fixed_cost": best["card"].get("cmc", 0)}
 
 
+# Rules text of a spell whose whole point is a fight: pump, first strike, protection...
+_COMBAT_TEXT = re.compile(r"[+-]\d+/[+-]\d+|first strike|double strike|trample|indestructible|"
+                          r"combat damage|attacking creature|blocking creature|additional combat")
+
+
+def combat_spell(option: dict) -> bool:
+    """An instant-speed spell that does most when creatures fight (Great Train
+    Heist, Giant Growth): its text pumps or protects creatures for the turn,
+    or talks about combat. Read from the rules text, never from the name.
+    Sorceries can't be cast in a fight anyway, and permanents help every turn."""
+    if not timing.instant_speed(option) or "Creature" in option.get("card", {}).get("type", ""):
+        return False
+    text = option.get("card", {}).get("oracle", "").lower()
+    return ("until end of turn" in text or "combat" in text) and bool(_COMBAT_TEXT.search(text))
+
+
+def x_timing_features(option: dict, state: dict, options: list[dict]) -> Features:
+    """Cast this X spell now, or let it grow?
+
+    Looks 1 to 3 turns ahead the simple way: every land in my hand is one
+    more mana (so one more X) on a later turn, and a land drop still left this
+    turn would make X one bigger right now. Against that: does the board need
+    it now (opponents hit hard compared to my life), and is there something
+    else useful to do with the mana meanwhile (setup)?
+    """
+    if "max_x" not in option:
+        return {}
+    me = threat.me(state)
+    lands_in_hand = sum(1 for c in me.get("hand", []) if colors.is_land(c))
+    land_drop_left = any(o.get("is_land") for o in options)
+    other_spells = any(o.get("is_spell") and "max_x" not in o for o in options)
+    life = max(1, me.get("life", 40))
+    biggest_hitter = max((threat.board_power(p) for p in threat.opponents(state)), default=0)
+    needs_it = biggest_hitter * 2 >= life or (biggest_hitter >= 6 and biggest_hitter >= 2 * threat.board_power(me))
+    feats = {
+        "x_grows_later": min(3, lands_in_hand) / 3,       # X can be up to 3 bigger in 1-3 turns
+        "x_before_land_drop": _flag(land_drop_left),        # play the land first: X one bigger now
+        "x_board_needs_it": _flag(needs_it),
+        "x_while_other_plays": _flag(other_spells),
+        "x_small": _flag(option["max_x"] <= 2),            # 1 or 2: hardly worth the card yet
+        # My own upkeep or draw step with nothing to answer: the mana is
+        # better kept for my main phase (and the card I'm about to draw).
+        "x_before_my_main": _flag(state.get("active_player") == state.get("you")
+                                  and state.get("phase") in ("UPKEEP", "DRAW") and not state.get("stack_size")),
+    }
+    return {k: v for k, v in feats.items() if v}
+
+
+def etb_no_target(option: dict) -> float:
+    """A permanent whose "when this enters" has nothing to target right now.
+
+    0 = not the case. Otherwise how much of the card is that missing effect,
+    from 0.25 (a fine body anyway) to 1 (a small body for a lot of mana): a
+    4-mana 2/2 like Witch Enchanter is mostly its ETB, so better held; a
+    5-mana 5/5 with a small ETB is still a good play.
+    """
+    if not option.get("etb_no_target"):
+        return 0.0
+    card = option.get("card", {})
+    cmc = max(1, card.get("cmc", 0))
+    body = (card.get("power", 0) + card.get("toughness", 0)) / 2 if "Creature" in card.get("type", "") else 0
+    return max(0.25, min(1.0, (cmc - body) / cmc))
+
+
 def play_options(decision: Decision) -> list[Features]:
     state = decision["state"]
     my_turn = state["active_player"] == state["you"]
@@ -153,6 +217,11 @@ def play_options(decision: Decision) -> list[Features]:
             **(commander.cast_features(card, state) if is_spell and card.get("commander") else {}),
             **(commander.engine_features(card, state) if is_spell and not card.get("commander") else {}),
             **(combat_trick_features(fight, state, my_turn) if not is_land else {}),
+            # A pump/first-strike/protection spell: worth most during a fight.
+            "combat_spell_in_combat": _flag(combat_spell(option) and state["phase"] in combat.COMBAT_STEPS),
+            "combat_spell_outside_combat": _flag(combat_spell(option) and state["phase"] not in combat.COMBAT_STEPS),
+            **x_timing_features(option, state, decision["options"]),
+            "etb_no_target": etb_no_target(option),
             **(attach_features(option, state, my_turn) if is_ability else {}),
             **timing_features(option, card, is_land, is_spell, when),
         })
