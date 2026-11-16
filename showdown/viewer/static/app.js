@@ -669,7 +669,8 @@ function updateBoard(board, p, state) {
 function groupSame(cards) {
   const groups = new Map();
   for (const c of cards) {
-    const key = c.name + (c.counters ? JSON.stringify(c.counters) : "") + (c.controller !== c.owner ? "s" : "");
+    const key = c.name + (c.counters ? JSON.stringify(c.counters) : "") + (c.statuses || []).join() +
+      (c.controller !== c.owner ? "s" : "");
     if (!groups.has(key)) groups.set(key, { ...c, _count: 0, _tapped: 0, _ids: [] });
     const g = groups.get(key);
     g._count++;
@@ -739,6 +740,21 @@ function makeCard(card) {
   return node;
 }
 
+// How each status from the bridge (StateSnapshot.statuses) looks on a card.
+const STATUS_LOOK = {
+  Suspected: { icon: "🔍", cls: "suspected", rule: "has menace and can't block" },
+  Goaded: { icon: "🎯", cls: "goaded", rule: "attacks each combat, and not the player who goaded it if it can" },
+  Monstrous: { icon: "👹", cls: "", rule: "became monstrous" },
+  Renowned: { icon: "🏅", cls: "", rule: "became renowned" },
+  Saddled: { icon: "🐎", cls: "", rule: "saddled until end of turn" },
+  Solved: { icon: "✔", cls: "", rule: "this Case is solved" },
+  "Ring-bearer": { icon: "💍", cls: "", rule: "your Ring-bearer" },
+  Detained: { icon: "⛓", cls: "", rule: "can't attack, block or use abilities" },
+  "Phased out": { icon: "👻", cls: "", rule: "treated as though it doesn't exist" },
+  Manifested: { icon: "🂠", cls: "", rule: "a face-down 2/2" },
+  Cloaked: { icon: "🂠", cls: "", rule: "a face-down 2/2 with ward 2" },
+};
+
 function updateCard(node, c, player) {
   node._card = c;
   node.classList.toggle("tapped", !!c.tapped);
@@ -759,6 +775,19 @@ function updateCard(node, c, player) {
   const others = otherCounters(c);
   if (others.length) badge("counters", others.map(([k, v]) => `${v} ${shortCounter(k)}`).join(" "));
   if (c.chosen) badge("chosen", Object.values(c.chosen).join(", "), choiceText(c));
+  // Statuses such as Suspected or Goaded: a round icon each, in a row at the top right.
+  if (c.statuses?.length) {
+    const stack = el("span", "badge statuses");
+    for (const status of c.statuses) {
+      const [name] = status.split(" by "); // "Goaded by 3-Nelly" -> "Goaded"
+      const look = STATUS_LOOK[name] || { icon: "•", cls: "" };
+      // Just the icon: words don't fit on a small card. Hover shows the words.
+      const pill = el("span", `status ${look.cls}`, look.icon);
+      pill.title = status + (look.rule ? `: ${look.rule}` : "");
+      stack.append(pill);
+    }
+    node.append(stack);
+  }
   if (c.commander_tax) badge("tax", `+${c.commander_tax}`, `Command tax: {${c.commander_tax}} more to cast`);
   // Controlled by someone who doesn't own it (stolen): a border in the owner's colour.
   // The hover preview says "owned by ...".
@@ -827,6 +856,7 @@ function showPreview(card) {
     }
   }
   for (const [k, v] of otherCounters(card)) bits.push(`${v} ${shortCounter(k)} counter${v > 1 ? "s" : ""}`);
+  for (const status of card.statuses || []) bits.push(status);
   if (card.chosen) bits.push(choiceText(card));
   if (card.commander) bits.push(`command tax ${card.commander_tax || 0}`);
   if (card.owner && card.controller && card.owner !== card.controller) bits.push(`owned by ${card.owner}`);
