@@ -81,6 +81,13 @@ class SimpleBotTest(unittest.TestCase):
         self.assertTrue(self.bot.keep_hand({"state": make_state(hand=lands + spells)}))
         self.assertFalse(self.bot.keep_hand({"state": make_state(hand=(spells * 2)[:7])}))  # 0 lands
 
+    def test_mulligan_only_once(self):
+        # London mulligan: the new hand has 7 cards again, so only the
+        # mulligan count says we already took one. Keep the second hand.
+        no_lands = [card(10 + i, "Spell", 2, "Instant") for i in range(7)]
+        self.assertFalse(self.bot.keep_hand({"state": make_state(hand=no_lands), "mulligans_so_far": 0}))
+        self.assertTrue(self.bot.keep_hand({"state": make_state(hand=no_lands), "mulligans_so_far": 1}))
+
 
 class DeckLineTest(unittest.TestCase):
     def test_normal_line(self):

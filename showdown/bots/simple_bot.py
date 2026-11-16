@@ -1,7 +1,8 @@
 """A tiny rule-based bot: the starting point The Boys will learn on top of.
 
 Rules, in order:
-  * Mulligan: keep a 7-card hand with 2 to 5 lands; keep anything smaller.
+  * Mulligan: keep a 7-card hand with 2 to 5 lands; after one mulligan,
+    keep whatever comes.
   * With priority, in our own main phase:
       1. play a land if we can,
       2. otherwise cast the most expensive spell we can afford. Our
@@ -85,7 +86,10 @@ class SimpleBot(Bot):
     def keep_hand(self, decision: Decision) -> bool:
         hand = self.me(decision).get("hand", [])
         lands = sum(1 for card in hand if "Land" in card["type"])
-        if len(hand) < 7:
+        # London mulligan: every new hand has 7 cards again (the extra ones go
+        # to the bottom only after keeping), so the hand size can't tell us
+        # whether we already mulliganed. game_runner counts it for us instead.
+        if decision.get("mulligans_so_far", 0) > 0:
             return True  # already mulliganed once; don't go lower
         return 2 <= lands <= 5
 
