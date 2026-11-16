@@ -4,7 +4,8 @@ Rules, in order:
   * Mulligan: keep a 7-card hand with 2 to 5 lands; after one mulligan,
     keep any hand with at least one land (even all lands).
   * With priority, in our own main phase:
-      1. play a land if we can,
+      1. play a land if we can (a tapped land only when the extra mana
+         wouldn't be used this turn anyway),
       2. otherwise cast the most expensive spell we can afford. Our
          commander wins ties, and goes first when our hand holds spells it
          powers up (cast Anhelo, then the instants and sorceries).
@@ -39,7 +40,7 @@ first Python exercise.
 from __future__ import annotations
 
 from showdown.bots.base import Bot, Decision
-from showdown.boys import colors, combat, commander, threat, timing
+from showdown.boys import colors, combat, commander, mana, threat, timing
 from showdown.boys.threat import game_round
 
 MAIN_PHASES = {"MAIN1", "MAIN2"}
@@ -85,6 +86,16 @@ def spell_priority(option: dict, hand: list[dict]) -> tuple:
     return (engine_first, timing.from_exile(option), not wasted_etb, spell_size(option), is_cmdr)
 
 
+def land_priority(option: dict, me: dict) -> tuple:
+    """Which land to play: one from exile first (it won't stay playable), then
+    not a tapped land when a spell needs the extra mana this turn, then the
+    land whose colors help most, with a bonus for a tapped land on a turn the
+    extra mana wouldn't be used anyway (get it out of the way)."""
+    fit = mana.land_fit(option["card"], me)
+    return (timing.from_exile(option), not fit.get("tapland_costs_a_play"),
+            colors.land_value(option["card"], me) + 0.5 * fit.get("tapland_on_quiet_turn", 0.0))
+
+
 def etb_mostly_wasted(option: dict) -> bool:
     """The bridge says this permanent's ETB has no target now, and the card is
     more ETB than body: at most half its mana value in (power+toughness)/2."""
@@ -124,7 +135,7 @@ class SimpleBot(Bot):
             # whose colors help most (a first Swamp for a hand of black
             # spells). max() keeps the first one on a tie.
             me = self.me(decision)
-            return max(lands, key=lambda o: (timing.from_exile(o), colors.land_value(o["card"], me)))["index"]
+            return max(lands, key=lambda o: land_priority(o, me))["index"]
 
         # Abilities (not spells, not land drops) that Forge's own AI would use
         # right now. "forge_would_play" is Forge's hint: it knows when an
