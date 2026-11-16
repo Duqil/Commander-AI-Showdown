@@ -10,7 +10,9 @@ Rules, in order:
          powers up (cast Anhelo, then the instants and sorceries).
          Non-creature X spells wait until X is at least SMALL_X.
          Cards we can only play from exile for a while (impulse draws) go
-         before cards in hand, which keep.
+         before cards in hand, which keep. A creature that's mostly its
+         "when this enters" effect waits while that effect has no target,
+         unless there's nothing else to cast.
       3. instants (and flash cards) wait: we keep the mana open.
   * Instant speed (see showdown/boys/timing.py), outside our main phases:
       - answer an opponent's spell or ability, in a combat (ours or theirs),
@@ -70,14 +72,27 @@ def spell_priority(option: dict, hand: list[dict]) -> tuple:
     item, so the first number matters most:
       1. our commander when it powers up spells in our hand (engine first),
       2. a card from exile, which we may only play for a short time,
-      3. the mana it uses (bigger first),
-      4. our commander wins a tie on mana.
+      3. not a creature whose "when this enters" is wasted right now (a
+         4-mana 2/2 that destroys nothing): anything else goes first,
+      4. the mana it uses (bigger first),
+      5. our commander wins a tie on mana.
     """
     card = option["card"]
     is_cmdr = bool(card.get("commander"))
     kinds = commander.engine_types(card) if is_cmdr else set()
     engine_first = bool(kinds) and any(commander.feeds(c, kinds) for c in hand if not c.get("commander"))
-    return (engine_first, timing.from_exile(option), spell_size(option), is_cmdr)
+    wasted_etb = etb_mostly_wasted(option)
+    return (engine_first, timing.from_exile(option), not wasted_etb, spell_size(option), is_cmdr)
+
+
+def etb_mostly_wasted(option: dict) -> bool:
+    """The bridge says this permanent's ETB has no target now, and the card is
+    more ETB than body: at most half its mana value in (power+toughness)/2."""
+    if not option.get("etb_no_target"):
+        return False
+    card = option["card"]
+    body = (card.get("power", 0) + card.get("toughness", 0)) / 2
+    return body * 2 <= card.get("cmc", 0)
 
 
 class SimpleBot(Bot):
