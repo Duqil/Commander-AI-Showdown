@@ -172,6 +172,14 @@ class CardImagesTest(unittest.TestCase):
             self.assertIsNone(images._fetch("https://api.scryfall.com/x"))
 
 
+class DeckPrintingsTest(unittest.TestCase):
+    def test_printed_name_finds_the_printing(self):
+        # Zangief, the Red Cyclone is SLD 435, which Scryfall calls Maarika, Brutal Gladiator.
+        from showdown.viewer.card_images import SOURCE_DECKS, load_deck_printings
+        printings = load_deck_printings(SOURCE_DECKS)
+        self.assertEqual(printings["Zangief, the Red Cyclone"], ("sld", "435"))
+
+
 class TokenScoreTest(unittest.TestCase):
     def test_rules_text_picks_the_right_knight(self):
         from showdown.viewer.card_images import token_score
