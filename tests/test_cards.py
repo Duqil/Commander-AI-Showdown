@@ -77,7 +77,8 @@ class CardMemoryBrainTest(unittest.TestCase):
         learned = brain.weights["play"]["card:cast:kuja_genome_sorcerer"]
         self.assertGreater(learned, 0)   # the picked card did well
         # Half speed compared with a general feature that had the same gradient.
-        self.assertAlmostEqual(learned, brain.weights["play"]["creature_spell"] * 0.5)
+        # (then the once-per-game shrink of 0.5%).
+        self.assertAlmostEqual(learned, brain.weights["play"]["creature_spell"] * 0.5 * (1 - 0.005))
 
     def test_shrink(self):
         brain = Brain("prime", card_memory=True)
@@ -87,6 +88,18 @@ class CardMemoryBrainTest(unittest.TestCase):
         brain.games = 1
         options = features.play_options(play_decision())
         brain.learn([Step("play", options, [1 / 3] * 3, picked=0, turn=5, bonus=0.1)], reward=1.5)
+        self.assertAlmostEqual(brain.weights["play"]["card:cast:kuja_genome_sorcerer"], 1 - 0.005)
+
+    def test_shrink_is_once_per_game(self):
+        """A card in many decisions of one game shrinks once, not once per decision."""
+        brain = Brain("prime", card_memory=True)
+        brain.weights["play"]["card:cast:kuja_genome_sorcerer"] = 1.0
+        brain.bonus_baseline = 0.1
+        brain.critic["bias"] = 1.5
+        brain.games = 1
+        options = features.play_options(play_decision())
+        steps = [Step("play", options, [1 / 3] * 3, picked=0, turn=5, bonus=0.1) for _ in range(50)]
+        brain.learn(steps, reward=1.5)
         self.assertAlmostEqual(brain.weights["play"]["card:cast:kuja_genome_sorcerer"], 1 - 0.005)
 
     def test_save_and_load_keeps_cards_separate(self):

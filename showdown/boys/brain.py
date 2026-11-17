@@ -108,9 +108,12 @@ KIND_RATE = {"mulligan": 0.25}
 # switched on. A single card shows up in only some games, so a lucky win
 # would push its number around a lot. Two things keep that calm:
 #   * CARD_RATE: card numbers learn at half the normal speed;
-#   * CARD_SHRINK: every time a card number is updated it also loses 0.5% of
-#     its size, so it only stays big if the card keeps earning it. A card he
-#     rarely sees can't hold on to an opinion from one lucky game.
+#   * CARD_SHRINK: once per game, every card number that came up in that game
+#     loses 0.5% of its size, so it only stays big if the card keeps earning
+#     it. A card he rarely sees can't hold on to an opinion from one lucky game.
+#     (It used to shrink at every single decision the card was part of, up to
+#     a hundred times a game, while each decision only moves it a little. That
+#     kept every card number near zero: after ~3,700 games the biggest was 0.1.)
 CARD_RATE = 0.5
 CARD_SHRINK = 0.005
 
@@ -198,6 +201,7 @@ class Brain:
             # (hundreds of priority choices) shouldn't count for more, and the
             # few attack choices shouldn't drown in all the priority choices.
             per_kind: dict[str, int] = {}
+            cards_seen: set[tuple[str, str]] = set()  # (kind, card feature) that came up this game
             for step in steps:
                 per_kind[step.kind] = per_kind.get(step.kind, 0) + 1
             for step, advantage in zip(steps, advantages):
@@ -220,9 +224,12 @@ class Brain:
                     if not gradient:
                         continue
                     if is_card:
-                        w[name] = w.get(name, 0.0) * (1 - CARD_SHRINK) + CARD_RATE * rate * gradient
+                        w[name] = w.get(name, 0.0) + CARD_RATE * rate * gradient
+                        cards_seen.add((step.kind, name))
                     else:
                         w[name] = w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) + rate * gradient
+            for kind, name in cards_seen:  # the once-per-game shrink (CARD_SHRINK)
+                self.weights[kind][name] *= 1 - CARD_SHRINK
             # The critic learns from this game too, *after* it was used, so a
             # game is never judged by a guess that already knew its result.
             critic.learn(self.critic, situations, reward)
