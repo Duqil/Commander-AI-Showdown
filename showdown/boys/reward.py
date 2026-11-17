@@ -11,10 +11,17 @@ loss where you outlived two opponents scores better than dying first.
 On top of that, each *turn of your own* earns a small bonus for what you did
 to your opponents during it:
 
-    each point of damage to opponents   +0.01
+    each point of damage to opponents   +0.01, times 0.5 to 1.5 (see below)
     each opponent knocked out           +0.3
     each card you draw                  +0.01   (more cards = more options)
     each card thrown away to hand size  -0.03   (ending a turn with 8+ cards)
+
+Damage counts more against a big threat: x1.5 against the most threatening
+opponent, x0.5 against the least, in between for the rest (threat.threat_rank,
+judged before the attack). Before this, every point counted the same, and the
+Boys learned to pile onto the weakest player (no blockers, easy damage) while
+the leader ran away. Knockouts still count in full: finishing a player off is
+worth it whoever they are.
 
 The turn bonus only goes to the choices made in that turn. So a good attack
 gets credit right away, instead of waiting to see whether the whole game was
@@ -42,6 +49,11 @@ def game_reward(won: bool, opponents_outlived: int, opponents: int) -> float:
 
 DAMAGE = 0.01
 KNOCKOUT = 0.3
+
+
+def damage_weight(threat_rank: float) -> float:
+    """1.5 for damage to the biggest threat (rank 0.0), 0.5 for the smallest (rank 1.0)."""
+    return 1.5 - threat_rank
 
 
 CARD_DRAWN = 0.01

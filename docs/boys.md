@@ -86,6 +86,14 @@ reads Forge's log and writes the last round's damage into the state:
 score uses creature power *or* damage actually dealt, whichever is bigger, and
 the Boys' targeting has `hurt_damage_dealer` (starting weight 2.0): removal on
 a card that dealt 5+ damage last round counts as much as Forge's suggestion.
+
+**Who to attack.** Early on, every Boy learned to pile onto the weakest player
+(`target_threat_rank` and `target_weak` grew strongly positive): no blockers
+means easy damage, and SimpleBot hit whoever had the lowest life. The leader
+then ran away. Now damage in the turn bonus is weighted by the victim's threat
+(x1.5 for the biggest threat, x0.5 for the smallest, see `reward.py`), and
+SimpleBot finishes off a player it can kill this turn, otherwise attacks the
+biggest threat. Knockouts still count in full.
 This works for any deck: pingers, drains, burn.
 
 **Learning on top of SimpleBot.** Every option has a `simple_prior` feature

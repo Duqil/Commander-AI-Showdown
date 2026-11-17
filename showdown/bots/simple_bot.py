@@ -21,11 +21,13 @@ Rules, in order:
       - at the end of the turn right before ours, cast what we kept: the mana
         untaps next turn anyway. Only reactive cards (counter, pump, protect)
         still wait there unless Forge's AI likes them.
-  * Attack the opponent with the lowest life, with every creature whose
-    power is at least 2 (small creatures stay home to block).
+  * Attack with every creature whose power is at least 2 (small creatures
+    stay home to block). Target: a player we can finish off this turn, or
+    else the biggest threat (threat.threat_score), not just whoever is
+    lowest on life: picking on the weakest player lets the leader run away.
   * Deals (when the game has them on): never break a deal. Attack a player
     who broke a deal with us first (revenge!), then players we promised to
-    gang up on, then the weakest.
+    gang up on, then as above.
       - Offer (from round 3 on, once the strongest opponent has 3+ power on
         the board): if someone else is the leader, ask the next most threatening
         opponent to gang up on the leader. If WE are the leader, offer peace
@@ -219,13 +221,19 @@ class SimpleBot(Bot):
         protected = set(deals.get("protected", []))       # players we have a deal with
         gang_targets = set(deals.get("gang_targets", []))  # players we promised to attack
         grudges = set(deals.get("grudges", []))            # players who broke a deal with us
+        # How much we hit for if everything big attacks one player.
+        power = sum(c.get("power", 0) for c in decision["attackers"] if c.get("power", 0) >= 2)
         # Defenders that are players: grudges first, then gang-up targets, then
-        # weakest first. (Sorting by a tuple compares the first item, then the
-        # next; False sorts before True.) Players we have a deal with are left
-        # out, so we never break a deal.
+        # a player we can knock out this turn, then the biggest threat, and
+        # lowest life only to break a tie. (Sorting by a tuple compares the
+        # first item, then the next; False sorts before True, and the minus
+        # sign puts the highest threat first.) Players we have a deal with are
+        # left out, so we never break a deal.
         targets = sorted(
             (d for d in decision["defenders"] if d["is_player"] and d["name"] not in protected),
             key=lambda d: (d["name"] not in grudges, d["name"] not in gang_targets,
+                           not threat.can_kill(players[d["name"]], power),
+                           -threat.threat_score(players[d["name"]]),
                            players[d["name"]]["life"]),
         )
         attacks: dict[str, int] = {}

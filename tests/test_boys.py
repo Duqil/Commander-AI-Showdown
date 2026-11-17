@@ -75,7 +75,7 @@ class FeatureTest(unittest.TestCase):
         self.assertEqual(feats[2]["target_killable"], 1.0)     # C at 4 life, we have 5 power
         self.assertEqual(feats[2]["target_weak"], 1.0)         # C has no creatures
         self.assertEqual(feats[1]["target_bad_block"], 1.0)    # B's 6/6 eats our 3/3
-        # SimpleBot attacks the lowest life player, so its prior points at C.
+        # SimpleBot finishes off a player it can kill (C at 4 life), so its prior points at C.
         self.assertEqual(feats[2]["simple_prior"], 1.0)
 
     def test_zero_power_creatures_usually_stay_home(self):
@@ -601,7 +601,9 @@ class BoyBotTest(unittest.TestCase):
         after["players"][3]["life"] = 20       # D took 5
         bot.choose_play({"state": after, "options": []})
         bot.game_over({"winner": "2-B", "players": after["players"]}, "1-A")
-        self.assertEqual(bot.result["damage"], 9)
+        # 9 damage, weighted by threat: C was the smallest threat (4 x 0.5),
+        # D the middle one of three (5 x 1.0). Hitting the leader B would count x1.5.
+        self.assertEqual(bot.result["damage"], 7)
         self.assertEqual(bot.result["knockouts"], 1)
 
     def test_cards_drawn_and_discarded(self):
