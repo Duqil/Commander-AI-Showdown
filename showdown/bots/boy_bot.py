@@ -27,7 +27,7 @@ from showdown.bots.base import Bot, Decision
 from showdown.boys import critic, features, threat
 from showdown.boys.brain import Step
 from showdown.boys.reward import (BROKE_A_DEAL, OFFER_DECLINED, OFFER_MADE, PARTNER_BROKE_MY_DEAL,
-                                  game_reward, mulligan_bonus, turn_bonus)
+                                  damage_weight, game_reward, mulligan_bonus, turn_bonus)
 from showdown.boys.storage import load_brain, save_brain
 
 HAND_LIMIT = 7  # maximum hand size at the end of your turn
@@ -47,7 +47,7 @@ class BoyBot(Bot):
         self.deck: str | None = None         # our commander's name, as first seen (for the critic)
         # What happened on each of our own turns:
         #   {turn: [damage to opponents, knockouts, cards drawn, cards discarded to hand size]}
-        self.turn_effects: dict[int, list[int]] = {}
+        self.turn_effects: dict[int, list[float]] = {}
         self.accepted: dict[int, Step] = {}  # deal id -> the "accept" choice that made the deal
         self.offer_steps: list[Step] = []    # the two choices behind the offer we just made
 
@@ -75,7 +75,10 @@ class BoyBot(Bot):
             if p["name"] == me:
                 self._observe_cards(old, p, effects, turn_ended=state.get("turn") != prev.get("turn"))
                 continue
-            effects[0] += max(0, old.get("life", 0) - p.get("life", 0))
+            # Damage to a big threat counts more (reward.damage_weight).
+            lost = max(0, old.get("life", 0) - p.get("life", 0))
+            if lost:
+                effects[0] += lost * damage_weight(threat.threat_rank(prev, p["name"]))
             if p.get("lost"):
                 effects[1] += 1
 
@@ -224,7 +227,7 @@ class BoyBot(Bot):
             save_brain(self.brain)
         self.result = {"won": won, "outlived": outlived, "reward": reward,
                        "advantage": advantage, "choices": len(self.steps),
-                       "damage": damage, "knockouts": knockouts,
+                       "damage": round(damage, 2), "knockouts": knockouts,
                        "drawn": sum(e[2] for e in self.turn_effects.values()),
                        "discarded": sum(e[3] for e in self.turn_effects.values())}
         self.steps = []

@@ -61,7 +61,7 @@ class SimpleBotTest(unittest.TestCase):
         ]}
         self.assertIsNone(self.bot.choose_play(decision))
 
-    def test_attacks_weakest_opponent_with_big_creatures(self):
+    def test_attacks_biggest_threat_with_big_creatures(self):
         decision = {
             "state": make_state(),
             "defenders": [
@@ -73,7 +73,11 @@ class SimpleBotTest(unittest.TestCase):
                 {**card(11, "Squirrel", power=1), "can_attack": [0, 1]},
             ],
         }
-        self.assertEqual(self.bot.declare_attackers(decision), {"10": 1})
+        # Kuja (31 life) is the bigger threat; Nelly (12) can't be finished with 2 power.
+        self.assertEqual(self.bot.declare_attackers(decision), {"10": 0})
+        # With enough power to knock Nelly out, finishing her comes first.
+        decision["attackers"].append({**card(12, "Giant", power=10), "can_attack": [0, 1]})
+        self.assertEqual(self.bot.declare_attackers(decision), {"10": 1, "12": 1})
 
     def test_mulligan(self):
         lands = [card(i, "Mountain", 0, "Basic Land") for i in range(3)]
