@@ -724,10 +724,23 @@ function imageUrl(card) {
 
 function makeCard(card) {
   const node = el("div", "card");
+  setCardPicture(node, card);
+  node.addEventListener("mouseenter", () => showPreview(node._card));
+  node.addEventListener("mouseleave", () => $("#preview").classList.add("hidden"));
+  return node;
+}
+
+// The card's picture. Called again when the picture should change: a card that
+// transforms (Zenos yae Galvus -> Shinryu) keeps its id but gets a new name.
+function setCardPicture(node, card) {
+  const url = imageUrl(card);
+  if (node._picture === url) return;
+  node._picture = url;
+  node.querySelector(":scope > img, :scope > .text-card")?.remove();
   const img = el("img");
   img.loading = "lazy";
   img.alt = card.name;
-  img.src = imageUrl(card);
+  img.src = url;
   // No picture (offline, odd token, ...): show a plain text card instead.
   img.onerror = () => {
     img.remove();
@@ -735,10 +748,7 @@ function makeCard(card) {
     t.append(el("b", "", card.name), el("span", "", card.type || ""));
     node.prepend(t);
   };
-  node.append(img);
-  node.addEventListener("mouseenter", () => showPreview(node._card));
-  node.addEventListener("mouseleave", () => $("#preview").classList.add("hidden"));
-  return node;
+  node.prepend(img);
 }
 
 // What each status from the bridge (StateSnapshot.statuses) means, for the hover text.
@@ -758,6 +768,7 @@ const STATUS_RULES = {
 
 function updateCard(node, c, player) {
   node._card = c;
+  setCardPicture(node, c);
   node.classList.toggle("tapped", !!c.tapped);
   node.classList.toggle("sick", !!c.sick && /Creature/.test(c.type));
   node.classList.toggle("attacking", !!c.attacking);

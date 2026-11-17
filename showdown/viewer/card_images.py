@@ -205,6 +205,10 @@ def load_deck_printings(folder: Path) -> dict[str, tuple[str, str]]:
             # Forge uses the real name, so store the printing under that name.
             name = real_names.get(f"{line.set_code}/{line.number}", line.name)
             printings.setdefault(name, (line.set_code, line.number))
+            # Some printed names are cards of their own in Forge too, e.g. "Zangief,
+            # the Red Cyclone" (Scryfall: Maarika, Brutal Gladiator). Store the
+            # printing under the name on the deck list as well.
+            printings.setdefault(line.name, (line.set_code, line.number))
             if " // " in name:  # double-faced: Forge names the card after the face showing
                 printings.setdefault(name.split(" // ")[0], (line.set_code, line.number))
     return printings

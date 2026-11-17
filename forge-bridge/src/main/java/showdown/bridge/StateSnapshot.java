@@ -409,6 +409,16 @@ public final class StateSnapshot {
         if (c.hasChosenNumber()) {
             ch.addProperty("number", c.getChosenNumber());
         }
+        if (c.hasChosenCard()) {
+            // e.g. Zenos yae Galvus: "choose a creature an opponent controls".
+            // Name plus controller, since several cards can share a name.
+            List<String> picked = new ArrayList<>();
+            for (Card pick : c.getChosenCards()) {
+                Player who = pick.getController();
+                picked.add(pick.getName() + (who == null ? "" : " (" + who.getName() + ")"));
+            }
+            ch.addProperty("card", String.join(", ", picked));
+        }
         return ch;
     }
 
