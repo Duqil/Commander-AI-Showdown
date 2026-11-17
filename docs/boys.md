@@ -255,7 +255,7 @@ means round 8 on. Every card starts at 0, so on day one the Boy plays exactly
 like before, and he learns on his own which cards are better or worse than the
 general rules think. Nothing is written by hand for any card.
 
-Card numbers learn at half speed and lose 0.5% each time they're updated
+Card numbers learn at half speed and lose 0.5% once per game they come up in
 (`CARD_RATE`, `CARD_SHRINK` in brain.py), so a single lucky game can't give a
 rarely seen card a strong opinion.
 
