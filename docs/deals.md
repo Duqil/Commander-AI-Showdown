@@ -48,18 +48,34 @@ trust and grudges in every decision (`decision["deals"]`).
 | | Removal for a favour | Gift for a favour |
 |---|---|---|
 | Offered only when | the offerer holds a card whose text removes ("destroy target", "exile target", "deals 3 damage to any target"; not a blink like "exile target creature you control") | the offerer holds a card whose text gives an opponent something ("target opponent creates/draws/gains...") |
-| Paid when | the offerer aims something harmful at one of *X*'s cards, or one of *X*'s things leaves play on the offerer's turn | the offerer aims something helpful at the partner (Loran's draw, Generous Plunderer's Treasure) |
-| Deadline | 1 round (`PAY_ROUNDS`) | 1 round |
+| Paid when | the offerer really sets *X* back (see below) | the offerer aims something helpful at the partner (Loran's draw, Generous Plunderer's Treasure) |
+| Deadline | 1 or 2 rounds, the offerer picks (`PAY_LENGTHS`; 2 if a bot doesn't say) | same |
 | Not paid in time | counts as breaking the deal: penalty, grudge, revenge | same |
 
-Paying is logged ("Kuja aims Lightning Bolt at Zangief's Krenko for Garnet,
-as promised") and shown as a 🎁 moment in the viewer. Until then the Politics
+The deadline counts from the deal, even if the peace itself runs out first:
+the favour is still owed.
+
+**What pays a removal.** Removing one 1/1 isn't fair payment. On the
+offerer's own turn, or with a card the offerer aimed at it, any one of these:
+
+- removing *X*'s commander, a 3+ power creature or a 3+ mana non-land,
+- removing *X*'s biggest creature (2+ power), or *X*'s biggest artifact,
+  enchantment or planeswalker (2+ mana),
+- removing an engine piece: a card that dealt 2+ damage to players lately
+  (`ENGINE_DAMAGE`), or one that rewards casting spells,
+- a wipe: 3 of *X*'s non-lands gone in the offerer's turn (`WIPE_COUNT`),
+- or *X*'s threat score falling by a fifth during the offerer's turn.
+
+Paying is logged ("Kuja removed Zangief's Krenko (their biggest creature) for
+Garnet, as promised") and shown as a 🎁 moment in the viewer. Until then the Politics
 tab says who owes what. Card texts are read with `REMOVAL_TEXT` / `GIFT_TEXT`
 at the top of `showdown/deals.py`: no card names anywhere.
 
 Boys start out liking to pay what they promised (`pay_removal`, `pay_gift`
 +3.0) and find a favour a bit more tempting than plain peace (`accept_removal`,
-`accept_gift` +1.0). SimpleBot never offers favours but can accept them.
+`accept_gift` +1.0). They like a 2-round deadline a little when offering
+(`removal_pay_slow`, `gift_pay_slow` +0.3) and a little less when accepting
+(`accept_pay_slow` -0.3). SimpleBot never offers favours but can accept them.
 
 ## Sharing plans: a recurring gift, handed out in turn
 

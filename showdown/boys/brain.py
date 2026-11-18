@@ -113,6 +113,9 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "pay_removal": 3.0, "pay_gift": 3.0, "share_planned": 2.0, "attack_my_sharer": -1.0,
                    # A favour is peace with a sweetener: a little more tempting than plain peace.
                    "accept_removal": 1.0, "accept_gift": 1.0,
+                   # Pay within 2 rounds instead of 1: easier to keep for the payer,
+                   # a little less sure for the one waiting.
+                   "removal_pay_slow": 0.3, "gift_pay_slow": 0.3, "accept_pay_slow": -0.3,
                    # and plays that can pay it (a removal spell, Loran's "each draw").
                    "play_pays_removal": 1.5, "play_gives_gift": 1.5}
 

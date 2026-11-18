@@ -26,7 +26,7 @@ from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
 from showdown.boys import cards, colors, combat, commander, mana, threat, timing
-from showdown.deals import GIFT_TEXT, gift_cards, recurring_gift_cards, removal_cards, removes
+from showdown.deals import GIFT_TEXT, PAY_LENGTHS, gift_cards, recurring_gift_cards, removal_cards, removes
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -893,15 +893,18 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
                     "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], against["name"])),
                 }
                 for rounds in DEAL_LENGTHS:
-                    feats.append({**removal, **length_features("removal", rounds)})
-                    offers.append({"type": "removal", "to": to["name"], "against": against["name"], "rounds": rounds})
+                    for pay in PAY_LENGTHS:  # pay within 1 or 2 rounds
+                        feats.append({**removal, **length_features("removal", rounds), "removal_pay_slow": _flag(pay == 2)})
+                        offers.append({"type": "removal", "to": to["name"], "against": against["name"],
+                                       "rounds": rounds, "pay_rounds": pay})
         # Gift for a favour: I give you something, you give me peace.
         if can_gift:
             for rounds in DEAL_LENGTHS:
-                feats.append({"offer_gift": 1.0, **{f"gift_{k}": v for k, v in base.items()},
-                              **length_features("gift", rounds),
-                              "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], None))})
-                offers.append({"type": "gift", "to": to["name"], "rounds": rounds})
+                for pay in PAY_LENGTHS:
+                    feats.append({"offer_gift": 1.0, **{f"gift_{k}": v for k, v in base.items()},
+                                  **length_features("gift", rounds), "gift_pay_slow": _flag(pay == 2),
+                                  "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], None))})
+                    offers.append({"type": "gift", "to": to["name"], "rounds": rounds, "pay_rounds": pay})
     # A gift that comes back every turn: announce a sharing plan (no partner needed).
     if recurring_gift_cards(me) and not view["deals"].get("sharing") and len(opponents) >= 2:
         feats.append({"offer_share": 1.0, "share_my_danger": danger, "simple_prior": _flag(simple == {"type": "share"})})
@@ -937,6 +940,9 @@ def answer_options(view: Decision) -> list[Features]:
         **length_features("accept", offer.get("rounds", 2)),
         "simple_prior": _flag(simple_accepts),
     }
+    if kind in ("removal", "gift"):
+        # They'd pay within 2 rounds instead of 1: a slower promise is a bit less sure.
+        accept["accept_pay_slow"] = _flag(offer.get("pay_rounds", 1) == 2)
     if kind == "removal":
         # They'd remove something of X's for us: worth more the bigger X's threat (to me).
         accept["accept_removal_vs_leader"] = _flag(offer.get("against") == leader)
