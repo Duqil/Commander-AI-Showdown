@@ -135,3 +135,27 @@ def danger_to_me(state: State) -> float:
     my_life = max(1, my.get("life", STARTING_LIFE))
     worst = max((max(board_power(p), recent_damage_to(p, my["name"])) for p in opponents(state)), default=0)
     return worst / my_life
+
+
+def deal_gains(state: State, partner_name: str) -> tuple[float, float]:
+    """For a deal between me and ``partner_name``: (how much I gain, how much they gain).
+
+    A deal means we stop attacking each other, so:
+      * my gain = how much of my life the partner could take in one go
+        (their damage output / my life, at most 1.0), now held back;
+      * their gain = the same the other way around, times how big a threat
+        they are next to the biggest threat at the table (1.0 for the leader,
+        close to 0 for someone far behind). Helping the leader costs a lot,
+        helping the weakest player hardly anything.
+
+    Both are 0.0 to 1.0. A deal looks good when my gain beats their gain.
+    """
+    my = me(state)
+    partner = next((p for p in state["players"] if p["name"] == partner_name), None)
+    if partner is None:
+        return 0.0, 0.0
+    alive = [p for p in state["players"] if not p.get("lost")]
+    top = max((threat_score(p) for p in alive), default=0.0) or 1.0
+    my_gain = min(1.0, damage_output(partner) / max(1, my.get("life", STARTING_LIFE)))
+    their_raw = min(1.0, damage_output(my) / max(1, partner.get("life", STARTING_LIFE)))
+    return my_gain, their_raw * threat_score(partner) / top

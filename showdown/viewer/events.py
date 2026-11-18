@@ -43,7 +43,9 @@ EVENT_KINDS = {
     "deal_accept": "A deal was accepted.",
     "deal_decline": "A deal was declined.",
     "deal_kept": "A deal ran its full length without being broken.",
-    "deal_break": "A bot broke a deal it had made.",
+    "deal_break": "A bot broke a deal it had made (by attacking, or by a new deal that went against it).",
+    "deal_end": "A deal ended early with nothing left to be about (a player is out, or only the partners are left).",
+    "deal_revenge": "A betrayed bot set the deal-breaker back: its revenge is done and over.",
 }
 
 
@@ -181,11 +183,13 @@ class TimelineBuilder:
                            turn=self.turn, player=player, category=decision.get("kind", "").upper())]
 
     def _on_deal(self, msg: dict) -> list[Event]:
-        """A deal was offered, accepted, declined or broken (see showdown/deals.py)."""
+        """A deal was offered, accepted, declined, kept, ended or broken, or revenge was taken (see showdown/deals.py)."""
         deal = msg.get("deal", {})
-        player = msg.get("breaker") or (deal.get("b") if msg["event"] in ("accept", "decline") else deal.get("a"))
+        player = msg.get("victim") or msg.get("breaker") or \
+            (deal.get("b") if msg["event"] in ("accept", "decline") else deal.get("a"))
         return [make_event(f"deal_{msg['event']}", msg["text"], turn=msg.get("turn", self.turn),
-                           player=player, category="DEAL", deal=deal)]
+                           player=player, category="DEAL", deal=deal,
+                           **({"breaker": msg["breaker"]} if msg.get("breaker") else {}))]
 
     def _on_game_over(self, msg: dict) -> list[Event]:
         if msg.get("draw"):

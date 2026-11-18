@@ -93,6 +93,7 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .log-line.deal.accept { color: #8fd694; }
 .log-line.deal.decline { color: var(--muted); }
 .log-line.deal.break { color: #ff8c84; }
+.log-line.deal.revenge { color: #f0c070; }
 .log-line.cat-DAMAGE, .log-line.cat-LIFE { color: #ffb4a9; }
 .log-line.cat-LIFE.gain { color: #8fd694; }
 .log-line.cat-COMBAT { color: #ffd479; }
@@ -257,6 +258,7 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
               background: rgba(20, 24, 31, .96); border: 2px solid; padding: 6px 14px; border-radius: 10px; }
 .board.deal-glow { box-shadow: 0 0 0 3px var(--deal) inset, 0 0 24px var(--deal); }
 #banner.break { border-color: var(--danger); color: #ff8c84; box-shadow: 0 0 40px rgba(229, 83, 75, .6); }
+#banner.revenge { border-color: #e0a040; color: #f0c070; box-shadow: 0 0 40px rgba(224, 160, 64, .6); }
 .deals-help { margin: 2px 0 10px; }
 .deals-help summary { cursor: pointer; }
 .deals-help ul { margin: 6px 0; padding-left: 18px; }

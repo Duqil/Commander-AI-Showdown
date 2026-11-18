@@ -29,6 +29,8 @@ const EVENT_STYLES = {
   deal_decline: { cls: "deal decline", delay: 400 },
   deal_break:   { cls: "deal break", banner: true, delay: 600 },
   deal_kept:    { cls: "deal accept", delay: 300 },   // a deal ran its full length unbroken: a quiet line only
+  deal_end:     { cls: "deal decline", delay: 300 },  // nothing left to deal about (a player is out): a quiet line
+  deal_revenge: { cls: "deal revenge", banner: true, delay: 600 },  // the betrayed player set the breaker back: it's over
 };
 // Forge log categories that get their own pacing.
 const CATEGORY_DELAY = { TURN: 1000, PHASE: 120, MANA: 40, STATE: 150, COMBAT: 700, DAMAGE: 600 };
@@ -467,7 +469,7 @@ function stepForward() {
   app.pos++;
   appendLogLine(ev);
   const style = EVENT_STYLES[ev.kind];
-  if (style?.banner && app.speed !== Infinity) showBanner(ev.text, 2500, ev.kind === "deal_break" ? "break" : "");
+  if (style?.banner && app.speed !== Infinity) showBanner(ev.text, 2500, ev.kind === "deal_break" ? "break" : ev.kind === "deal_revenge" ? "revenge" : "");
   if (ev.kind in DEAL_COLORS) playDealMoment(ev);
   if (ev.kind === "game_over") { app.playing = false; updateButtons(); showBanner(ev.text, 6000); }
   app.stepping = true; // render() may animate what changed, since we moved one step forward
@@ -1153,10 +1155,11 @@ async function loadStats() {
 //     broken: a big icon between the two boards with what was said. Playback
 //     waits for it, like the cast animation.
 // ===========================================================================
-const DEAL_COLORS = { deal_offer: "#c38bff", deal_accept: "#57ab5a", deal_decline: "#8a94a6", deal_break: "#e5534b" };
-const DEAL_ICONS = { deal_offer: "🤝?", deal_accept: "🤝", deal_decline: "✋", deal_break: "💔" };
+const DEAL_COLORS = { deal_offer: "#c38bff", deal_accept: "#57ab5a", deal_decline: "#8a94a6", deal_break: "#e5534b",
+                      deal_revenge: "#e0a040" };
+const DEAL_ICONS = { deal_offer: "🤝?", deal_accept: "🤝", deal_decline: "✋", deal_break: "💔", deal_revenge: "⚔" };
 
-/** Deals that are on and grudges, as of the playhead. Reads only the deal events. */
+/** Deals that are on and revenge still owed, as of the playhead. Reads only the deal events. */
 function dealsNow(turn) {
   const deals = new Map(), grudges = [];
   for (const seq of app.dealSeqs) {
@@ -1164,11 +1167,15 @@ function dealsNow(turn) {
     const ev = app.events[seq], deal = ev.data?.deal;
     if (!deal) continue;
     if (ev.kind === "deal_accept") deals.set(deal.id, deal);
-    if (ev.kind === "deal_kept") deals.delete(deal.id);
+    if (ev.kind === "deal_kept" || ev.kind === "deal_end") deals.delete(deal.id);
     if (ev.kind === "deal_break") {
       deals.delete(deal.id);
       const victim = deal.a === ev.player ? deal.b : deal.a;
-      grudges.push({ victim, breaker: ev.player });
+      if (!grudges.some((g) => g.victim === victim && g.breaker === ev.player)) grudges.push({ victim, breaker: ev.player });
+    }
+    if (ev.kind === "deal_revenge") {  // revenge taken: it's over
+      const i = grudges.findIndex((g) => g.victim === ev.player && g.breaker === ev.data?.breaker);
+      if (i >= 0) grudges.splice(i, 1);
     }
   }
   return { deals: [...deals.values()].filter((d) => turn <= d.expires_turn), grudges };
@@ -1189,8 +1196,10 @@ function drawPolitics(turn) {
   const lines = [];
   const both = (d) => `${shortName(d.a)} & ${shortName(d.b)}`;
   for (const d of deals) {
-    if (d.kind === "gang_up") lines.push(["gang", `⚔ ${both(d)} are ganging up on ${shortName(d.against)}`, `until turn ${d.expires_turn}`]);
-    else lines.push(["peace", `🤝 ${both(d)} have peace`, `until turn ${d.expires_turn}`]);
+    // rounds 0 = a gang-up that lasts until its target is out of the game
+    const until = d.rounds === 0 ? `until ${shortName(d.against)} is out` : `until turn ${d.expires_turn}`;
+    if (d.kind === "gang_up") lines.push(["gang", `⚔ ${both(d)} are ganging up on ${shortName(d.against)}`, until]);
+    else lines.push(["peace", `🤝 ${both(d)} have peace`, until]);
   }
   for (const g of grudges) lines.push(["grudge", `💢 ${shortName(g.victim)} wants revenge on ${shortName(g.breaker)}`, "broke a deal"]);
   box.replaceChildren(el("h4", "", "Right now"));
@@ -1207,12 +1216,12 @@ function playDealMoment(ev) {
   const deal = ev.data?.deal;
   if (!deal || app.speed === Infinity) return;
   // Who "speaks": the offerer offers, the other one answers, the breaker breaks.
-  const from = ev.kind === "deal_offer" ? deal.a : ev.kind === "deal_break" ? ev.player : deal.b;
+  const from = ev.kind === "deal_offer" ? deal.a : (ev.kind === "deal_break" || ev.kind === "deal_revenge") ? ev.player : deal.b;
   const to = from === deal.a ? deal.b : deal.a;
   const a = $(`#boards [data-player="${CSS.escape(from)}"]`), b = $(`#boards [data-player="${CSS.escape(to)}"]`);
   if (!a || !b) return;
   app.dealLayer?.remove();
-  const total = (ev.kind === "deal_break" ? 2600 : 1800) / app.speed;
+  const total = (ev.kind === "deal_break" || ev.kind === "deal_revenge" ? 2600 : 1800) / app.speed;
   app.holdUntil = Math.max(app.holdUntil, performance.now() + total);
   const color = DEAL_COLORS[ev.kind];
   // A big icon halfway between the two boards, with what was said underneath.
