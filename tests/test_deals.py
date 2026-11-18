@@ -633,5 +633,25 @@ class SharePlanTest(unittest.TestCase):
         self.assertEqual(max(range(3), key=lambda i: probs[i]), 1)
 
 
+class GiftPlayTest(unittest.TestCase):
+    def test_say_yes_to_an_optional_gift_only_when_it_pays_something(self):
+        decision = {"kind": "confirm_trigger", "source": PLUNDERER, "description": "you may create a Treasure token"}
+        self.assertIsNone(Bot().confirm_trigger(dict(decision, deals={"owed": [], "share_next": None})))
+        self.assertTrue(Bot().confirm_trigger(dict(decision, deals={"owed": [], "share_next": "2-B"})))
+        self.assertTrue(Bot().confirm_trigger(dict(decision, deals={"owed": [{"kind": "gift", "to": "2-B", "against": None}]})))
+        other = dict(decision, source={"name": "Bear", "oracle": "you may draw a card"}, deals={"share_next": "2-B"})
+        self.assertIsNone(Bot().confirm_trigger(other))
+
+    def test_boys_see_plays_that_pay(self):
+        from showdown.boys import features
+        loran = {"index": 0, "card": {"name": "Loran", "oracle": "{T}: You and target opponent each draw a card."},
+                 "description": "You and target opponent each draw a card."}
+        bolt = {"index": 1, "card": BOLT, "is_spell": True, "description": ""}
+        owed = {"owed": [{"kind": "removal", "to": "2-B", "against": "3-C"}], "share_next": "2-B"}
+        self.assertEqual(features.favour_play_features(loran, loran["card"], False, owed), {"play_gives_gift": 1.0})
+        self.assertEqual(features.favour_play_features(bolt, BOLT, False, owed), {"play_pays_removal": 1.0})
+        self.assertEqual(features.favour_play_features(bolt, BOLT, False, {"owed": []}), {})
+
+
 if __name__ == "__main__":
     unittest.main()

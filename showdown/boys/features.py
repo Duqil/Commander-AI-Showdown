@@ -26,7 +26,7 @@ from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
 from showdown.boys import cards, colors, combat, commander, mana, threat, timing
-from showdown.deals import gift_cards, recurring_gift_cards, removal_cards
+from showdown.deals import GIFT_TEXT, gift_cards, recurring_gift_cards, removal_cards, removes
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -231,6 +231,8 @@ def play_options(decision: Decision) -> list[Features]:
             **timing_features(option, card, is_land, is_spell, when),
             # Card memory: a learned number for this very card (cards.py).
             **cards.play_features(option, state),
+            # A play that can pay a favour we owe, or feed our sharing plan (deals.py).
+            **favour_play_features(option, card, is_land, decision.get("deals", {})),
         })
     result.append({
         "pass": 1.0,
@@ -788,6 +790,22 @@ def offer_whether_options(view: Decision) -> list[Features]:
         "offer_vs_runaway_leader": _flag(runaway),
     }
     return [no, yes]
+
+
+def favour_play_features(option: dict, card: dict, is_land: bool, deals: dict) -> Features:
+    """Plays that pay what we promised: removal text while we owe a removal,
+    gift text ("you and target opponent each draw") while we owe a gift or
+    have a sharing plan. Start liked (brain.py)."""
+    if is_land or not deals:
+        return {}
+    text = (option.get("description", "") + " " + card.get("oracle", ""))
+    owed = {o["kind"] for o in deals.get("owed", [])}
+    f: Features = {}
+    if "removal" in owed and removes(text):
+        f["play_pays_removal"] = 1.0
+    if GIFT_TEXT.search(text) and ("gift" in owed or deals.get("share_next")):
+        f["play_gives_gift"] = 1.0
+    return f
 
 
 DEAL_LENGTHS = (1, 2, 3, 4)  # rounds an offer can last (same as showdown/deals.py)

@@ -112,7 +112,9 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    # sharing plan, and go easy on players who share with us.
                    "pay_removal": 3.0, "pay_gift": 3.0, "share_planned": 2.0, "attack_my_sharer": -1.0,
                    # A favour is peace with a sweetener: a little more tempting than plain peace.
-                   "accept_removal": 1.0, "accept_gift": 1.0}
+                   "accept_removal": 1.0, "accept_gift": 1.0,
+                   # and plays that can pay it (a removal spell, Loran's "each draw").
+                   "play_pays_removal": 1.5, "play_gives_gift": 1.5}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each
 # game moves it a lot, and whether we won is mostly noise for that one choice.

@@ -63,6 +63,8 @@ def answer_decision(bot: Bot, decision: Decision):
         return bot.pay_keyword_cost(decision)
     if kind == "pick_card":
         return bot.choose_card(decision)
+    if kind == "confirm_trigger":
+        return bot.confirm_trigger(decision)
     return None  # a kind this bot doesn't know: let Forge decide
 
 

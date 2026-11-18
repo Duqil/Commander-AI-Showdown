@@ -96,6 +96,15 @@ class Bot:
         """
         return None
 
+    def confirm_trigger(self, decision: Decision) -> bool | None:
+        """An optional ("you may") triggered ability: use it (True), don't (False),
+        or None to let Forge's AI decide.
+
+        decision["source"]: the card it comes from (with its "oracle" text).
+        decision["description"]: what the ability does.
+        """
+        return wants_to_give(decision)
+
     # --- deals (only when the game is played with deals on) -------------------
 
     def offer_deal(self, view: Decision) -> dict | None:
@@ -143,3 +152,17 @@ class Bot:
         """The player dict for whoever is deciding."""
         you = decision["state"]["you"]
         return next(p for p in decision["state"]["players"] if p["name"] == you)
+
+
+def wants_to_give(decision: Decision) -> bool | None:
+    """Say yes to an optional gift trigger we owe someone or planned to share
+    ("you may create a Treasure. When you do, target opponent creates one").
+    Forge's AI would say no: it never gives an opponent anything. Everything
+    else: None (Forge's AI decides)."""
+    from showdown.deals import GIFT_TEXT  # deals imports bots' helpers, so import late
+    text = decision.get("source", {}).get("oracle", "") + " " + decision.get("description", "")
+    deals = decision.get("deals", {})
+    owes_gift = any(o.get("kind") == "gift" for o in deals.get("owed", []))
+    if GIFT_TEXT.search(text) and (owes_gift or deals.get("share_next")):
+        return True
+    return None

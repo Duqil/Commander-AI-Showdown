@@ -21,6 +21,7 @@ import forge.game.combat.CombatUtil;
 import forge.game.player.DelayedReveal;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
+import forge.game.trigger.WrappedAbility;
 import forge.game.zone.ZoneType;
 
 import java.util.ArrayList;
@@ -49,6 +50,8 @@ import java.util.Map;
  *   4. pick_card      - cards you pick for yourself: lands from a library search
  *                       (any fetch land), or "look at the top N" (Drawn from Dreams)
  *
+ *      confirm_trigger - use an optional ("you may") triggered ability or not.
+ *                       Python may answer null to let Forge's AI decide.
  *      choose_targets (trigger: true) - who a triggered ability aims at, when it
  *                       can only aim at players ("target opponent creates a
  *                       Treasure": Generous Plunderer). Used for deals and gifts.
@@ -626,6 +629,27 @@ public class PythonPlayerController extends PlayerControllerAi {
         }
     }
 
+    /**
+     * An optional triggered ability ("At the beginning of your upkeep, you may
+     * create a Treasure token. When you do, target opponent creates..."):
+     * Python may say yes or no; null leaves it to Forge's AI. Forge's AI never
+     * gives an opponent a Treasure, which a deal or a sharing plan can need.
+     */
+    @Override
+    public boolean confirmTrigger(WrappedAbility wrapper) {
+        if (wrapper.isMandatory()) {
+            return true;
+        }
+        JsonObject extra = new JsonObject();
+        extra.add("source", StateSnapshot.card(wrapper.getHostCard()));
+        extra.addProperty("description", wrapper.getWrappedAbility().getDescription());
+        JsonElement choice = ask("confirm_trigger", extra).get("choice");
+        if (isNull(choice)) {
+            return super.confirmTrigger(wrapper);
+        }
+        return choice.getAsBoolean();
+    }
+
     /** Some part of this ability targets, and every such part can only target players. */
     private static boolean targetsOnlyPlayers(SpellAbility sa) {
         boolean any = false;
@@ -697,8 +721,24 @@ public class PythonPlayerController extends PlayerControllerAi {
     // 3. Attacks
     // ------------------------------------------------------------------
 
+    /** Which turn we last asked Python to attack, and how often this turn. */
+    private int attackAskTurn = -1;
+    private int attackAsksThisTurn = 0;
+
     @Override
     public void declareAttackers(Player attacker, Combat combat) {
+        // Forge asks again when an attack can't be paid for ("can't attack you
+        // unless its controller pays {2}": Summon: Yojimbo, Ghostly Prison).
+        // Python would pick the same attack forever, so from the third ask in a
+        // turn (an extra combat is the second) Forge's AI declares, and it
+        // knows how to pay or skip the tax.
+        int turn = getGame().getPhaseHandler().getTurn();
+        attackAsksThisTurn = turn == attackAskTurn ? attackAsksThisTurn + 1 : 1;
+        attackAskTurn = turn;
+        if (attackAsksThisTurn > 2) {
+            super.declareAttackers(attacker, combat);
+            return;
+        }
         List<Card> possible = new ArrayList<>();
         for (Card c : attacker.getCreaturesInPlay()) {
             if (CombatUtil.canAttack(c)) {
