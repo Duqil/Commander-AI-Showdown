@@ -104,6 +104,10 @@ def play(
                 on_log("Deal: " + m["text"])
             if on_message:
                 on_message(m)
+            if m["event"] == "break":  # tell both partners (the Boys learn from it)
+                for partner in (m["deal"]["a"], m["deal"]["b"]):
+                    if partner in bots_by_name:
+                        bots_by_name[partner].deal_broken(m["deal"], m["breaker"], partner)
 
     for msg in conn.messages():
         if on_message:
@@ -122,6 +126,8 @@ def play(
                 log.append(line)
                 if on_log:
                     on_log(line)
+                if book is not None:
+                    deal_messages(book.see_log(line, damage.controllers))  # revenge done?
         elif kind == "decision":
             bot = bots_by_name.get(msg["player"])
             if "state" in msg:
@@ -129,18 +135,16 @@ def play(
             if msg.get("kind") == "mulligan":
                 msg["mulligans_so_far"] = mulligans.get(msg["player"], 0)
             if book is not None and "state" in msg:
+                deal_messages(book.observe(msg["state"]))  # revenge done?
                 deal_messages(book.offer_phase(msg["state"], bots_by_name))  # start of a new turn?
                 msg["deals"] = book.view_for(msg["player"], msg["state"])
             choice = answer_decision(bot, msg) if bot else None
             if msg.get("kind") == "mulligan" and choice is False:
                 mulligans[msg["player"]] = mulligans.get(msg["player"], 0) + 1
             if book is not None and msg.get("kind") == "attack":
-                broken = book.check_attack(msg["player"], msg, choice)
-                deal_messages(broken)
-                for m in broken:  # tell both partners (the Boys learn from it)
-                    for partner in (m["deal"]["a"], m["deal"]["b"]):
-                        if partner in bots_by_name:
-                            bots_by_name[partner].deal_broken(m["deal"], m["breaker"], partner)
+                deal_messages(book.check_attack(msg["player"], msg, choice))
+            if book is not None and msg.get("kind") == "choose_targets":
+                book.note_target(msg["player"], msg, choice)  # harm aimed at a deal-breaker counts as revenge
             conn.answer(msg["id"], choice)
             decisions += 1
             if on_message:

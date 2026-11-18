@@ -53,7 +53,8 @@ Features = dict[str, float]
 #     Forge's suggested target), so its first games look like SimpleBot with
 #     some random variation.
 #   * attack_breaks_deal: a new Boy mostly keeps its word, but can learn when
-#     betrayal pays. attack_grudge: and it starts out wanting revenge.
+#     betrayal pays. attack_grudge / attack_revenge: and it starts out wanting
+#     revenge (attack_revenge only until it has set the breaker back once).
 #   * attack_zero_power: attacking with a 0-power creature starts very unlikely
 #     (about 1 in 20 against staying home), but stays possible: with a combat
 #     trick in hand it can be right, and a Boy can learn that.
@@ -97,7 +98,16 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "pass_keeping_instant_mana": 0.3, "engine_without_fuel_now": -0.6,
                    "fuel_before_engine": -0.5, "tapland_costs_a_play": -1.0,
                    "tapland_on_quiet_turn": 0.6, "untapped_land_on_quiet_turn": -0.3,
-                   "gang_against_runaway": 2.0, "accept_against_runaway": 2.0}
+                   "gang_against_runaway": 2.0, "accept_against_runaway": 2.0,
+                   # Deals v3 (2026-11-18): who gains more from a deal (threat.deal_gains).
+                   # My gain starts liked, the partner's (weighted by their threat) disliked.
+                   "accept_my_gain": 2.0, "accept_their_gain": -2.0,
+                   "peace_my_gain": 2.0, "peace_their_gain": -2.0,
+                   "gang_my_gain": 1.0, "gang_their_gain": -1.0,
+                   # A new deal that goes against one we have is betrayal: starts disliked.
+                   "offer_breaks_deal": -2.0, "accept_breaks_deal": -2.0,
+                   # Revenge: one real setback on whoever broke a deal with us, then it's over.
+                   "attack_revenge": 1.5, "hurt_revenge_target": 1.5}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each
 # game moves it a lot, and whether we won is mostly noise for that one choice.

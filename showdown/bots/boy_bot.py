@@ -184,7 +184,14 @@ class BoyBot(Bot):
 
     def deal_broken(self, deal: dict, breaker: str, player: str) -> None:
         """Politics penalties (see "Politics" in showdown/boys/reward.py)."""
-        if breaker == player:
+        if breaker == player and deal.get("broken_how") == "new_deal":
+            # We broke it by agreeing to a deal that went against it: the
+            # offer or answer we just made pays.
+            for step in reversed(self.steps):
+                if step.kind in ("offer", "answer"):
+                    step.deal_bonus += BROKE_A_DEAL
+                    break
+        elif breaker == player:
             # We broke it, with the attack we just chose: our latest attack
             # choice that went at a deal partner.
             for step in reversed(self.steps):

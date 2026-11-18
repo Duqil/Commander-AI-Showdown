@@ -26,14 +26,15 @@ Rules, in order:
     else the biggest threat (threat.threat_score), not just whoever is
     lowest on life: picking on the weakest player lets the leader run away.
   * Deals (when the game has them on): never break a deal. Attack a player
-    who broke a deal with us first (revenge!), then players we promised to
-    gang up on, then as above.
+    who broke a deal with us first (revenge, until we've set them back once),
+    then players we promised to gang up on, then as above.
       - Offer (from round 3 on, once the strongest opponent has 3+ power on
         the board): if someone else is the leader, ask the next most threatening
         opponent to gang up on the leader. If WE are the leader, offer peace
         to the strongest opponent.
       - Accept: anything from a player we still trust (trust 0.5 or more),
-        unless they are the leader.
+        unless they are the leader, or they'd gain clearly more from it than
+        we do (threat.deal_gains).
 
 Deliberately simple and easy to read. Improving these rules is a good
 first Python exercise.
@@ -48,6 +49,7 @@ from showdown.boys.threat import game_round
 MAIN_PHASES = {"MAIN1", "MAIN2"}
 EARLIEST_DEAL_ROUND = 3     # no deals in rounds 1-2
 MEANINGFUL_BOARD_POWER = 3  # the leader needs at least this much power before a deal means anything
+GAIN_MARGIN = 0.05          # decline a deal when the offerer gains this much more than we do (threat.deal_gains)
 SMALL_X = 3                 # a non-creature X spell (Torment of Hailfire) waits until X is at least this
 
 
@@ -220,10 +222,11 @@ class SimpleBot(Bot):
         deals = decision.get("deals", {})
         protected = set(deals.get("protected", []))       # players we have a deal with
         gang_targets = set(deals.get("gang_targets", []))  # players we promised to attack
-        grudges = set(deals.get("grudges", []))            # players who broke a deal with us
+        revenge = set(deals.get("revenge", []))            # broke a deal with us, not paid back yet
         # How much we hit for if everything big attacks one player.
         power = sum(c.get("power", 0) for c in decision["attackers"] if c.get("power", 0) >= 2)
-        # Defenders that are players: grudges first, then gang-up targets, then
+        # Defenders that are players: revenge first (one real setback, then
+        # it's over: showdown/deals.py notices), then gang-up targets, then
         # a player we can knock out this turn, then the biggest threat, and
         # lowest life only to break a tie. (Sorting by a tuple compares the
         # first item, then the next; False sorts before True, and the minus
@@ -231,7 +234,7 @@ class SimpleBot(Bot):
         # left out, so we never break a deal.
         targets = sorted(
             (d for d in decision["defenders"] if d["is_player"] and d["name"] not in protected),
-            key=lambda d: (d["name"] not in grudges, d["name"] not in gang_targets,
+            key=lambda d: (d["name"] not in revenge, d["name"] not in gang_targets,
                            not threat.can_kill(players[d["name"]], power),
                            -threat.threat_score(players[d["name"]]),
                            players[d["name"]]["life"]),
@@ -266,12 +269,16 @@ class SimpleBot(Bot):
         if threat.board_power(leader) < MEANINGFUL_BOARD_POWER:
             return None  # the strongest opponent can barely hit anyone: a deal would mean nothing
         if threat.threat_score(threat.me(state)) > threat.threat_score(leader):
-            return {"type": "peace", "to": leader["name"]}  # we're ahead: keep the strongest off us
-        return {"type": "gang_up", "to": ranked[1]["name"], "against": leader["name"]}
+            return {"type": "peace", "to": leader["name"], "rounds": 2}  # we're ahead: keep the strongest off us
+        return {"type": "gang_up", "to": ranked[1]["name"], "against": leader["name"], "rounds": 2}
 
     def answer_deal(self, view: Decision) -> bool:
         offerer = view["offer"]["a"]
         trust = view["deals"]["trust"].get(offerer, 1.0)
         if offerer in view["deals"].get("grudges", []):
             return False  # you broke a deal with us. No.
-        return trust >= 0.5 and threat.leader(view["state"]) != offerer
+        if trust < 0.5 or threat.leader(view["state"]) == offerer:
+            return False
+        # Who gains more? Say no when they'd gain clearly more than we do.
+        my_gain, their_gain = threat.deal_gains(view["state"], offerer)
+        return their_gain <= my_gain + GAIN_MARGIN

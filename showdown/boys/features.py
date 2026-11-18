@@ -517,7 +517,9 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
         if d["name"] in deals.get("gang_targets", []):
             f["attack_gang_target"] = 1.0     # we promised to attack them
         if d["name"] in deals.get("grudges", []):
-            f["attack_grudge"] = 1.0          # they broke a deal with us: revenge
+            f["attack_grudge"] = 1.0          # they broke a deal with us this game
+        if d["name"] in deals.get("revenge", []):
+            f["attack_revenge"] = 1.0         # ...and we haven't paid them back yet (one real setback)
         if target is not None:
             blockers = threat.untapped_blockers(target)
             # A blocker that would kill this creature and survive the hit.
@@ -704,6 +706,10 @@ def target_options(decision: Decision) -> list[Features]:
             f["target_player_low_life"] = _flag(life <= 10)
         elif not is_player and not mine and owner in players:
             f["target_owner_threat_rank"] = threat.threat_rank(state, owner)
+        # Harm aimed at someone who broke a deal with us: that's revenge
+        # (one real setback, see showdown/deals.py). Starts liked (brain.py).
+        if harmful and not mine and owner in decision.get("deals", {}).get("revenge", []):
+            f["hurt_revenge_target"] = 1.0
         result.append(f)
     return result
 
@@ -771,8 +777,27 @@ def offer_whether_options(view: Decision) -> list[Features]:
     return [no, yes]
 
 
+DEAL_LENGTHS = (1, 2, 3, 4)  # rounds an offer can last (same as showdown/deals.py)
+UNTIL_OUT = 0                # a gang-up until its target is out
+
+
+def length_features(prefix: str, rounds: int) -> Features:
+    """How long a deal lasts: 0.25 for 1 round up to 1.0 for 4, or "until they're out"."""
+    if rounds == UNTIL_OUT:
+        return {f"{prefix}_until_out": 1.0}
+    return {f"{prefix}_rounds": rounds / 4}
+
+
+def breaks_my_deal(deals: dict, partner: str, against: str | None) -> bool:
+    """Would agreeing to this deal break one I already have? (showdown/deals.py
+    counts it as betrayal.) A gang-up on someone I have a deal with, or any
+    deal with someone I promised to gang up on."""
+    return (against is not None and against in deals.get("protected", [])) or \
+        partner in deals.get("gang_targets", [])
+
+
 def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
-    """Step 2 of offering: which deal, to whom. Returns (features, offer per option)."""
+    """Step 2 of offering: which deal, to whom, for how long. Returns (features, offer per option)."""
     state = view["state"]
     trust = view["deals"]["trust"]
     opponents = threat.opponents(state)
@@ -789,6 +814,7 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
     for to in opponents:
         if to["name"] in protected:
             continue  # already have a deal with them
+        my_gain, their_gain = threat.deal_gains(state, to["name"])
         base = {
             "to_is_leader": _flag(to["name"] == leader),
             "to_threat_rank": threat.threat_rank(state, to["name"]),
@@ -796,25 +822,34 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
             "to_grudge": _flag(to["name"] in view["deals"].get("grudges", [])),
             "i_am_leader": _flag(i_lead),
             "my_danger": danger,
+            # Who gains more from us not attacking each other (threat.deal_gains).
+            "my_gain": my_gain,
+            "their_gain": their_gain,
         }
-        offer = {"type": "peace", "to": to["name"]}
-        feats.append({"offer_peace": 1.0, **{f"peace_{k}": v for k, v in base.items()},
-                      "simple_prior": _flag(simple == offer)})
-        offers.append(offer)
+        for rounds in DEAL_LENGTHS:
+            offer = {"type": "peace", "to": to["name"], "rounds": rounds}
+            feats.append({"offer_peace": 1.0, **{f"peace_{k}": v for k, v in base.items()},
+                          **length_features("peace", rounds),
+                          "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], None)),
+                          "simple_prior": _flag(simple == offer)})
+            offers.append(offer)
         for against in opponents:
             if against["name"] == to["name"]:
                 continue
-            offer = {"type": "gang_up", "to": to["name"], "against": against["name"]}
-            feats.append({"offer_gang_up": 1.0, **{f"gang_{k}": v for k, v in base.items()},
-                          # Neither of us could hurt them much yet: a pointless gang-up.
-                          "gang_pointless": _flag(threat.board_power(me) + threat.board_power(to)
-                                                  < QUIET_TABLE_POWER),
-                          "gang_against_is_leader": _flag(against["name"] == leader),
-                          # Ganging up on someone far ahead: what gang-ups are for (starts positive).
-                          "gang_against_runaway": _flag(against["name"] == runaway),
-                          "gang_against_threat_rank": threat.threat_rank(state, against["name"]),
-                          "simple_prior": _flag(simple == offer)})
-            offers.append(offer)
+            gang = {
+                "offer_gang_up": 1.0, **{f"gang_{k}": v for k, v in base.items()},
+                # Neither of us could hurt them much yet: a pointless gang-up.
+                "gang_pointless": _flag(threat.board_power(me) + threat.board_power(to) < QUIET_TABLE_POWER),
+                "gang_against_is_leader": _flag(against["name"] == leader),
+                # Ganging up on someone far ahead: what gang-ups are for (starts positive).
+                "gang_against_runaway": _flag(against["name"] == runaway),
+                "gang_against_threat_rank": threat.threat_rank(state, against["name"]),
+                "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], against["name"])),
+            }
+            for rounds in DEAL_LENGTHS + (UNTIL_OUT,):
+                offer = {"type": "gang_up", "to": to["name"], "against": against["name"], "rounds": rounds}
+                feats.append({**gang, **length_features("gang", rounds), "simple_prior": _flag(simple == offer)})
+                offers.append(offer)
     return feats, offers
 
 
@@ -826,6 +861,7 @@ def answer_options(view: Decision) -> list[Features]:
     leader = threat.leader(state)
     simple_accepts = _simple.answer_deal(view)
     kind = offer["kind"]
+    my_gain, their_gain = threat.deal_gains(state, offerer)
     accept = {
         "accept": 1.0,
         f"accept_{kind}": 1.0,
@@ -836,6 +872,13 @@ def answer_options(view: Decision) -> list[Features]:
         "accept_low_trust": 1.0 - view["deals"]["trust"].get(offerer, 1.0),
         "accept_from_grudge": _flag(offerer in view["deals"].get("grudges", [])),
         "accept_danger": min(threat.danger_to_me(state), 2.0) / 2,
+        # Who gains more from us not attacking each other (threat.deal_gains):
+        # starts out liking my gain and disliking theirs (brain.py).
+        "accept_my_gain": my_gain,
+        "accept_their_gain": their_gain,
+        # Saying yes would break a deal we already have (that's betrayal).
+        "accept_breaks_deal": _flag(breaks_my_deal(view["deals"], offerer, offer.get("against"))),
+        **length_features("accept", offer.get("rounds", 2)),
         "simple_prior": _flag(simple_accepts),
     }
     if kind == "gang_up":

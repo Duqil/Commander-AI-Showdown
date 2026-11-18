@@ -15,11 +15,21 @@ as a line starting with `Deal:` and shows up in the browser viewer's timeline.
 
 | Deal | Means |
 |---|---|
-| `peace` | "Let's not attack each other for 2 rounds." |
-| `gang_up` | "Let's both attack *X* for 2 rounds" (and not each other). |
+| `peace` | "Let's not attack each other for N rounds." |
+| `gang_up` | "Let's both attack *X* for N rounds" (and not each other). |
 
-A round is every player taking one turn, so 2 rounds at a 4-player table is
-8 game turns.
+The offerer picks N: 1, 2, 3 or 4 rounds (`"rounds"` in the offer, 2 if a bot
+doesn't say). A gang-up can also last until *X* is out of the game
+(`"rounds": 0`). A round is every player taking one turn, so 2 rounds at a
+4-player table is 8 game turns.
+
+A deal also ends early, with no blame, when:
+
+- one of its two players is out of the game,
+- a gang-up's target is out (the job is done: it counts as kept),
+- the two partners are the only players left (no peace in the final two).
+
+These show up as "deal is over" lines in the log.
 
 ## When deals happen
 
@@ -30,13 +40,50 @@ trust and grudges in every decision (`decision["deals"]`).
 ## Breaking a deal
 
 Attacking someone you have a deal with breaks it. Python notices by itself,
-because Python decides attacks. A broken deal is a big event:
+because Python decides attacks.
 
-- **Revenge:** the breaker goes on the victim's grudge list for the rest of
-  the game. SimpleBot attacks grudges first and never deals with them again;
-  Boys start out wanting revenge (`attack_grudge`) and learn how much.
+So does agreeing to a new deal that goes against an old one (Adam's call,
+2026-11-18). It breaks the old deal the moment the new one is accepted:
+
+| Old deal | New deal | Who breaks what |
+|---|---|---|
+| Nelly has peace with Zangief | Nelly joins a gang-up on Zangief | Nelly breaks the peace with Zangief |
+| Nelly and Zidane gang up on Zangief | Nelly makes peace (or teams up) with Zangief | Nelly breaks the gang-up with Zidane |
+
+It counts for both new partners, the one who offered and the one who said
+yes. A declined offer breaks nothing. The Boys see `offer_breaks_deal` and
+`accept_breaks_deal` (both start at -2.0), so they can learn when switching
+sides is worth it.
+
+A broken deal is a big event:
+
+- **Grudge:** the breaker goes on the victim's grudge list for the rest of
+  the game. SimpleBot never deals with them again.
+- **Revenge, once:** the victim owes the breaker one revenge (see below).
 - **Reputation:** the victim's trust in the breaker drops by 0.5, everyone
   else's by 0.25. SimpleBot refuses offers from anyone below 0.5.
+
+## Revenge: one real setback, then it's over
+
+Real players usually pay a betrayal back, but going all-in for the rest of
+the game is overkill. So the victim owes **one** revenge, and it's done as
+soon as the victim has really set the breaker back by any of these
+(numbers at the top of `showdown/deals.py`):
+
+| Setback | Counts when |
+|---|---|
+| Damage | the victim deals the breaker 5+ damage in one game turn (`REVENGE_DAMAGE`) |
+| Removal | the victim removes one of the breaker's important things: their commander, a creature with 3+ power, or any non-land costing 3+ (`important()`). It counts on the victim's own turn, or any time the victim aimed something harmful at that card. |
+| Board hit | the breaker's threat score (`threat.threat_score`) drops by a fifth during the victim's turn (`REVENGE_THREAT_DROP`) |
+
+Only the victim's own actions count. When it's done, the viewer shows it
+(banner, a ⚔ moment between the two boards, and a log line):
+"Zidane removed Krenko from Zangief. Zidane has taken revenge, and it's over."
+
+While revenge is owed, bots see the breaker in `decision["deals"]["revenge"]`:
+SimpleBot attacks them first, and Boys start out liking `attack_revenge` and
+`hurt_revenge_target` (+1.5 each). After that, the grudge stays (no new
+deals, lower trust) but the hunt is over. All of this lasts one game.
 
 ## What breaking costs a Boy
 
@@ -101,11 +148,29 @@ Grudges don't fade yet. All the numbers are at the top of `showdown/deals.py`.
 
 Deals, trust and grudges reset every game.
 
+## Who gains more?
+
+A deal means "we don't attack each other". Whether that's a good trade
+depends on both sides (`threat.deal_gains`):
+
+- **my gain:** how much of my life the partner could take in one go (their
+  damage output / my life, at most 1.0), now held back,
+- **their gain:** the same the other way around, times how big a threat they
+  are next to the biggest threat at the table. Helping the leader counts a
+  lot; helping someone far behind hardly counts.
+
+Boys see both when answering (`accept_my_gain` +2.0, `accept_their_gain` -2.0)
+and when offering (`peace_my_gain` / `peace_their_gain` +2/-2, `gang_my_gain` /
+`gang_their_gain` +1/-1). SimpleBot says no when the offerer would gain
+clearly more than it does (`GAIN_MARGIN` 0.05 in `showdown/bots/simple_bot.py`).
+That's the main reason for a "no" now: peace with someone who can't really
+hurt you, but whom you could hurt, is a bad trade.
+
 ## Who makes deals
 
 | Bot | Deals |
 |---|---|
-| `simple` | Never breaks a deal. Only offers from round 3 on, and only once the strongest opponent has at least 3 power on the board. Then: if someone else leads, asks the next strongest to gang up on the leader; if it leads itself, offers peace to the strongest. Accepts from players it trusts, unless they lead. |
-| `random` | Offers a random deal 30% of the time, accepts half, and breaks deals often since it attacks at random. |
-| `boy:<name>` | Learns whether to offer this turn (`offer_whether`), then which deal (`offer`), what to accept and when breaking pays. Starts out close to SimpleBot. Also sees how far into the game it is and how much power is on the table, so it can learn that early deals don't pay. |
+| `simple` | Never breaks a deal. Offers last 2 rounds. Only offers from round 3 on, and only once the strongest opponent has at least 3 power on the board. Then: if someone else leads, asks the next strongest to gang up on the leader; if it leads itself, offers peace to the strongest. Accepts from players it trusts, unless they lead or would gain clearly more than it does. |
+| `random` | Offers a random deal (random length) 30% of the time, accepts half, and breaks deals often since it attacks at random. |
+| `boy:<name>` | Learns whether to offer this turn (`offer_whether`), then which deal and how long (`offer`), what to accept and when breaking pays. Starts out close to SimpleBot. Also sees how far into the game it is and how much power is on the table, so it can learn that early deals don't pay. |
 | `forge` | Forge's own AI can't make deals: offers to it are declined. |

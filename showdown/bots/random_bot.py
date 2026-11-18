@@ -38,9 +38,10 @@ class RandomBot(Bot):
         if len(others) < 2 or self.rng.random() > 0.3:
             return None
         to, against = self.rng.sample(others, 2)
+        rounds = self.rng.choice([1, 2, 3, 4])
         if self.rng.random() < 0.5:
-            return {"type": "peace", "to": to}
-        return {"type": "gang_up", "to": to, "against": against}
+            return {"type": "peace", "to": to, "rounds": rounds}
+        return {"type": "gang_up", "to": to, "against": against, "rounds": rounds}
 
     def answer_deal(self, view: Decision) -> bool:
         return self.rng.random() < 0.5
