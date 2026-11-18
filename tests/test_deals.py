@@ -400,7 +400,7 @@ class RevengeTest(unittest.TestCase):
         cards = [card(50, "Bear", "2-B", power=2, cmc=2), card(51, "Dragon", "2-B", power=5, cmc=6)]
         self.book.observe(self.table(9, "1-A", cards))
         self.assertEqual(self.book.see_log("Bear (50) was put into Graveyard from Battlefield.", {}), [])  # too small
-        msgs = self.book.see_log("Dragon (51) was put into Exile from Battlefield.", {})
+        msgs = self.book.see_log("Zone Change: Dragon (51) was put into Exile from Battlefield.", {})
         self.assertEqual(msgs[0]["text"], "1-A removed Dragon from 2-B. 1-A has taken revenge, and it's over.")
 
     def test_removal_on_someone_elses_turn_counts_if_i_aimed_it(self):

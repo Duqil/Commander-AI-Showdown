@@ -64,7 +64,7 @@ REVENGE_DAMAGE = 5            # the victim dealt the breaker this much damage in
 REVENGE_THREAT_DROP = 0.2     # or the breaker's threat score fell by a fifth during the victim's turn,
 IMPORTANT_POWER = 3           # or the victim removed something important: their commander,
 IMPORTANT_COST = 3            # a creature with 3+ power, or any non-land costing 3+ mana.
-ZONE_LINE = re.compile(r"^(?P<name>.+?) \((?P<id>\d+)\) was put into (?P<zone>\w+) from Battlefield\.$")
+ZONE_LINE = re.compile(r"^(?:Zone Change: )?(?P<name>.+?) \((?P<id>\d+)\) was put into (?P<zone>\w+) from Battlefield\.$")
 DAMAGE_LINE = re.compile(r"^(?P<source>.+?) \((?P<id>\d+)\) deals (?P<amount>\d+) (?:non-combat |combat )?damage to (?P<target>.+?)\.$")
 
 
@@ -410,7 +410,7 @@ class DealBook:
             for r in owed:
                 if card and card["controller"] == r.breaker and important(card) and \
                         (self._active == r.victim or card["id"] in self._targeted.get(r.victim, set())):
-                    messages.append(self._revenge_done(r, f"{r.victim} removed {m['name']} from {r.breaker}"))
+                    messages.append(self._revenge_done(r, f"{r.victim} removed {card.get('name') or m['name']} from {r.breaker}"))
         return messages
 
     def _revenge_done(self, r: Revenge, what: str) -> dict:
