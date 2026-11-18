@@ -54,6 +54,57 @@ class CardFeatureTest(unittest.TestCase):
         self.assertEqual(cards.target_features({"name": "2-B", "is_player": True}, harmful=True), {})
 
 
+def bolt_decision(active="1-A", phase="MAIN1", stack=0, turn=17):
+    st = state(turn)
+    st.update(active_player=active, phase=phase, stack_size=stack)
+    return {"state": st, "options": [
+        {"index": 0, "card": {"name": "Lightning Bolt", "type": "Instant", "cmc": 1},
+         "description": "Lightning Bolt deals 3 damage to any target.", "is_land": False, "is_spell": True,
+         "effects": [{"api": "DealDamage", "targets": True, "params": {}}]}]}
+
+
+class RoleAndSituationTest(unittest.TestCase):
+    def test_roles_from_forge_effects(self):
+        self.assertEqual(cards.role("DealDamage"), "damage")
+        self.assertEqual(cards.role("Pump", {"NumAtt": "-3"}), "shrink")
+        self.assertEqual(cards.role("Pump", {"NumAtt": "+X"}), "pump")
+        self.assertEqual(cards.role("ChangeZone", {"Origin": "Battlefield", "Destination": "Exile"}), "exile")
+        self.assertEqual(cards.role("ChangeZone", {"Origin": "Battlefield", "Destination": "Hand"}), "bounce")
+        self.assertEqual(cards.role("ChangeZone", {"Origin": "Battlefield", "Destination": "Exile",
+                                                    "ValidTgts": "Creature.YouCtrl"}), "blink")
+        self.assertEqual(cards.role("ChangeZone", {"Origin": "Graveyard", "Destination": "Battlefield"}), "recursion")
+        self.assertEqual(cards.role("Mill"), "mill")     # unknown effects keep their own name
+        self.assertIsNone(cards.role("Charm"))
+
+    def test_modal_card_gets_every_chosen_role(self):
+        option = {"effects": [{"api": "DealDamage"}, {"api": "Discard"}, {"api": "DealDamage"}]}
+        self.assertEqual(cards.option_roles(option), ["damage", "discard"])
+
+    def test_own_main_phase_has_no_situation(self):
+        f = cards.play_features(bolt_decision()["options"][0], bolt_decision()["state"])
+        self.assertIn("card:role:damage", f)
+        self.assertFalse(any("@their_turn" in k or "@combat" in k for k in f))
+
+    def test_situations_on_their_turn_in_combat(self):
+        d = bolt_decision(active="2-B", phase="COMBAT_DECLARE_BLOCKERS", stack=1, turn=30)
+        f = cards.play_features(d["options"][0], d["state"])
+        for key in ("card:cast:lightning_bolt@their_turn", "card:cast:lightning_bolt@combat",
+                    "card:cast:lightning_bolt@respond", "card:cast:lightning_bolt@late",
+                    "card:role:damage@their_turn", "card:role:damage@combat", "card:role:damage@late"):
+            self.assertEqual(f[key], 1.0, key)
+
+    def test_aim_features(self):
+        d = {"state": state(), "source": {"name": "Lightning Bolt"}, "api": "DealDamage", "params": {}}
+        face = cards.target_features({"name": "2-B", "is_player": True}, True, d)
+        self.assertEqual(face, {"card:aim:lightning_bolt>player": 1.0, "card:aim:damage>player": 1.0})
+        cmdr = cards.target_features({"name": "Zuko", "type": "Creature", "commander": True,
+                                      "controller": "3-C"}, True, d)
+        self.assertIn("card:aim:damage>commander", cmdr)
+        self.assertIn("card:hurt:zuko", cmdr)
+        mine = cards.target_features({"name": "Elf", "type": "Creature", "controller": "1-A"}, True, d)
+        self.assertIn("card:aim:lightning_bolt>mine", mine)
+
+
 class CardMemoryBrainTest(unittest.TestCase):
     def learn_once(self, brain):
         brain.games, brain.critic["bias"] = 1, 0.5  # an average game is 0.5, this one went well

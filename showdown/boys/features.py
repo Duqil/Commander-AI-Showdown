@@ -703,7 +703,7 @@ def target_options(decision: Decision) -> list[Features]:
             "target_commander": _flag(cand.get("commander", False)),
             "target_of_leader": _flag(owner == leader),
             **target_combat_features(cand, harmful, fight),
-            **cards.target_features(cand, harmful),  # card memory (cards.py)
+            **cards.target_features(cand, harmful, decision),  # card memory (cards.py)
         }
         if is_player and not mine:
             life = cand.get("life", threat.STARTING_LIFE)
