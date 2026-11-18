@@ -263,6 +263,33 @@ means round 8 on. Every card starts at 0, so on day one the Boy plays exactly
 like before, and he learns on his own which cards are better or worse than the
 general rules think. Nothing is written by hand for any card.
 
+### Situations and roles
+
+A card's value depends on when and how it's used. Lightning Bolt in my own
+main phase at a player is a different play from Lightning Bolt on an
+opponent's turn at an attacking creature. So card memory also has:
+
+- **Situations** for `cast` and `use`: `@their_turn`, `@combat` and `@respond`
+  (something is on the stack), e.g. `cast:lightning_bolt@combat`.
+- **Roles**: what the card does, read from Forge's own description of its
+  effects (`DealDamage` becomes `damage`, a `-3/-3` Pump becomes `shrink`,
+  exiling from the battlefield becomes `exile`...). A card gets every role
+  that fits; a modal spell gets the roles of the modes Forge's AI chose.
+  Roles also get the situations and stages: `role:damage@combat`,
+  `role:pump@their_turn`, `role:draw@early`.
+- **Aim**: where a targeted effect goes: `aim:lightning_bolt>player`,
+  `aim:damage>creature`, `aim:damage>commander`, `aim:destroy>mine`.
+  Kinds are `player`, `me`, `commander`, `creature`, `mine` and `permanent`.
+
+Roles are shared by every card with the same effect, so a lesson learned with
+one burn spell carries over to every burn spell in every deck, including
+cards the Boy has never seen. This needs the bridge from the same version
+(`scripts/build_bridge.sh`): with an older bridge the roles are simply missing.
+
+Which modes a modal spell uses is still Forge's AI's choice. The bridge logs
+each pick in the game log ("Detail: 1-Riku modes for Over the Edge: chose ...
+(not: ...)"), so we can see how good those picks are.
+
 Card numbers learn at half speed and lose 0.5% once per game they come up in
 (`CARD_RATE`, `CARD_SHRINK` in brain.py), so a single lucky game can't give a
 rarely seen card a strong opinion.

@@ -26,6 +26,30 @@ What the verbs mean:
     hurt    removal, damage, -X/-X... aimed at this card (target)
     help    a helpful effect aimed at this card (target)
     attack  attacking with this creature (attack)
+    aim     where this card's targeted effect goes: a player, a creature... (target)
+
+Situations: casting a card on someone else's turn, during combat, or in
+response to something on the stack is a different play from casting it in
+my own main phase. So "cast" and "use" also get those versions:
+
+    "card:cast:lightning_bolt@their_turn"   ...on an opponent's turn
+    "card:cast:lightning_bolt@combat"       ...during combat
+    "card:cast:lightning_bolt@respond"      ...with something on the stack
+
+Roles: a label for what a card does, read from Forge's description of its
+effects (DealDamage -> "damage", Destroy -> "destroy"...). Roles are shared by
+every card that does the same thing, so a lesson learned with one burn spell
+("damage at a creature during combat pays off") carries over to all burn
+spells, in every deck, even cards Prime has never seen:
+
+    "card:role:damage"                 casting/using something that deals damage
+    "card:role:damage@combat"          ...during combat (same situations as above)
+    "card:aim:damage>creature"         aiming damage at a creature
+    "card:aim:lightning_bolt>player"   aiming this very card at a player
+
+A card gets every role that fits: Kolaghan's Command is "damage", "discard"
+and "recursion" (the modes Forge's AI chose for this cast), a creature with
+"when this enters, draw a card" is "draw".
 """
 
 from __future__ import annotations
@@ -33,6 +57,7 @@ from __future__ import annotations
 import re
 
 from showdown.boys import threat
+from showdown.boys.combat import COMBAT_STEPS
 
 Features = dict[str, float]
 
@@ -79,17 +104,123 @@ def features(verb: str, card: dict, state: dict | None = None) -> Features:
     return f
 
 
+def situations(state: dict) -> list[str]:
+    """When a play happens, beyond early/late: on their turn, in combat, responding."""
+    out = []
+    if state.get("active_player") != state.get("you"):
+        out.append("their_turn")
+    if state.get("phase") in COMBAT_STEPS:
+        out.append("combat")
+    if state.get("stack_size", 0) > 0:
+        out.append("respond")
+    return out
+
+
+# Forge's effect names ("api") grouped into roles. Anything not listed keeps
+# its own name in lower case ("mill", "goad"...), so new effects still get a label.
+ROLE_OF_API = {
+    "DealDamage": "damage", "DamageAll": "damage", "EachDamage": "damage",
+    "Destroy": "destroy", "DestroyAll": "destroy",
+    "Counter": "counter",
+    "Draw": "draw", "Dig": "draw", "DigUntil": "draw", "PeekAndReveal": "draw",
+    "Token": "tokens", "CopyPermanent": "tokens", "Amass": "tokens",
+    "GainLife": "life",
+    "Mana": "mana",
+    "Protection": "protect", "ProtectionAll": "protect", "Regenerate": "protect", "PreventDamage": "protect",
+    "GainControl": "steal", "GainControlVariant": "steal", "ExchangeControl": "steal",
+    "Sacrifice": "sacrifice", "SacrificeAll": "sacrifice",
+    "Pump": "pump", "PumpAll": "pump",
+    "PutCounter": "counters", "PutCounterAll": "counters",
+    "Tap": "tap", "TapAll": "tap", "Untap": "untap", "UntapAll": "untap",
+    "Fight": "fight", "Animate": "animate", "Discard": "discard", "Scry": "scry", "Surveil": "scry",
+}
+# Effects that are glue rather than a role (choose a mode, remember a card...).
+NO_ROLE = {"Charm", "Cleanup", "PermanentCreature", "PermanentNoncreature", "Effect", "StoreSVar", "ChooseCard", "ChooseType", "ChooseColor",
+           "ChoosePlayer", "ChooseNumber"}
+
+
+def role(api: str | None, params: dict | None = None) -> str | None:
+    """One effect's role: "damage", "destroy", "shrink", "bounce"... or None."""
+    if not api or api in NO_ROLE:
+        return None
+    params = params or {}
+    if api in ("Pump", "PumpAll") and params.get("NumAtt", "").startswith("-"):
+        return "shrink"                                   # -2/-2 is removal, not a pump
+    if api in ("PutCounter", "PutCounterAll") and "M1M1" in params.get("CounterType", ""):
+        return "shrink"
+    if api in ("ChangeZone", "ChangeZoneAll"):
+        origin, dest = params.get("Origin", ""), params.get("Destination", "")
+        if "Battlefield" in origin:
+            valid = params.get("ValidTgts", "")
+            if "YouCtrl" in valid and "OppCtrl" not in valid:
+                return "blink"                            # my own creature: a flicker for value
+            return "exile" if dest == "Exile" else "bounce"
+        if "Graveyard" in origin:
+            return "recursion"
+        if "Library" in origin:
+            return "tutor"
+        return "move"
+    return ROLE_OF_API.get(api, api.lower())
+
+
+def option_roles(option: dict) -> list[str]:
+    """Every role of a play option, from the effects the bridge sent (no repeats)."""
+    out = []
+    for e in option.get("effects", []):
+        r = role(e.get("api"), e.get("params"))
+        if r and r not in out:
+            out.append(r)
+    return out
+
+
 def play_features(option: dict, state: dict) -> Features:
     """For a play option: cast a spell or use an ability. Land drops get none:
     which land to play is about colors and mana, and mana.py covers that."""
     card = option.get("card", {})
     if option.get("is_land"):
         return {}
-    return features("cast" if option.get("is_spell") else "use", card, state)
+    verb = "cast" if option.get("is_spell") else "use"
+    f = features(verb, card, state)
+    name = slug(card.get("name", ""))
+    when = situations(state)
+    if name:
+        for sit in when:
+            f[f"{PREFIX}{verb}:{name}@{sit}"] = 1.0
+    phase = stage(state)
+    for r in option_roles(option):
+        f[f"{PREFIX}role:{r}"] = 1.0
+        for sit in when + ([phase] if phase else []):
+            f[f"{PREFIX}role:{r}@{sit}"] = 1.0
+    return f
 
 
-def target_features(cand: dict, harmful: bool) -> Features:
-    """For a target option: hurting or helping this card. Players get none."""
+def target_kind(cand: dict, you: str | None) -> str:
+    """What a target is, in a few words: player, me, commander, creature, mine, permanent."""
     if cand.get("is_player"):
-        return {}
-    return features("hurt" if harmful else "help", cand)
+        return "me" if cand.get("name") == you else "player"
+    if you is not None and cand.get("controller") == you:
+        return "mine"
+    if cand.get("commander"):
+        return "commander"
+    if "Creature" in cand.get("type", ""):
+        return "creature"
+    return "permanent"
+
+
+def target_features(cand: dict, harmful: bool, decision: dict | None = None) -> Features:
+    """For a target option: hurting or helping this card (players get none),
+    and where this source card / this role is aimed (aim features)."""
+    f = {} if cand.get("is_player") else features("hurt" if harmful else "help", cand)
+    if decision is None:
+        return f
+    you = decision.get("state", {}).get("you")
+    kind = target_kind(cand, you)
+    source = slug(decision.get("source", {}).get("name", ""))
+    if source:
+        f[f"{PREFIX}aim:{source}>{kind}"] = 1.0
+    r = role(decision.get("api"), decision.get("params"))
+    if r:
+        f[f"{PREFIX}aim:{r}>{kind}"] = 1.0
+        for sit in situations(decision.get("state", {})):
+            f[f"{PREFIX}aim:{r}>{kind}@{sit}"] = 1.0
+    return f

@@ -359,6 +359,13 @@ public class PythonPlayerController extends PlayerControllerAi {
                 o.addProperty("api", sa.getApi().name()); // e.g. "ChangeZone" for Evolving Wilds
             }
             o.addProperty("forge_would_play", forgeOk.get(i));
+            // Everything the play does, step by step (for "role" labels in Python):
+            // Lightning Bolt = [DealDamage], a Charm = the modes Forge's AI picked.
+            o.add("effects", effects(sa));
+            if (isModal(sa)) {
+                o.add("modes_chosen", modeNames(sa.getChosenList()));
+                o.add("modes_all", modeNames(sa.getAdditionalAbilityList("Choices")));
+            }
             if (sa.isSpell() && sa.getHostCard().isPermanent() && etbHasNoTarget(sa)) {
                 // A creature whose "when this enters, destroy target ..." has
                 // nothing to hit right now: it would only be its body.
@@ -476,6 +483,80 @@ public class PythonPlayerController extends PlayerControllerAi {
     // ------------------------------------------------------------------
     // 2b. Targets for the play Python just chose
     // ------------------------------------------------------------------
+
+    /** Params worth passing to Python: how big, from where to where, who may be targeted. */
+    private static final String[] EFFECT_PARAMS = {"NumAtt", "NumDef", "Origin", "Destination", "CounterType", "ValidTgts"};
+
+    /**
+     * What a play does, one entry per step: {"api": "DealDamage", "params": {...}}.
+     * For a modal spell the steps of the modes Forge's AI chose (the Charm
+     * itself is only "choose a mode", it does nothing on its own).
+     */
+    private static JsonArray effects(SpellAbility sa) {
+        JsonArray out = new JsonArray();
+        List<SpellAbility> starts = new ArrayList<>();
+        if (isModal(sa)) {
+            if (sa.getChosenList() != null) {
+                starts.addAll(sa.getChosenList());
+            }
+        } else {
+            starts.add(sa);
+        }
+        for (SpellAbility start : starts) {
+            for (SpellAbility a = start; a != null; a = a.getSubAbility()) {
+                if (a.getApi() == null) {
+                    continue;
+                }
+                JsonObject e = new JsonObject();
+                e.addProperty("api", a.getApi().name());
+                e.addProperty("targets", a.usesTargeting());
+                JsonObject params = new JsonObject();
+                for (String key : EFFECT_PARAMS) {
+                    if (a.hasParam(key)) {
+                        params.addProperty(key, a.getParam(key));
+                    }
+                }
+                e.add("params", params);
+                out.add(e);
+            }
+        }
+        return out;
+    }
+
+    private static JsonArray modeNames(List<? extends SpellAbility> modes) {
+        JsonArray out = new JsonArray();
+        if (modes != null) {
+            for (SpellAbility m : modes) {
+                out.add(m.getDescription());
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Forge's AI picks the modes of a modal spell or trigger. We keep its
+     * pick, but log it ("Detail: ... modes ...") so we can see how good its
+     * choices are before deciding whether the Boys should learn to pick.
+     */
+    @Override
+    public List<forge.game.spellability.AbilitySub> chooseModeForAbility(SpellAbility sa,
+            List<forge.game.spellability.AbilitySub> possible, int min, int num, boolean allowRepeat) {
+        List<forge.game.spellability.AbilitySub> chosen = super.chooseModeForAbility(sa, possible, min, num, allowRepeat);
+        try {
+            List<String> picked = new ArrayList<>();
+            List<String> skipped = new ArrayList<>();
+            for (forge.game.spellability.AbilitySub m : possible) {
+                (chosen != null && chosen.contains(m) ? picked : skipped).add(m.getDescription());
+            }
+            getGame().getGameLog().add(forge.game.GameLogEntryType.INFORMATION,
+                    "Detail: " + getPlayer().getName() + " modes for " + sa.getHostCard().getName()
+                    + ": chose " + (picked.isEmpty() ? "nothing" : String.join(" + ", picked))
+                    + (skipped.isEmpty() ? "" : " (not: " + String.join(" / ", skipped) + ")"));
+        } catch (RuntimeException e) {
+            // logging only; never break the game over it
+        }
+        return chosen;
+    }
 
     /** A "choose one or more" spell or ability (Charm, Spree, Escalate...). */
     private static boolean isModal(SpellAbility sa) {
