@@ -17,6 +17,8 @@ as a line starting with `Deal:` and shows up in the browser viewer's timeline.
 |---|---|
 | `peace` | "Let's not attack each other for N rounds." |
 | `gang_up` | "Let's both attack *X* for N rounds" (and not each other). |
+| `removal` | "I'll remove something of *X*'s. In return: peace for N rounds." |
+| `gift` | "I'll give you something (a card, a Treasure...). In return: peace for N rounds." |
 
 The offerer picks N: 1, 2, 3 or 4 rounds (`"rounds"` in the offer, 2 if a bot
 doesn't say). A gang-up can also last until *X* is out of the game
@@ -38,6 +40,76 @@ These show up as "deal is over" lines in the log.
 At the start of each turn, the active player's bot may offer **one** deal to
 one opponent. That opponent's bot accepts or declines. Bots see their deals,
 trust and grudges in every decision (`decision["deals"]`).
+
+## Favours: removal or a gift, for peace
+
+`removal` and `gift` are peace with a payment on top. The offerer pays first:
+
+| | Removal for a favour | Gift for a favour |
+|---|---|---|
+| Offered only when | the offerer holds a card whose text removes ("destroy target", "exile target", "deals 3 damage to any target"; not a blink like "exile target creature you control") | the offerer holds a card whose text gives an opponent something ("target opponent creates/draws/gains...") |
+| Paid when | the offerer really sets *X* back (see below) | the offerer aims something helpful at the partner (Loran's draw, Generous Plunderer's Treasure) |
+| Deadline | 1 or 2 rounds, the offerer picks (`PAY_LENGTHS`; 2 if a bot doesn't say) | same |
+| Not paid in time | counts as breaking the deal: penalty, grudge, revenge | same |
+
+The deadline counts from the deal, even if the peace itself runs out first:
+the favour is still owed.
+
+**What pays a removal.** Removing one 1/1 isn't fair payment. On the
+offerer's own turn, or with a card the offerer aimed at it, any one of these:
+
+- removing *X*'s commander, a 3+ power creature or a 3+ mana non-land,
+- removing *X*'s biggest creature (2+ power), or *X*'s biggest artifact,
+  enchantment or planeswalker (2+ mana),
+- removing an engine piece: a card that dealt 2+ damage to players lately
+  (`ENGINE_DAMAGE`), or one that rewards casting spells,
+- a wipe: 3 of *X*'s non-lands gone in the offerer's turn (`WIPE_COUNT`),
+- or *X*'s threat score falling by a fifth during the offerer's turn.
+
+**Named removals.** An offer can also name one card: "I'll remove Kefka from
+Kuja". The card named is *X*'s biggest threat (`biggest_threat_card`: damage it
+dealt lately counts most, then a commander, power and mana cost), and only
+cards whose removal is a real setback can be named. Only removing that exact
+card pays. If it leaves play some other way (someone else kills it, it's
+stolen or flickered) the deal just ends, with no blame. Boys see whether one of
+their removal cards can hit it (`removal_named_can_hit` +0.5, read from text);
+accepting likes a named promise a little (`accept_named` +0.3), more so when
+the card has been dealing damage (`accept_named_engine` +0.5).
+
+Paying is logged ("Kuja removed Zangief's Krenko (their biggest creature) for
+Garnet, as promised") and shown as a 🎁 moment in the viewer. Until then the Politics
+tab says who owes what. Card texts are read with `REMOVAL_TEXT` / `GIFT_TEXT`
+at the top of `showdown/deals.py`: no card names anywhere.
+
+Boys start out liking to pay what they promised (`pay_removal`, `pay_gift`
++3.0) and find a favour a bit more tempting than plain peace (`accept_removal`,
+`accept_gift` +1.0). They like a 2-round deadline a little when offering
+(`removal_pay_slow`, `gift_pay_slow` +0.3) and a little less when accepting
+(`accept_pay_slow` -0.3). SimpleBot never offers favours but can accept them.
+
+## Sharing plans: a recurring gift, handed out in turn
+
+A player with a gift that comes back every turn (a card on the battlefield
+with gift text, like Generous Plunderer or Loran of the Third Path) can
+announce a sharing plan instead of making an offer:
+
+> Zidane will share Generous Plunderer in turn: Anhelo, then Nelly, then Kuja
+
+- A gift to the next player in line raises their trust a little (+0.05) and
+  is logged "as planned".
+- A gift out of turn (to pay a gift favour, say) costs trust with whoever
+  was skipped (-0.1): "Nelly was skipped and trusts Zidane less".
+- Players in someone's plan go easy on them: SimpleBot attacks them last,
+  Boys start out disliking `attack_my_sharer` (-1.0).
+- SimpleBot always announces a plan when it can, and follows it. Boys learn
+  whether to (`offer_share`) and start out following it (`share_planned` +2.0).
+- The plan ends when the gift card leaves play.
+
+To let the bots choose who gets a triggered gift ("target opponent creates a
+tapped Treasure"), the bridge now asks Python for the targets of triggered
+abilities that can only target players (`choose_targets` with `"trigger":
+true`). Everything else about triggers is still Forge's AI. After pulling
+this, run `scripts/build_bridge.sh` once.
 
 ## Breaking a deal
 

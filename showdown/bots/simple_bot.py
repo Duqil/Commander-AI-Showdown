@@ -32,6 +32,8 @@ Rules, in order:
         the board): if someone else is the leader, ask the next most threatening
         opponent to gang up on the leader. If WE are the leader, offer peace
         to the strongest opponent.
+      - Share: with a gift that comes back every turn (Generous Plunderer),
+        announce a sharing plan and give to each opponent in turn.
       - Accept: anything from a player we still trust (trust 0.5 or more),
         unless they are the leader, or they'd gain clearly more from it than
         we do (threat.deal_gains).
@@ -45,6 +47,7 @@ from __future__ import annotations
 from showdown.bots.base import Bot, Decision
 from showdown.boys import colors, combat, commander, mana, threat, timing
 from showdown.boys.threat import game_round
+from showdown.deals import recurring_gift_cards
 
 MAIN_PHASES = {"MAIN1", "MAIN2"}
 EARLIEST_DEAL_ROUND = 3     # no deals in rounds 1-2
@@ -223,6 +226,7 @@ class SimpleBot(Bot):
         protected = set(deals.get("protected", []))       # players we have a deal with
         gang_targets = set(deals.get("gang_targets", []))  # players we promised to attack
         revenge = set(deals.get("revenge", []))            # broke a deal with us, not paid back yet
+        sharers = set(deals.get("sharing_with_me", []))     # share their gifts with us: be nice
         # How much we hit for if everything big attacks one player.
         power = sum(c.get("power", 0) for c in decision["attackers"] if c.get("power", 0) >= 2)
         # Defenders that are players: revenge first (one real setback, then
@@ -234,7 +238,7 @@ class SimpleBot(Bot):
         # left out, so we never break a deal.
         targets = sorted(
             (d for d in decision["defenders"] if d["is_player"] and d["name"] not in protected),
-            key=lambda d: (d["name"] not in revenge, d["name"] not in gang_targets,
+            key=lambda d: (d["name"] not in revenge, d["name"] not in gang_targets, d["name"] in sharers,
                            not threat.can_kill(players[d["name"]], power),
                            -threat.threat_score(players[d["name"]]),
                            players[d["name"]]["life"]),
@@ -249,6 +253,16 @@ class SimpleBot(Bot):
                     break
         return attacks
 
+    def choose_targets(self, decision: Decision) -> list[int] | None:
+        """Only for gifts to an opponent: follow our sharing plan. Everything else: Forge's pick."""
+        from showdown.boys.features import is_harmful  # features imports this module, so import late
+        cands = decision.get("candidates", [])
+        if not cands or is_harmful(decision) or not all(c.get("is_player") for c in cands):
+            return None
+        planned = decision.get("deals", {}).get("share_next")
+        pick = next((c["index"] for c in cands if c["name"] == planned), None)
+        return None if pick is None else [pick]
+
     # --- deals ----------------------------------------------------------------
 
     def offer_deal(self, view: Decision) -> dict | None:
@@ -260,7 +274,11 @@ class SimpleBot(Bot):
         """
         state = view["state"]
         opponents = threat.opponents(state)
-        if len(opponents) < 2 or view["deals"]["active"]:
+        if len(opponents) < 2:
+            return None
+        if not view["deals"].get("sharing") and recurring_gift_cards(threat.me(state)):
+            return {"type": "share"}  # a gift that comes back every turn: hand it out in turn, nobody gets salty
+        if view["deals"]["active"]:
             return None  # one deal at a time is plenty for a simple bot
         if game_round(state) < EARLIEST_DEAL_ROUND:
             return None  # early game: nobody knows who's ahead yet, and peace is free

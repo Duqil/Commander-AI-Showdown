@@ -483,5 +483,320 @@ class GainCheckTest(unittest.TestCase):
         self.assertEqual({o["rounds"] for o in offers if o["type"] == "gang_up"}, {0, 1, 2, 3, 4})
 
 
+BOLT = {"id": 90, "name": "Lightning Bolt", "type": "Instant", "oracle": "Lightning Bolt deals 3 damage to any target."}
+PLUNDERER = {"id": 91, "name": "Generous Plunderer", "type": "Creature", "power": 2, "controller": "1-A",
+             "oracle": "At the beginning of your upkeep, you may create a Treasure token. When you do, "
+                       "target opponent creates a tapped Treasure token."}
+
+
+def favour_state(turn=5, active="1-A", hand=(BOLT,), board=()):
+    s = state(turn=turn, active=active)
+    s["players"][0]["hand"] = list(hand)
+    s["players"][0]["battlefield"] = list(board)
+    return s
+
+
+def target_decision(turn, candidates, api="Destroy", suggested=(0,), source="Lightning Bolt"):
+    return {"kind": "choose_targets", "api": api, "params": {}, "description": "",
+            "candidates": [dict(c, index=i) for i, c in enumerate(candidates)], "suggested": list(suggested),
+            "source": {"name": source}, "state": state(turn=turn)}
+
+
+class FavourTest(unittest.TestCase):
+    """Removal or a gift, in return for peace (Adam, 2026-11-18)."""
+
+    def setUp(self):
+        self.book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+
+    def test_removal_needs_a_way_to_pay(self):
+        bots = {"1-A": Offerer({"type": "removal", "to": "2-B", "against": "3-C", "rounds": 2}), "2-B": Accepter()}
+        self.assertEqual(self.book.offer_phase(favour_state(hand=()), bots), [])   # nothing that removes
+        msgs = self.book.offer_phase(favour_state(turn=9), bots)
+        self.assertEqual([m["event"] for m in msgs], ["offer", "accept"])
+        self.assertIn("1-A removes something of 3-C's within 2 rounds, for peace for 2 rounds", msgs[0]["text"])
+        self.assertEqual(self.book.view_for("1-A", state(turn=9))["owed"],
+                         [{"kind": "removal", "to": "2-B", "against": "3-C", "pay_by": 17, "card_id": None}])
+
+    def removal_deal(self, pay_rounds=None):
+        offer = {"type": "removal", "to": "2-B", "against": "3-C"}
+        if pay_rounds:
+            offer["pay_rounds"] = pay_rounds
+        return self.book.offer_phase(favour_state(), {"1-A": Offerer(offer), "2-B": Accepter()})
+
+    def see_board(self, board, turn=6, active="1-A"):
+        s = state(turn=turn, active=active)
+        s["players"][2]["battlefield"] = [dict(c, controller="3-C") for c in board]
+        return self.book.observe(s)
+
+    def gone(self, card):
+        return self.book.see_log(f"{card['name']} ({card['id']}) was put into graveyard from Battlefield.", {})
+
+    def test_removing_one_small_creature_does_not_pay(self):
+        self.removal_deal()
+        squirrel = {"id": 40, "name": "Squirrel", "type": "Creature", "power": 1, "cmc": 0}
+        elf = {"id": 41, "name": "Elf", "type": "Creature", "power": 1, "cmc": 1}
+        self.see_board([squirrel, elf])
+        self.assertEqual(self.gone(squirrel), [])
+        self.assertEqual(self.book.view_for("1-A", state(turn=6))["owed"][0]["kind"], "removal")
+
+    def test_removing_their_biggest_creature_pays(self):
+        msgs = self.removal_deal()
+        self.assertEqual(msgs[1]["deal"]["pay_rounds"], 2)
+        bear = {"id": 40, "name": "Bear", "type": "Creature", "power": 2, "cmc": 2}
+        elf = {"id": 41, "name": "Elf", "type": "Creature", "power": 1, "cmc": 1}
+        self.see_board([bear, elf])
+        msgs = self.gone(bear)
+        self.assertEqual([m["event"] for m in msgs], ["paid"])
+        self.assertEqual(msgs[0]["text"], "1-A removed 3-C's Bear (their biggest creature) for 2-B, as promised")
+        self.assertEqual(self.book.view_for("1-A", state(turn=6))["owed"], [])
+        self.assertEqual(self.book.offer_phase(state(turn=40, active="2-B"), {}), [])  # paid: no break later
+        kinds = [e["kind"] for e in TimelineBuilder().feed(msgs[0])]
+        self.assertEqual(kinds, ["deal_paid"])
+
+    def test_engine_pieces_and_big_artifacts_pay(self):
+        self.removal_deal()
+        pinger = {"id": 40, "name": "Pinger", "type": "Creature", "power": 0, "cmc": 1, "recent_damage": 3}
+        dragon = {"id": 41, "name": "Dragon", "type": "Creature", "power": 5, "cmc": 5}
+        self.see_board([pinger, dragon])
+        self.assertIn("(an engine piece)", self.gone(pinger)[0]["text"])
+        self.book.deals[0].paid = False
+        rock = {"id": 42, "name": "Mind Stone", "type": "Artifact", "cmc": 2}
+        treasure = {"id": 43, "name": "Treasure", "type": "Artifact", "cmc": 0}
+        self.see_board([rock, treasure], turn=10)
+        self.assertEqual(self.gone(treasure), [])
+        self.assertIn("(their biggest artifact)", self.gone(rock)[0]["text"])
+
+    def test_a_wipe_of_small_things_pays(self):
+        self.removal_deal()
+        tokens = [{"id": 50 + i, "name": "Squirrel", "type": "Creature", "power": 1} for i in range(4)]
+        self.see_board(tokens + [{"id": 60, "name": "Dragon", "type": "Creature", "power": 5}])
+        self.assertEqual(self.gone(tokens[0]) + self.gone(tokens[1]), [])
+        msgs = self.gone(tokens[2])
+        self.assertEqual(msgs[0]["text"], "1-A wiped 3 of 3-C's permanents for 2-B, as promised")
+
+    def test_off_turn_removal_counts_only_if_the_payer_aimed_it(self):
+        self.removal_deal()
+        bear = {"id": 40, "name": "Bear", "type": "Creature", "power": 3}
+        self.see_board([bear], turn=7, active="3-C")
+        self.assertEqual(self.gone(bear), [])  # someone else's doing
+        self.book.deals[0].paid = False
+        self.see_board([bear], turn=8, active="4-D")
+        self.book.note_target("1-A", target_decision(8, [dict(bear, controller="3-C")]), [0])
+        self.assertEqual([m["event"] for m in self.gone(bear)], ["paid"])
+
+    def test_knocking_their_board_down_pays(self):
+        self.removal_deal()
+        big = [{"id": 40 + i, "name": "Wall", "type": "Creature", "power": 0} for i in range(2)]
+        self.see_board(big + [{"id": 45, "name": "Dragon", "type": "Creature", "power": 6}])
+        msgs = self.see_board(big)
+        self.assertEqual(msgs[0]["text"], "1-A knocked 3-C's board down for 2-B, as promised")
+
+    def test_unpaid_favour_is_a_broken_deal(self):
+        self.removal_deal(pay_rounds=1)
+        self.assertIn("within 1 round,", self.book.deals[0].describe())
+        self.assertEqual(self.book.offer_phase(state(turn=9, active="1-A"), {}), [])   # still has until turn 9
+        msgs = self.book.offer_phase(state(turn=10, active="2-B"), {})
+        self.assertEqual([m["event"] for m in msgs], ["break"])
+        self.assertEqual(msgs[0]["breaker"], "1-A")
+        self.assertEqual(msgs[0]["deal"]["broken_how"], "unpaid")
+        self.assertIn("by never paying (the promised removal on 3-C never came)", msgs[0]["text"])
+        self.assertEqual(self.book.view_for("2-B", state())["revenge"], ["1-A"])
+
+    def test_two_rounds_to_pay(self):
+        self.removal_deal(pay_rounds=2)
+        self.assertEqual(self.book.offer_phase(state(turn=13, active="1-A"), {}), [])
+        self.assertEqual([m["event"] for m in self.book.offer_phase(state(turn=14, active="2-B"), {})], ["break"])
+
+    def test_pay_rounds_must_be_1_or_2(self):
+        self.assertEqual(self.removal_deal(pay_rounds=3), [])
+
+    def test_gift_paid_by_helping_the_partner(self):
+        bots = {"1-A": Offerer({"type": "gift", "to": "2-B"}), "2-B": Accepter()}
+        self.assertEqual(self.book.offer_phase(favour_state(hand=()), bots), [])   # nothing to give
+        self.book.offer_phase(favour_state(turn=9, hand=(), board=(PLUNDERER,)), bots)
+        players = [{"name": n, "is_player": True} for n in ("2-B", "3-C", "4-D")]
+        msgs = self.book.note_target("1-A", target_decision(10, players, api="Token", source="Generous Plunderer"), [0])
+        self.assertEqual(msgs[0]["text"], "1-A gives 2-B a gift (Generous Plunderer), as promised")
+
+    def test_removal_on_my_peace_partner_breaks_the_peace(self):
+        self.book.offer_phase(state(turn=5, active="3-C"), peace("3-C", "1-A"))
+        msgs = self.book.offer_phase(favour_state(turn=9),
+                                     {"1-A": Offerer({"type": "removal", "to": "2-B", "against": "3-C"}),
+                                      "2-B": Accepter()})
+        self.assertEqual([m["event"] for m in msgs], ["offer", "accept", "break"])
+        self.assertIn("1-A BREAKS the peace with 3-C by promising a removal on 3-C", msgs[-1]["text"])
+
+    def test_boy_pays_for_an_unpaid_favour_on_its_offer(self):
+        from showdown.bots.boy_bot import BoyBot
+        from showdown.boys.brain import Step
+        from showdown.boys.reward import BROKE_A_DEAL
+        boy = BoyBot("favour-test", learn=False)
+        which = Step("offer", [{"offer_removal": 1.0}], [1.0], picked=0)
+        boy.offer_steps = [Step("offer_whether", [{}, {}], [0.5, 0.5], picked=1), which]
+        boy.offer_answered({"id": 7}, True)
+        boy.deal_broken({"id": 7, "a": "1-A", "b": "2-B", "broken_how": "unpaid"}, breaker="1-A", player="1-A")
+        self.assertEqual(which.deal_bonus, BROKE_A_DEAL)
+
+
+class NamedRemovalTest(unittest.TestCase):
+    """ "Remove Kefka from Kuja": one named card, and only that card pays (Adam, 2026-11-18)."""
+
+    KEFKA = {"id": 70, "name": "Kefka", "type": "Creature", "power": 4, "cmc": 5, "commander": True}
+    ELF = {"id": 71, "name": "Elf", "type": "Creature", "power": 1, "cmc": 1}
+    DRAGON = {"id": 72, "name": "Dragon", "type": "Creature", "power": 6, "cmc": 6}
+
+    def setUp(self):
+        self.book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+
+    def board(self, cards, turn=5, active="1-A"):
+        s = favour_state(turn=turn, active=active)
+        s["players"][2]["battlefield"] = [dict(c, controller="3-C") for c in cards]
+        return s
+
+    def offer(self, card=70):
+        s = self.board([self.KEFKA, self.ELF, self.DRAGON])
+        offer = {"type": "removal", "to": "2-B", "against": "3-C", "card": card}
+        msgs = self.book.offer_phase(s, {"1-A": Offerer(offer), "2-B": Accepter()})
+        self.book.observe(s)
+        return msgs
+
+    def gone(self, card):
+        return self.book.see_log(f"{card['name']} ({card['id']}) was put into graveyard from Battlefield.", {})
+
+    def test_offer_names_the_card(self):
+        msgs = self.offer()
+        self.assertIn("1-A removes 3-C's Kefka within 2 rounds", msgs[0]["text"])
+        self.assertEqual(msgs[1]["deal"]["card_id"], 70)
+        self.assertEqual(self.offer(card=999), [])  # not on 3-C's battlefield
+
+    def test_only_the_named_card_pays(self):
+        self.offer()
+        self.assertEqual(self.gone(self.DRAGON), [])  # big, but not the one promised
+        msgs = self.gone(self.KEFKA)
+        self.assertEqual(msgs[0]["text"], "1-A removed 3-C's Kefka for 2-B, as promised")
+
+    def test_someone_else_removing_it_ends_the_deal_without_blame(self):
+        self.offer()
+        self.book.observe(self.board([self.KEFKA, self.ELF], turn=6, active="4-D"))
+        msgs = self.gone(self.KEFKA)
+        self.assertEqual([m["event"] for m in msgs], ["end"])
+        self.assertIn("Kefka is gone, so there's nothing left to pay", msgs[0]["text"])
+        self.assertEqual(self.book.offer_phase(state(turn=40, active="2-B"), {}), [])  # no break later
+        self.assertEqual(self.book.grudges.get("2-B", set()), set())
+
+    def test_stolen_card_ends_the_deal_too(self):
+        self.offer()
+        s = self.board([self.ELF], turn=6, active="4-D")
+        s["players"][3]["battlefield"] = [dict(self.KEFKA, controller="4-D")]
+        msgs = self.book.observe(s)
+        self.assertEqual([m["event"] for m in msgs], ["end"])
+
+    def test_biggest_threat_card_and_can_hit(self):
+        from showdown.deals import biggest_threat_card, can_hit
+        pinger = {"id": 73, "name": "Pinger", "type": "Creature", "power": 0, "cmc": 1, "recent_damage": 6}
+        self.assertEqual(biggest_threat_card({"battlefield": [self.ELF, self.DRAGON]})["name"], "Dragon")
+        self.assertEqual(biggest_threat_card({"battlefield": [self.DRAGON, pinger]})["name"], "Pinger")
+        self.assertIsNone(biggest_threat_card({"battlefield": [{"id": 1, "name": "Squirrel", "type": "Creature", "power": 1},
+                                                               {"id": 2, "name": "Elf", "type": "Creature", "power": 1}]}))
+        rock = {"id": 74, "name": "Mind Stone", "type": "Artifact", "cmc": 2}
+        self.assertTrue(can_hit(BOLT, self.DRAGON))
+        self.assertFalse(can_hit(BOLT, rock))
+        self.assertTrue(can_hit({"oracle": "Destroy target artifact or enchantment."}, rock))
+
+    def test_boys_get_named_options(self):
+        from showdown.boys.features import offer_options
+        s = self.board([self.KEFKA, self.ELF], turn=9)
+        view = {"kind": "offer_deal", "player": "1-A", "state": s,
+                "deals": DealBook(["1-A", "2-B", "3-C", "4-D"]).view_for("1-A", s)}
+        feats, offers = offer_options(view)
+        named = [(f, o) for f, o in zip(feats, offers) if o.get("card") == 70]
+        self.assertTrue(named)
+        self.assertEqual(named[0][0]["removal_named_can_hit"], 1.0)
+        self.assertTrue(all(o["against"] == "3-C" for _, o in named))
+
+
+class SharePlanTest(unittest.TestCase):
+    """A recurring gift handed out in turn builds goodwill; skipping someone doesn't."""
+
+    def setUp(self):
+        self.book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+        self.players = [{"name": n, "is_player": True} for n in ("2-B", "3-C", "4-D")]
+
+    def share(self):
+        return self.book.offer_phase(favour_state(turn=9, hand=(), board=(PLUNDERER,)),
+                                     {"1-A": Offerer({"type": "share"})})
+
+    def gift(self, to_index, turn=10):
+        d = target_decision(turn, self.players, api="Token", source="Generous Plunderer")
+        return self.book.note_target("1-A", d, [to_index])
+
+    def test_announce_and_share_in_turn(self):
+        msgs = self.share()
+        self.assertEqual(msgs[0]["text"], "1-A will share Generous Plunderer in turn: 2-B, then 3-C, then 4-D")
+        self.assertEqual(self.book.view_for("1-A", state())["share_next"], "2-B")
+        self.assertEqual(self.book.view_for("3-C", state())["sharing_with_me"], ["1-A"])
+        self.book.trust["2-B"]["1-A"] = 0.8
+        msgs = self.gift(0)
+        self.assertEqual(msgs[0]["text"], "1-A shares Generous Plunderer with 2-B, as planned")
+        self.assertAlmostEqual(self.book.trust["2-B"]["1-A"], 0.85)
+        self.assertEqual(self.book.view_for("1-A", state())["share_next"], "3-C")
+        kinds = [e["kind"] for m in msgs for e in TimelineBuilder().feed(m)]
+        self.assertEqual(kinds, ["deal_shared"])
+
+    def test_skipping_someone_costs_trust(self):
+        self.share()
+        msgs = self.gift(2)  # 4-D instead of 2-B
+        self.assertEqual(msgs[0]["event"], "skipped")
+        self.assertIn("2-B was skipped", msgs[0]["text"])
+        self.assertAlmostEqual(self.book.trust["2-B"]["1-A"], 0.9)
+        self.assertEqual(self.book.view_for("1-A", state())["share_next"], "2-B")  # after 4-D comes 2-B again
+
+    def test_only_one_plan_and_only_with_a_recurring_gift(self):
+        self.assertEqual(self.book.offer_phase(favour_state(turn=5, hand=()), {"1-A": Offerer({"type": "share"})}), [])
+        self.share()
+        self.assertEqual(self.book.offer_phase(favour_state(turn=13, hand=(), board=(PLUNDERER,)),
+                                               {"1-A": Offerer({"type": "share"})}), [])
+
+    def test_simplebot_announces_and_follows_the_plan(self):
+        view = {"state": favour_state(turn=2, hand=(), board=(PLUNDERER,)),
+                "deals": {"active": [], "trust": {}, "protected": [], "gang_targets": [], "sharing": False}}
+        self.assertEqual(SimpleBot().offer_deal(view), {"type": "share"})
+        d = target_decision(10, self.players, api="Token", suggested=[2])
+        d["deals"] = {"share_next": "3-C"}
+        self.assertEqual(SimpleBot().choose_targets(d), [1])
+        harmful = target_decision(10, self.players, api="LoseLife")
+        harmful["deals"] = {"share_next": "3-C"}
+        self.assertIsNone(SimpleBot().choose_targets(harmful))  # not a gift: Forge's pick
+
+    def test_boys_start_out_following_the_plan(self):
+        from showdown.boys import features
+        from showdown.boys.brain import Brain
+        d = target_decision(10, self.players, api="Token", suggested=[])
+        d["deals"] = {"share_next": "3-C"}
+        d["state"]["you"] = "1-A"
+        probs = Brain("fresh").probabilities("target", features.target_options(d))
+        self.assertEqual(max(range(3), key=lambda i: probs[i]), 1)
+
+
+class GiftPlayTest(unittest.TestCase):
+    def test_say_yes_to_an_optional_gift_only_when_it_pays_something(self):
+        decision = {"kind": "confirm_trigger", "source": PLUNDERER, "description": "you may create a Treasure token"}
+        self.assertIsNone(Bot().confirm_trigger(dict(decision, deals={"owed": [], "share_next": None})))
+        self.assertTrue(Bot().confirm_trigger(dict(decision, deals={"owed": [], "share_next": "2-B"})))
+        self.assertTrue(Bot().confirm_trigger(dict(decision, deals={"owed": [{"kind": "gift", "to": "2-B", "against": None}]})))
+        other = dict(decision, source={"name": "Bear", "oracle": "you may draw a card"}, deals={"share_next": "2-B"})
+        self.assertIsNone(Bot().confirm_trigger(other))
+
+    def test_boys_see_plays_that_pay(self):
+        from showdown.boys import features
+        loran = {"index": 0, "card": {"name": "Loran", "oracle": "{T}: You and target opponent each draw a card."},
+                 "description": "You and target opponent each draw a card."}
+        bolt = {"index": 1, "card": BOLT, "is_spell": True, "description": ""}
+        owed = {"owed": [{"kind": "removal", "to": "2-B", "against": "3-C"}], "share_next": "2-B"}
+        self.assertEqual(features.favour_play_features(loran, loran["card"], False, owed), {"play_gives_gift": 1.0})
+        self.assertEqual(features.favour_play_features(bolt, BOLT, False, owed), {"play_pays_removal": 1.0})
+        self.assertEqual(features.favour_play_features(bolt, BOLT, False, {"owed": []}), {})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -31,6 +31,10 @@ const EVENT_STYLES = {
   deal_kept:    { cls: "deal accept", delay: 300 },   // a deal ran its full length unbroken: a quiet line only
   deal_end:     { cls: "deal decline", delay: 300 },  // nothing left to deal about (a player is out): a quiet line
   deal_revenge: { cls: "deal revenge", banner: true, delay: 600 },  // the betrayed player set the breaker back: it's over
+  deal_paid:    { cls: "deal accept", delay: 400 },   // a favour (removal or gift) was paid as promised
+  deal_share:   { cls: "deal", delay: 400 },          // a sharing plan for a recurring gift was announced
+  deal_shared:  { cls: "deal accept", delay: 300 },   // a gift went to the next player in line
+  deal_skipped: { cls: "deal break", delay: 400 },    // a gift went out of turn: the skipped player is salty
 };
 // Forge log categories that get their own pacing.
 const CATEGORY_DELAY = { TURN: 1000, PHASE: 120, MANA: 40, STATE: 150, COMBAT: 700, DAMAGE: 600 };
@@ -1156,17 +1160,20 @@ async function loadStats() {
 //     waits for it, like the cast animation.
 // ===========================================================================
 const DEAL_COLORS = { deal_offer: "#c38bff", deal_accept: "#57ab5a", deal_decline: "#8a94a6", deal_break: "#e5534b",
-                      deal_revenge: "#e0a040" };
-const DEAL_ICONS = { deal_offer: "🤝?", deal_accept: "🤝", deal_decline: "✋", deal_break: "💔", deal_revenge: "⚔" };
+                      deal_revenge: "#e0a040", deal_paid: "#d4b44a" };
+const DEAL_ICONS = { deal_offer: "🤝?", deal_accept: "🤝", deal_decline: "✋", deal_break: "💔", deal_revenge: "⚔",
+                     deal_paid: "🎁" };
 
 /** Deals that are on and revenge still owed, as of the playhead. Reads only the deal events. */
 function dealsNow(turn) {
-  const deals = new Map(), grudges = [];
+  const deals = new Map(), grudges = [], shares = new Map();
   for (const seq of app.dealSeqs) {
     if (seq >= app.pos) break;
     const ev = app.events[seq], deal = ev.data?.deal;
     if (!deal) continue;
-    if (ev.kind === "deal_accept") deals.set(deal.id, deal);
+    if (ev.kind === "deal_accept") deals.set(deal.id, { ...deal });
+    if (ev.kind === "deal_paid" && deals.has(deal.id)) deals.get(deal.id).paid = true;
+    if (ev.kind === "deal_share") shares.set(deal.a, deal);
     if (ev.kind === "deal_kept" || ev.kind === "deal_end") deals.delete(deal.id);
     if (ev.kind === "deal_break") {
       deals.delete(deal.id);
@@ -1178,7 +1185,7 @@ function dealsNow(turn) {
       if (i >= 0) grudges.splice(i, 1);
     }
   }
-  return { deals: [...deals.values()].filter((d) => turn <= d.expires_turn), grudges };
+  return { deals: [...deals.values()].filter((d) => turn <= d.expires_turn), grudges, shares: [...shares.values()] };
 }
 
 function shortName(player) { return player.replace(/^\d+-/, ""); }
@@ -1186,7 +1193,7 @@ function shortName(player) { return player.replace(/^\d+-/, ""); }
 /** The "Right now" part of the Politics tab: deals that are on, who is hunted, grudges. */
 function drawPolitics(turn) {
   const box = $("#politics-now");
-  const { deals, grudges } = dealsNow(turn);
+  const { deals, grudges, shares } = dealsNow(turn);
   const tab = $('.log-tabs [data-log="politics"]');
   tab.textContent = deals.length ? `Politics (${deals.length})` : "Politics";
   if (!app.dealSeqs.length) {
@@ -1200,7 +1207,11 @@ function drawPolitics(turn) {
     const until = d.rounds === 0 ? `until ${shortName(d.against)} is out` : `until turn ${d.expires_turn}`;
     if (d.kind === "gang_up") lines.push(["gang", `⚔ ${both(d)} are ganging up on ${shortName(d.against)}`, until]);
     else lines.push(["peace", `🤝 ${both(d)} have peace`, until]);
+    // A favour not paid yet: the offerer owes a removal on someone, or a gift.
+    if (d.kind === "removal" && !d.paid) lines.push(["gang", `🎁 ${shortName(d.a)} owes ${shortName(d.b)} a removal on ${shortName(d.against)}`, "not paid yet"]);
+    if (d.kind === "gift" && !d.paid) lines.push(["peace", `🎁 ${shortName(d.a)} owes ${shortName(d.b)} a gift`, "not paid yet"]);
   }
+  for (const sp of shares) lines.push(["peace", `🎁 ${shortName(sp.a)} shares ${sp.source} in turn`, (sp.order || []).map(shortName).join(", ")]);
   for (const g of grudges) lines.push(["grudge", `💢 ${shortName(g.victim)} wants revenge on ${shortName(g.breaker)}`, "broke a deal"]);
   box.replaceChildren(el("h4", "", "Right now"));
   if (!lines.length) box.append(el("p", "muted", "No deals right now."));
