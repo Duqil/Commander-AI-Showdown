@@ -66,6 +66,16 @@ offerer's own turn, or with a card the offerer aimed at it, any one of these:
 - a wipe: 3 of *X*'s non-lands gone in the offerer's turn (`WIPE_COUNT`),
 - or *X*'s threat score falling by a fifth during the offerer's turn.
 
+**Named removals.** An offer can also name one card: "I'll remove Kefka from
+Kuja". The card named is *X*'s biggest threat (`biggest_threat_card`: damage it
+dealt lately counts most, then a commander, power and mana cost), and only
+cards whose removal is a real setback can be named. Only removing that exact
+card pays. If it leaves play some other way (someone else kills it, it's
+stolen or flickered) the deal just ends, with no blame. Boys see whether one of
+their removal cards can hit it (`removal_named_can_hit` +0.5, read from text);
+accepting likes a named promise a little (`accept_named` +0.3), more so when
+the card has been dealing damage (`accept_named_engine` +0.5).
+
 Paying is logged ("Kuja removed Zangief's Krenko (their biggest creature) for
 Garnet, as promised") and shown as a 🎁 moment in the viewer. Until then the Politics
 tab says who owes what. Card texts are read with `REMOVAL_TEXT` / `GIFT_TEXT`

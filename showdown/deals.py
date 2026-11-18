@@ -121,6 +121,8 @@ class Deal:
     paid: bool = True          # a favour (removal, gift) is unpaid until the offerer pays
     pay_rounds: int = PAY_ROUNDS  # ...within this many rounds (1 or 2)...
     pay_by: int = 0            # ...that is, by this game turn
+    card_id: int | None = None # a named removal: this card of X's, and only this one, pays
+    card_name: str | None = None
     settled: bool = False      # we already handed out the "kept the deal" trust
     tested: bool = False       # someone could have attacked their partner and didn't
 
@@ -139,7 +141,8 @@ class Deal:
         if self.kind == "gang_up":
             return f"gang up on {self.against} {self.length()}"
         if self.kind == "removal":
-            return f"{self.a} removes something of {self.against}'s {self.pay_time()}, for peace {self.length()}"
+            what = f"{self.against}'s {self.card_name}" if self.card_name else f"something of {self.against}'s"
+            return f"{self.a} removes {what} {self.pay_time()}, for peace {self.length()}"
         if self.kind == "gift":
             return f"{self.a} gives {self.b} a gift {self.pay_time()}, for peace {self.length()}"
         return f"peace {self.length()}"
@@ -156,7 +159,8 @@ class Deal:
     def to_dict(self) -> dict[str, Any]:
         return {"id": self.id, "kind": self.kind, "a": self.a, "b": self.b, "against": self.against,
                 "made_turn": self.made_turn, "expires_turn": self.expires_turn, "rounds": self.rounds,
-                "broken_how": self.broken_how, "paid": self.paid, "pay_rounds": self.pay_rounds}
+                "broken_how": self.broken_how, "paid": self.paid, "pay_rounds": self.pay_rounds,
+                "card_id": self.card_id, "card_name": self.card_name}
 
 
 @dataclass
@@ -248,7 +252,7 @@ class DealBook:
             # ...and the ones I haven't paid back yet: one real setback each.
             "revenge": self.revenge_owed(name),
             # Favours I promised and haven't paid yet (removal on X, or a gift to my partner):
-            "owed": [{"kind": d.kind, "to": d.b, "against": d.against, "pay_by": d.pay_by}
+            "owed": [{"kind": d.kind, "to": d.b, "against": d.against, "pay_by": d.pay_by, "card_id": d.card_id}
                      for d in self._owing() if d.a == name],
             # My sharing plan: who should get my next gift (None without a plan).
             "share_next": self._share_next(name),
@@ -298,6 +302,9 @@ class DealBook:
             deal.paid = False
             deal.pay_rounds = offer.get("pay_rounds", PAY_ROUNDS)
             deal.pay_by = turn + deal.pay_rounds * len(self.alive(public))
+            if offer.get("card") is not None:
+                deal.card_id = offer["card"]
+                deal.card_name = card_of(public, deal.against, deal.card_id).get("name", "card")
         messages = [deal_message("offer", deal, turn)]
         responder = bots.get(to)
         accepted = False
@@ -338,6 +345,9 @@ class DealBook:
             return False
         if offer["type"] in FAVOURS and offer.get("pay_rounds", PAY_ROUNDS) not in PAY_LENGTHS:
             return False
+        if offer.get("card") is not None and (offer["type"] != "removal" or
+                                              not card_of(state, offer.get("against"), offer["card"])):
+            return False  # a named removal must name a non-land of X's on the battlefield
         if offer["type"] in ("gang_up", "removal"):
             against = offer.get("against")
             return against in alive and against not in (offerer, offer["to"])
@@ -399,7 +409,8 @@ class DealBook:
         if not alive:
             return []
         messages = []
-        for deal in self.active(turn):
+        active = self.active(turn)
+        for deal in active + [d for d in self._owing() if d not in active]:  # owed favours too, even after the peace
             gone = [p for p in (deal.a, deal.b) if p not in alive]
             if gone:
                 deal.ended = f"{gone[0]} is out"
@@ -487,7 +498,12 @@ class DealBook:
             if not plan.over and (giver is None or giver.get("lost") or not recurring_gift_cards(giver)):
                 plan.over = True  # the gift is gone (or the giver is): no more sharing
         messages = []
+        for deal in self._owing():
+            if deal.card_id is not None and self._cards.get(deal.card_id, {}).get("controller") != deal.against:
+                messages.append(self._card_gone(deal, turn))  # left some other way (stolen, flickered...)
         for deal in self._unpaid_of(active, "removal", turn):
+            if deal.card_id is not None:
+                continue  # a named removal: only that card pays
             start = self._pay_start.get(deal.id)
             if start and deal.against in players and \
                     threat.threat_score(players[deal.against]) <= (1 - PAY_THREAT_DROP) * start:
@@ -618,7 +634,15 @@ class DealBook:
         self._wiped[owner] = self._wiped.get(owner, 0) + 1
         messages = []
         for deal in [d for d in self._owing() if d.kind == "removal" and d.against == owner]:
-            if self._active != deal.a and card["id"] not in self._targeted.get(deal.a, set()):
+            payers_doing = self._active == deal.a or card["id"] in self._targeted.get(deal.a, set())
+            if deal.card_id is not None:
+                if card["id"] != deal.card_id:
+                    continue
+                messages.append(self._paid(deal, self._turn, f"{deal.a} removed {owner}'s {card.get('name')} "
+                                                             f"for {deal.b}, as promised") if payers_doing
+                                else self._card_gone(deal, self._turn))
+                continue
+            if not payers_doing:
                 continue  # not the payer's doing (as far as we can tell)
             why = setback(card, [c for c in self._cards.values() if c["controller"] == owner])
             if why:
@@ -628,6 +652,12 @@ class DealBook:
                 messages.append(self._paid(deal, self._turn, f"{deal.a} wiped {self._wiped[owner]} of {owner}'s "
                                                              f"permanents for {deal.b}, as promised"))
         return messages
+
+    def _card_gone(self, deal: Deal, turn: int) -> dict:
+        """A named removal's card left play, but not by the payer: nothing left to pay, no blame."""
+        deal.ended = f"{deal.card_name} is gone, so there's nothing left to pay"
+        deal.settled = True
+        return deal_message("end", deal, turn)
 
     def _revenge_done(self, r: Revenge, what: str) -> dict:
         r.done = True
@@ -698,6 +728,38 @@ def setback(card: dict, board: list[dict]) -> str | None:
             if (card.get("cmc") or 0) >= max(best, 2):
                 return f"their biggest {what.lower()}"
     return None
+
+
+def card_of(state: dict, owner: str | None, card_id: int) -> dict:
+    """The non-land card with this id on ``owner``'s battlefield, or {}."""
+    player = next((p for p in state.get("players", []) if p["name"] == owner), {})
+    return next((c for c in player.get("battlefield", [])
+                 if c.get("id") == card_id and "Land" not in c.get("type", "")), {})
+
+
+def biggest_threat_card(player: dict) -> dict | None:
+    """The one card worth naming in a removal offer: what hurts the table most.
+
+    Damage it dealt lately counts most, then a commander, then power, then
+    mana cost. Only cards whose removal is a real setback (see setback()).
+    """
+    board = [c for c in player.get("battlefield", []) if "Land" not in c.get("type", "")]
+    candidates = [c for c in board if "id" in c and setback(c, board)]
+    if not candidates:
+        return None
+    def score(c: dict) -> float:
+        power = (c.get("power") or 0) if "Creature" in c.get("type", "") else 0
+        return 2 * (c.get("recent_damage") or 0) + 3 * bool(c.get("commander")) + power + 0.5 * (c.get("cmc") or 0)
+    return max(candidates, key=score)
+
+
+def can_hit(removal: dict, target: dict) -> bool:
+    """Could this removal card's text hit this target? (Read from text: "target creature", "any target".)"""
+    text = _text(removal).lower()
+    kinds = [k for k in ("creature", "artifact", "enchantment", "planeswalker") if k in target.get("type", "").lower()]
+    if "any target" in text and ("creature" in kinds or "planeswalker" in kinds):
+        return True
+    return any(f"target {w}" in text for w in ("permanent", "nonland") + tuple(kinds))
 
 
 def public_state(state: dict, viewer: str) -> dict:

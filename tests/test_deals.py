@@ -515,7 +515,7 @@ class FavourTest(unittest.TestCase):
         self.assertEqual([m["event"] for m in msgs], ["offer", "accept"])
         self.assertIn("1-A removes something of 3-C's within 2 rounds, for peace for 2 rounds", msgs[0]["text"])
         self.assertEqual(self.book.view_for("1-A", state(turn=9))["owed"],
-                         [{"kind": "removal", "to": "2-B", "against": "3-C", "pay_by": 17}])
+                         [{"kind": "removal", "to": "2-B", "against": "3-C", "pay_by": 17, "card_id": None}])
 
     def removal_deal(self, pay_rounds=None):
         offer = {"type": "removal", "to": "2-B", "against": "3-C"}
@@ -636,6 +636,83 @@ class FavourTest(unittest.TestCase):
         boy.offer_answered({"id": 7}, True)
         boy.deal_broken({"id": 7, "a": "1-A", "b": "2-B", "broken_how": "unpaid"}, breaker="1-A", player="1-A")
         self.assertEqual(which.deal_bonus, BROKE_A_DEAL)
+
+
+class NamedRemovalTest(unittest.TestCase):
+    """ "Remove Kefka from Kuja": one named card, and only that card pays (Adam, 2026-11-18)."""
+
+    KEFKA = {"id": 70, "name": "Kefka", "type": "Creature", "power": 4, "cmc": 5, "commander": True}
+    ELF = {"id": 71, "name": "Elf", "type": "Creature", "power": 1, "cmc": 1}
+    DRAGON = {"id": 72, "name": "Dragon", "type": "Creature", "power": 6, "cmc": 6}
+
+    def setUp(self):
+        self.book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+
+    def board(self, cards, turn=5, active="1-A"):
+        s = favour_state(turn=turn, active=active)
+        s["players"][2]["battlefield"] = [dict(c, controller="3-C") for c in cards]
+        return s
+
+    def offer(self, card=70):
+        s = self.board([self.KEFKA, self.ELF, self.DRAGON])
+        offer = {"type": "removal", "to": "2-B", "against": "3-C", "card": card}
+        msgs = self.book.offer_phase(s, {"1-A": Offerer(offer), "2-B": Accepter()})
+        self.book.observe(s)
+        return msgs
+
+    def gone(self, card):
+        return self.book.see_log(f"{card['name']} ({card['id']}) was put into graveyard from Battlefield.", {})
+
+    def test_offer_names_the_card(self):
+        msgs = self.offer()
+        self.assertIn("1-A removes 3-C's Kefka within 2 rounds", msgs[0]["text"])
+        self.assertEqual(msgs[1]["deal"]["card_id"], 70)
+        self.assertEqual(self.offer(card=999), [])  # not on 3-C's battlefield
+
+    def test_only_the_named_card_pays(self):
+        self.offer()
+        self.assertEqual(self.gone(self.DRAGON), [])  # big, but not the one promised
+        msgs = self.gone(self.KEFKA)
+        self.assertEqual(msgs[0]["text"], "1-A removed 3-C's Kefka for 2-B, as promised")
+
+    def test_someone_else_removing_it_ends_the_deal_without_blame(self):
+        self.offer()
+        self.book.observe(self.board([self.KEFKA, self.ELF], turn=6, active="4-D"))
+        msgs = self.gone(self.KEFKA)
+        self.assertEqual([m["event"] for m in msgs], ["end"])
+        self.assertIn("Kefka is gone, so there's nothing left to pay", msgs[0]["text"])
+        self.assertEqual(self.book.offer_phase(state(turn=40, active="2-B"), {}), [])  # no break later
+        self.assertEqual(self.book.grudges.get("2-B", set()), set())
+
+    def test_stolen_card_ends_the_deal_too(self):
+        self.offer()
+        s = self.board([self.ELF], turn=6, active="4-D")
+        s["players"][3]["battlefield"] = [dict(self.KEFKA, controller="4-D")]
+        msgs = self.book.observe(s)
+        self.assertEqual([m["event"] for m in msgs], ["end"])
+
+    def test_biggest_threat_card_and_can_hit(self):
+        from showdown.deals import biggest_threat_card, can_hit
+        pinger = {"id": 73, "name": "Pinger", "type": "Creature", "power": 0, "cmc": 1, "recent_damage": 6}
+        self.assertEqual(biggest_threat_card({"battlefield": [self.ELF, self.DRAGON]})["name"], "Dragon")
+        self.assertEqual(biggest_threat_card({"battlefield": [self.DRAGON, pinger]})["name"], "Pinger")
+        self.assertIsNone(biggest_threat_card({"battlefield": [{"id": 1, "name": "Squirrel", "type": "Creature", "power": 1},
+                                                               {"id": 2, "name": "Elf", "type": "Creature", "power": 1}]}))
+        rock = {"id": 74, "name": "Mind Stone", "type": "Artifact", "cmc": 2}
+        self.assertTrue(can_hit(BOLT, self.DRAGON))
+        self.assertFalse(can_hit(BOLT, rock))
+        self.assertTrue(can_hit({"oracle": "Destroy target artifact or enchantment."}, rock))
+
+    def test_boys_get_named_options(self):
+        from showdown.boys.features import offer_options
+        s = self.board([self.KEFKA, self.ELF], turn=9)
+        view = {"kind": "offer_deal", "player": "1-A", "state": s,
+                "deals": DealBook(["1-A", "2-B", "3-C", "4-D"]).view_for("1-A", s)}
+        feats, offers = offer_options(view)
+        named = [(f, o) for f, o in zip(feats, offers) if o.get("card") == 70]
+        self.assertTrue(named)
+        self.assertEqual(named[0][0]["removal_named_can_hit"], 1.0)
+        self.assertTrue(all(o["against"] == "3-C" for _, o in named))
 
 
 class SharePlanTest(unittest.TestCase):
