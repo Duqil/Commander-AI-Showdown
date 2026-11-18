@@ -26,6 +26,7 @@ from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
 from showdown.boys import cards, colors, combat, commander, mana, threat, timing
+from showdown.deals import gift_cards, recurring_gift_cards, removal_cards
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -520,6 +521,8 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
             f["attack_grudge"] = 1.0          # they broke a deal with us this game
         if d["name"] in deals.get("revenge", []):
             f["attack_revenge"] = 1.0         # ...and we haven't paid them back yet (one real setback)
+        if d["name"] in deals.get("sharing_with_me", []):
+            f["attack_my_sharer"] = 1.0       # they share their gifts with us: attacking them is rude
         if target is not None:
             blockers = threat.untapped_blockers(target)
             # A blocker that would kill this creature and survive the hit.
@@ -708,8 +711,18 @@ def target_options(decision: Decision) -> list[Features]:
             f["target_owner_threat_rank"] = threat.threat_rank(state, owner)
         # Harm aimed at someone who broke a deal with us: that's revenge
         # (one real setback, see showdown/deals.py). Starts liked (brain.py).
-        if harmful and not mine and owner in decision.get("deals", {}).get("revenge", []):
+        deals = decision.get("deals", {})
+        if harmful and not mine and owner in deals.get("revenge", []):
             f["hurt_revenge_target"] = 1.0
+        # Paying a favour we promised (deals.py): harm on X's stuff, or help for our partner.
+        owed = deals.get("owed", [])
+        if harmful and not is_player and any(o["kind"] == "removal" and o["against"] == owner for o in owed):
+            f["pay_removal"] = 1.0
+        if not harmful and is_player and any(o["kind"] == "gift" and o["to"] == owner for o in owed):
+            f["pay_gift"] = 1.0
+        # Our sharing plan says this opponent gets the next gift.
+        if not harmful and is_player and not mine and owner == deals.get("share_next"):
+            f["share_planned"] = 1.0
         result.append(f)
     return result
 
@@ -808,6 +821,8 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
     simple = _simple.offer_deal(view)
     protected = set(view["deals"]["protected"])
     runaway = runaway_leader(state)
+    # Favours need a way to pay: a card whose text removes, or gives (deals.py).
+    can_remove, can_gift = bool(removal_cards(me)), bool(gift_cards(me))
 
     feats: list[Features] = []
     offers: list[dict] = []
@@ -850,6 +865,29 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
                 offer = {"type": "gang_up", "to": to["name"], "against": against["name"], "rounds": rounds}
                 feats.append({**gang, **length_features("gang", rounds), "simple_prior": _flag(simple == offer)})
                 offers.append(offer)
+            # Removal for a favour: I hit something of theirs, you give me peace.
+            if can_remove:
+                removal = {
+                    "offer_removal": 1.0, **{f"removal_{k}": v for k, v in base.items()},
+                    "removal_against_is_leader": _flag(against["name"] == leader),
+                    "removal_against_runaway": _flag(against["name"] == runaway),
+                    "removal_against_threat_rank": threat.threat_rank(state, against["name"]),
+                    "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], against["name"])),
+                }
+                for rounds in DEAL_LENGTHS:
+                    feats.append({**removal, **length_features("removal", rounds)})
+                    offers.append({"type": "removal", "to": to["name"], "against": against["name"], "rounds": rounds})
+        # Gift for a favour: I give you something, you give me peace.
+        if can_gift:
+            for rounds in DEAL_LENGTHS:
+                feats.append({"offer_gift": 1.0, **{f"gift_{k}": v for k, v in base.items()},
+                              **length_features("gift", rounds),
+                              "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], None))})
+                offers.append({"type": "gift", "to": to["name"], "rounds": rounds})
+    # A gift that comes back every turn: announce a sharing plan (no partner needed).
+    if recurring_gift_cards(me) and not view["deals"].get("sharing") and len(opponents) >= 2:
+        feats.append({"offer_share": 1.0, "share_my_danger": danger, "simple_prior": _flag(simple == {"type": "share"})})
+        offers.append({"type": "share"})
     return feats, offers
 
 
@@ -881,6 +919,10 @@ def answer_options(view: Decision) -> list[Features]:
         **length_features("accept", offer.get("rounds", 2)),
         "simple_prior": _flag(simple_accepts),
     }
+    if kind == "removal":
+        # They'd remove something of X's for us: worth more the bigger X's threat (to me).
+        accept["accept_removal_vs_leader"] = _flag(offer.get("against") == leader)
+        accept["accept_removal_target_rank"] = threat.threat_rank(state, offer.get("against", ""))
     if kind == "gang_up":
         accept["accept_against_leader"] = _flag(offer.get("against") == leader)
         accept["accept_against_runaway"] = _flag(offer.get("against") == runaway_leader(state))

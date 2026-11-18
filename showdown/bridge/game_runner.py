@@ -144,7 +144,8 @@ def play(
             if book is not None and msg.get("kind") == "attack":
                 deal_messages(book.check_attack(msg["player"], msg, choice))
             if book is not None and msg.get("kind") == "choose_targets":
-                book.note_target(msg["player"], msg, choice)  # harm aimed at a deal-breaker counts as revenge
+                # Harm aimed at a deal-breaker counts as revenge; targets can also pay a favour or share a gift.
+                deal_messages(book.note_target(msg["player"], msg, choice))
             conn.answer(msg["id"], choice)
             decisions += 1
             if on_message:

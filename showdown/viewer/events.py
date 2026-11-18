@@ -46,6 +46,10 @@ EVENT_KINDS = {
     "deal_break": "A bot broke a deal it had made (by attacking, or by a new deal that went against it).",
     "deal_end": "A deal ended early with nothing left to be about (a player is out, or only the partners are left).",
     "deal_revenge": "A betrayed bot set the deal-breaker back: its revenge is done and over.",
+    "deal_paid": "A bot paid the favour it promised (a removal on someone, or a gift to its partner).",
+    "deal_share": "A bot announced a sharing plan: its recurring gift goes to each opponent in turn.",
+    "deal_shared": "A bot gave its recurring gift to the next player in line, as planned.",
+    "deal_skipped": "A bot gave its recurring gift out of turn: the skipped player trusts it less.",
 }
 
 
@@ -185,7 +189,7 @@ class TimelineBuilder:
     def _on_deal(self, msg: dict) -> list[Event]:
         """A deal was offered, accepted, declined, kept, ended or broken, or revenge was taken (see showdown/deals.py)."""
         deal = msg.get("deal", {})
-        player = msg.get("victim") or msg.get("breaker") or \
+        player = msg.get("victim") or msg.get("giver") or msg.get("breaker") or \
             (deal.get("b") if msg["event"] in ("accept", "decline") else deal.get("a"))
         return [make_event(f"deal_{msg['event']}", msg["text"], turn=msg.get("turn", self.turn),
                            player=player, category="DEAL", deal=deal,

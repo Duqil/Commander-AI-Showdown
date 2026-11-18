@@ -50,6 +50,7 @@ class BoyBot(Bot):
         self.turn_effects: dict[int, list[float]] = {}
         self.accepted: dict[int, Step] = {}  # deal id -> the "accept" choice that made the deal
         self.offer_steps: list[Step] = []    # the two choices behind the offer we just made
+        self.offered: dict[int, Step] = {}   # deal id -> the "which deal" choice of an offer that was accepted
 
     def _observe(self, state: dict) -> None:
         """Compare the table with last time to see what happened on our turn.
@@ -174,6 +175,8 @@ class BoyBot(Bot):
         if not accepted:
             for step in self.offer_steps:
                 step.deal_bonus += OFFER_DECLINED
+        elif self.offer_steps and "id" in deal:
+            self.offered[deal["id"]] = self.offer_steps[-1]  # remembered in case we don't pay a favour
         self.offer_steps = []
 
     def answer_deal(self, view: Decision) -> bool:
@@ -184,7 +187,10 @@ class BoyBot(Bot):
 
     def deal_broken(self, deal: dict, breaker: str, player: str) -> None:
         """Politics penalties (see "Politics" in showdown/boys/reward.py)."""
-        if breaker == player and deal.get("broken_how") == "new_deal":
+        if breaker == player and deal.get("broken_how") == "unpaid" and deal.get("id") in self.offered:
+            # We promised a favour and never paid: the offer that made the deal pays.
+            self.offered.pop(deal["id"]).deal_bonus += BROKE_A_DEAL
+        elif breaker == player and deal.get("broken_how") == "new_deal":
             # We broke it by agreeing to a deal that went against it: the
             # offer or answer we just made pays.
             for step in reversed(self.steps):
@@ -241,3 +247,4 @@ class BoyBot(Bot):
         self.deck = None
         self.accepted = {}
         self.offer_steps = []
+        self.offered = {}
