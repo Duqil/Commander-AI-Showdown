@@ -178,6 +178,8 @@ class DealBook:
         kept = self.settle(turn) + self.end_finished(state)
         if turn <= self.last_offer_turn or offerer not in bots or offerer not in self.players:
             return kept
+        if len(self.alive(state)) <= 2:
+            return kept  # the final two: no more deals, just play it out
         self.last_offer_turn = turn
         return kept + self._offer(state, bots, turn, offerer)
 

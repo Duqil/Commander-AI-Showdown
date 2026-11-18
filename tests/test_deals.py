@@ -354,6 +354,10 @@ class DealLengthTest(unittest.TestCase):
         self.assertFalse(self.book.has_deal("1-A", "2-B", 8))
         kinds = [e["kind"] for m in msgs for e in TimelineBuilder().feed(m)]
         self.assertEqual(kinds, ["deal_end"])
+        # ...and no new deals between the last two either.
+        later = state(turn=9, active="1-A")
+        later["players"][2]["lost"] = later["players"][3]["lost"] = True
+        self.assertEqual(self.book.offer_phase(later, peace("1-A", "2-B")), [])
 
 
 def card(cid, name, controller, power=0, cmc=0, kind="Creature"):

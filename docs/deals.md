@@ -29,6 +29,8 @@ A deal also ends early, with no blame, when:
 - a gang-up's target is out (the job is done: it counts as kept),
 - the two partners are the only players left (no peace in the final two).
 
+And once only two players are left, nobody can offer a new deal either.
+
 These show up as "deal is over" lines in the log.
 
 ## When deals happen
