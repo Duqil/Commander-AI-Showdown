@@ -83,7 +83,9 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   comes from glows gold with a small TRIGGER tag.
 * **Log.** Forge's game log plus what the Python bots decided (in blue),
   and choices Forge doesn't log itself ("2-Anhelo chose Red for Thriving Moor").
-  Phase and mana lines are only in the **Phases & mana** tab.
+  Phase and mana lines are only in the **Phases & mana** tab. Cards a spell
+  exiles, scries or surveils (which Forge leaves out) get a short line in the
+  main log too, e.g. "1-Riku's exile gets: Thickest in the Thicket".
   A trigger set off by a spell names that spell ("[Card: Fiery Confluence,
   Activator: 1-Riku]") without repeating its whole rules text.
 

@@ -38,7 +38,11 @@ const EVENT_STYLES = {
 };
 // Forge log categories that get their own pacing.
 const CATEGORY_DELAY = { TURN: 1000, PHASE: 120, MANA: 40, STATE: 150, COMBAT: 700, DAMAGE: 600 };
-const NOISY = new Set(["PHASE", "MANA", "STATE", "DETAIL"]); // only in the "Phases & mana" tab (DETAIL: scry and exile details)
+const NOISY = new Set(["PHASE", "MANA", "STATE", "DETAIL"]); // only in the "Phases & mana" tab (DETAIL: the bridge's extra lines)
+// ...except these DETAIL lines, which name hidden cards and are short and rare
+// enough (a handful per game) for the main log: "Riku's exile gets: X" and
+// "Kuja scry: X on top". The regex also gives the label shown on the line.
+const SHOWN_DETAIL = / (exile) gets: | (scry|surveil): /;
 const SPEEDS = [0.5, 0.75, 1, 2, 4, Infinity];    // Infinity = "Max": jump straight to the latest event
 const PHASE_NAMES = {
   UNTAP: "Untap", UPKEEP: "Upkeep", DRAW: "Draw", MAIN1: "Main 1",
@@ -921,7 +925,16 @@ function isShownInLog(ev) {
   if (app.logTab === "politics") return ev.kind.startsWith("deal_");
   if (ev.kind !== "log") return true;
   if (!ev.text) return false; // a snapshot without text
+  if (ev.category === "DETAIL" && SHOWN_DETAIL.test(ev.text)) return true;
   return !NOISY.has(ev.category) || app.logTab === "all";
+}
+
+/** The small grey label in front of a log line: Forge's category, or for
+ * a DETAIL line about hidden cards, what happened ("exile", "scry"). */
+function categoryLabel(ev) {
+  const m = ev.category === "DETAIL" && SHOWN_DETAIL.exec(ev.text);
+  if (m) return m[1] || m[2];
+  return ev.category.toLowerCase().replace("_", " ");
 }
 
 /** Forge adds an internal card number after names, "Garnet (403)": drop it, it means nothing to us. */
@@ -949,7 +962,7 @@ function makeLogLine(ev) {
   const line = el("div", `log-line ${style.cls || ""} cat-${ev.category}`);
   if (ev.category === "TURN") line.classList.add("turn");
   if (ev.player && ev.kind !== "log") line.style.borderLeftColor = `var(--seat-${seatIndex(ev.player)})`;
-  if (ev.kind === "log" && ev.category !== "TURN") line.append(el("span", "cat", ev.category.toLowerCase().replace("_", " ")));
+  if (ev.kind === "log" && ev.category !== "TURN") line.append(el("span", "cat", categoryLabel(ev)));
   line.append(document.createTextNode(cleanText(ev.text)));
   // Forge logs life changes as "Life: 2-Anhelo 33 > 36": green when it went up.
   const life = ev.category === "LIFE" && /(\d+)\s*>\s*(\d+)/.exec(ev.text);
