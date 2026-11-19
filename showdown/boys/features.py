@@ -26,7 +26,7 @@ from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
 from showdown.boys import cards, colors, combat, commander, mana, threat, timing
-from showdown.deals import GIFT_TEXT, PAY_LENGTHS, biggest_threat_card, can_hit, card_of, gift_cards, recurring_gift_cards, removal_cards, removes
+from showdown.deals import DEAL_TYPES, GIFT_TEXT, PAY_LENGTHS, biggest_threat_card, can_hit, card_of, gift_cards, recurring_gift_cards, removal_cards, removes
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -839,10 +839,12 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
     i_lead = bool(opponents) and threat.threat_score(me) > max(threat.threat_score(p) for p in opponents)
     danger = min(threat.danger_to_me(state), 2.0) / 2
     simple = _simple.offer_deal(view)
+    menu = view.get("menu", DEAL_TYPES)  # the deal types allowed right now (peace may be on ice)
     protected = set(view["deals"]["protected"])
     runaway = runaway_leader(state)
     # Favours need a way to pay: a card whose text removes, or gives (deals.py).
-    can_remove, can_gift = bool(removal_cards(me)), bool(gift_cards(me))
+    can_remove = "removal" in menu and bool(removal_cards(me))
+    can_gift = "gift" in menu and bool(gift_cards(me))
 
     feats: list[Features] = []
     offers: list[dict] = []
@@ -861,7 +863,7 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
             "my_gain": my_gain,
             "their_gain": their_gain,
         }
-        for rounds in DEAL_LENGTHS:
+        for rounds in DEAL_LENGTHS if "peace" in menu else ():
             offer = {"type": "peace", "to": to["name"], "rounds": rounds}
             feats.append({"offer_peace": 1.0, **{f"peace_{k}": v for k, v in base.items()},
                           **length_features("peace", rounds),
@@ -881,7 +883,7 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
                 "gang_against_threat_rank": threat.threat_rank(state, against["name"]),
                 "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], against["name"])),
             }
-            for rounds in DEAL_LENGTHS + (UNTIL_OUT,):
+            for rounds in DEAL_LENGTHS + (UNTIL_OUT,) if "gang_up" in menu else ():
                 offer = {"type": "gang_up", "to": to["name"], "against": against["name"], "rounds": rounds}
                 feats.append({**gang, **length_features("gang", rounds), "simple_prior": _flag(simple == offer)})
                 offers.append(offer)

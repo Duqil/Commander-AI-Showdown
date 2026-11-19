@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import unittest
 
+from showdown import deals
 from showdown.bots.base import Bot
 from showdown.bots.simple_bot import SimpleBot
 from showdown.deals import DealBook
 from showdown.viewer.events import TimelineBuilder
+
+# Most tests here use peace deals, so they switch them on (they're on ice in
+# real games for now: deals.PEACE_DEALS). PeaceOnIceTest checks the "off" side.
+deals.PEACE_DEALS = True
 
 
 def state(turn=5, active="1-A", you="1-A", lives=(30, 40, 20, 25)):
@@ -713,6 +718,49 @@ class NamedRemovalTest(unittest.TestCase):
         self.assertTrue(named)
         self.assertEqual(named[0][0]["removal_named_can_hit"], 1.0)
         self.assertTrue(all(o["against"] == "3-C" for _, o in named))
+
+
+class PeaceOnIceTest(unittest.TestCase):
+    """Plain peace deals can be switched off (Adam, 2026-11-19); the other deals still work."""
+
+    def setUp(self):
+        deals.PEACE_DEALS = False
+        self.book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+
+    def tearDown(self):
+        deals.PEACE_DEALS = True
+
+    def test_peace_offers_are_refused_but_gang_ups_work(self):
+        bots = {"1-A": Offerer({"type": "peace", "to": "2-B", "rounds": 2}), "2-B": Accepter()}
+        self.assertEqual(self.book.offer_phase(state(turn=9), bots), [])
+        bots["1-A"] = Offerer({"type": "gang_up", "to": "2-B", "against": "3-C", "rounds": 2})
+        self.assertEqual([m["event"] for m in self.book.offer_phase(state(turn=13), bots)], ["offer", "accept"])
+
+    def test_bots_are_told_and_dont_offer_peace(self):
+        from showdown.boys.features import offer_options
+        menus = []
+
+        class Spy(Bot):
+            def offer_deal(self, view):
+                menus.append(view["menu"])
+                return None
+        self.book.offer_phase(state(turn=9), {"1-A": Spy()})
+        self.assertNotIn("peace", menus[0])
+        s = state(turn=9)
+        view = {"kind": "offer_deal", "player": "1-A", "state": s, "menu": menus[0],
+                "deals": self.book.view_for("1-A", s)}
+        _, offers = offer_options(view)
+        self.assertFalse(any(o["type"] == "peace" for o in offers))
+        self.assertIsNone(SimpleBot().offer_deal(view))  # SimpleBot's "we're ahead" peace: no deal instead
+
+    def test_environment_switch_turns_it_back_on(self):
+        import os
+        os.environ["SHOWDOWN_PEACE_DEALS"] = "1"
+        try:
+            self.assertIn("peace", deals.enabled_deal_types())
+        finally:
+            del os.environ["SHOWDOWN_PEACE_DEALS"]
+        self.assertNotIn("peace", deals.enabled_deal_types())
 
 
 class SharePlanTest(unittest.TestCase):

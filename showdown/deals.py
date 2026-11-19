@@ -55,6 +55,7 @@ game log and in the browser viewer's timeline.
 from __future__ import annotations
 
 import copy
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -70,6 +71,18 @@ OTHERS_TRUST_LOSS = 0.25
 KEPT_TRUST_GAIN = 0.1   # a deal ran its full length: both partners trust each other a bit more
 HELP_TRUST_GAIN = 0.05  # you attacked the gang-up target: your partner trusts you a bit more
 DEAL_TYPES = ("peace", "gang_up", "removal", "gift")
+# Plain peace deals ("no attacks for N rounds") are ON ICE (Adam, 2026-11-19):
+# they never felt right, so for now games run without them and we watch how
+# the other deals get used. To turn them back on, set PEACE_DEALS = True here,
+# or start with the environment variable SHOWDOWN_PEACE_DEALS=1
+# (python -m showdown.batch --peace does that for you).
+PEACE_DEALS = os.environ.get("SHOWDOWN_PEACE_DEALS", "") == "1"
+
+
+def enabled_deal_types() -> tuple[str, ...]:
+    """The deal types bots may offer right now."""
+    return DEAL_TYPES if PEACE_DEALS or os.environ.get("SHOWDOWN_PEACE_DEALS") == "1" \
+        else tuple(t for t in DEAL_TYPES if t != "peace")
 FAVOURS = ("removal", "gift")   # deals where the offerer pays first (see "Favours" below)
 PAY_LENGTHS = (1, 2)            # the offerer promises to pay a favour within 1 or 2 rounds...
 PAY_ROUNDS = 2                  # ...2 if they don't say (Adam, 2026-11-18: 1 round alone was strict)
@@ -284,7 +297,7 @@ class DealBook:
         public = public_state(state, offerer)
         bot = bots[offerer]
         offer = bot.offer_deal({"kind": "offer_deal", "player": offerer, "state": public,
-                                "menu": list(DEAL_TYPES), "lengths": list(DEAL_LENGTHS),
+                                "menu": list(enabled_deal_types()), "lengths": list(DEAL_LENGTHS),
                                 "pay_lengths": list(PAY_LENGTHS),
                                 "deals": self.view_for(offerer, public)})
         if not offer or not self._valid_offer(offer, offerer, public):
@@ -332,7 +345,7 @@ class DealBook:
         if offer.get("type") == "share":
             return bool(recurring_gift_cards(me)) and not any(sp.giver == offerer and not sp.over
                                                               for sp in self.shares)
-        if offer.get("type") not in DEAL_TYPES or offer.get("to") not in alive or offer["to"] == offerer:
+        if offer.get("type") not in enabled_deal_types() or offer.get("to") not in alive or offer["to"] == offerer:
             return False
         if offer["type"] == "removal" and not removal_cards(me):
             return False  # can't pay: nothing that removes

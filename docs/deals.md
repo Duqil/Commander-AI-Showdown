@@ -20,6 +20,14 @@ as a line starting with `Deal:` and shows up in the browser viewer's timeline.
 | `removal` | "I'll remove something of *X*'s. In return: peace for N rounds." |
 | `gift` | "I'll give you something (a card, a Treasure...). In return: peace for N rounds." |
 
+**Plain peace is on ice for now** (Adam, 2026-11-19): it never felt right, so
+games run without `peace` offers while we watch how the other deals get used.
+Bots are told the menu without it, and an offer of it is refused. Favours
+still come with peace, since that's what the offerer gets in return. To turn
+plain peace back on, set `PEACE_DEALS = True` at the top of
+`showdown/deals.py`, or start with the environment variable
+`SHOWDOWN_PEACE_DEALS=1` (`python -m showdown.batch --deals --peace` does that).
+
 The offerer picks N: 1, 2, 3 or 4 rounds (`"rounds"` in the offer, 2 if a bot
 doesn't say). A gang-up can also last until *X* is out of the game
 (`"rounds": 0`). A round is every player taking one turn, so 2 rounds at a

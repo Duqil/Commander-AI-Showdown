@@ -287,6 +287,8 @@ class SimpleBot(Bot):
         if threat.board_power(leader) < MEANINGFUL_BOARD_POWER:
             return None  # the strongest opponent can barely hit anyone: a deal would mean nothing
         if threat.threat_score(threat.me(state)) > threat.threat_score(leader):
+            if "peace" not in view.get("menu", ["peace"]):
+                return None  # peace deals are on ice (deals.py)
             return {"type": "peace", "to": leader["name"], "rounds": 2}  # we're ahead: keep the strongest off us
         return {"type": "gang_up", "to": ranked[1]["name"], "against": leader["name"], "rounds": 2}
 
