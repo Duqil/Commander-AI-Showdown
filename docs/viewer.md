@@ -86,6 +86,10 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   Phase and mana lines are only in the **Phases & mana** tab. Cards a spell
   exiles, scries or surveils (which Forge leaves out) get a short line in the
   main log too, e.g. "1-Riku's exile gets: Thickest in the Thicket".
+  Routine lines move to **Phases & mana** too: "X enters tapped.", a Saga's
+  first lore counter, and Forge's "scried 1 card(s) to the top" (the scry
+  line already names the card). A trigger's "[Zone Changer: X]" is dropped
+  when the line already names X.
   A trigger set off by a spell names that spell ("[Card: Fiery Confluence,
   Activator: 1-Riku]") without repeating its whole rules text.
 

@@ -43,6 +43,17 @@ const NOISY = new Set(["PHASE", "MANA", "STATE", "DETAIL"]); // only in the "Pha
 // enough (a handful per game) for the main log: "Riku's exile gets: X" and
 // "Kuja scry: X on top". The regex also gives the label shown on the line.
 const SHOWN_DETAIL = / (exile) gets: | (scry|surveil): /;
+// Lines that say something routine, or that another line already says better.
+// They go to the "Phases & mana" tab with the other small print. Generic
+// patterns, no card names:
+//   "Temple of Mystery enters tapped."        (a tapland, rule 614.1c)
+//   "Fall of the Titans enters with a lore counter on it."   (every Saga)
+//   "2-Swarmlord scried 1 card(s) to the top of the library"  (the SCRY line names the card)
+const ROUTINE = [
+  { category: "EFFECT_REPLACED", text: /^[^.]* enters tapped(?: unless [^.]*)?\.$/ },
+  { category: "EFFECT_REPLACED", text: /^[^.]* enters with a lore counter on it\.$/ },
+  { category: "STACK_RESOLVE", text: /^\S+ (?:scried|surveiled) \d+ card\(s\) to the (?:top|bottom) of the library$/ },
+];
 const SPEEDS = [0.5, 0.75, 1, 2, 4, Infinity];    // Infinity = "Max": jump straight to the latest event
 const PHASE_NAMES = {
   UNTAP: "Untap", UPKEEP: "Upkeep", DRAW: "Draw", MAIN1: "Main 1",
@@ -926,6 +937,8 @@ function isShownInLog(ev) {
   if (ev.kind !== "log") return true;
   if (!ev.text) return false; // a snapshot without text
   if (ev.category === "DETAIL" && SHOWN_DETAIL.test(ev.text)) return true;
+  const text = ev.text.replace(/ \(\d+\)/g, "");
+  if (ROUTINE.some((r) => r.category === ev.category && r.text.test(text))) return app.logTab === "all";
   return !NOISY.has(ev.category) || app.logTab === "all";
 }
 
@@ -950,11 +963,26 @@ function cleanText(text) {
 // "Key:" part (a capitalised word or two and a colon) or the closing bracket.
 const NEXT_DETAIL = "(?=, [A-Z][A-Za-z]*(?: [A-Z][A-Za-z]*)? ?: |\\]$)";
 function shortenDetails(text) {
-  return text
+  return dropKnownZoneChanger(text)
     // "s": "." also matches line breaks (modal spells list their modes on new lines).
     .replace(new RegExp(", SpellAbility: .*?" + NEXT_DETAIL, "s"), "")        // in the middle or at the end
     .replace(new RegExp("\\[SpellAbility: .*?" + NEXT_DETAIL + "(, )?", "s"), "[") // first in the brackets
     .replace(/ \[\]$/, "");                                              // nothing else was in them
+}
+
+/**
+ * "Zone Changer: X" names the card that entered (or left) a zone and set the
+ * trigger off. Useful for Blood Artist ("Zone Changer: Hero Token" = what
+ * died), but a repeat when the line already names it:
+ *   "When Temple of Mystery enters, scry 1. [Zone Changer: Temple of Mystery]"
+ */
+function dropKnownZoneChanger(text) {
+  const m = /^(.*) \[(.*)\]$/s.exec(text);
+  if (!m) return text;
+  const [, main, inside] = m;
+  const kept = inside.split(/, (?=[A-Z][A-Za-z]*(?: [A-Z][A-Za-z]*)? ?: )/)
+    .filter((part) => !(part.startsWith("Zone Changer: ") && main.includes(part.slice(14))));
+  return kept.length ? `${main} [${kept.join(", ")}]` : main;
 }
 
 function makeLogLine(ev) {
