@@ -85,7 +85,8 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   and choices Forge doesn't log itself ("2-Anhelo chose Red for Thriving Moor").
   Phase and mana lines are only in the **Phases & mana** tab. Cards a spell
   exiles, scries or surveils (which Forge leaves out) get a short line in the
-  main log too, e.g. "1-Riku's exile gets: Thickest in the Thicket".
+  main log too, e.g. "1-Riku's exile gets: [Thickest in the Thicket]" (the brackets show
+  where each card name ends, since some names have commas in them).
   Routine lines move to **Phases & mana** too: "X enters tapped.", a Saga's
   first lore counter, and Forge's "scried 1 card(s) to the top" (the scry
   line already names the card). A trigger's "[Zone Changer: X]" is dropped

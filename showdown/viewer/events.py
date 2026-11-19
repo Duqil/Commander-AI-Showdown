@@ -149,7 +149,8 @@ class TimelineBuilder:
                 ids.add(card.get("id"))
                 if card.get("id") not in self.seen_exile:
                     name = card.get("real_name") or card.get("name") or "a hidden card"
-                    new.append(f"{name} (face down)" if card.get("face_down") else name)
+                    # Brackets show where each name ends: "[Etali, Primal Storm], [Shock]".
+                    new.append(f"[{name}] (face down)" if card.get("face_down") else f"[{name}]")
             if new and self.exile_started:
                 events.append(make_event("log", f"{player['name']}'s exile gets: {', '.join(new)}",
                                          turn=self.turn, player=player["name"], category="DETAIL"))
