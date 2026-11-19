@@ -19,10 +19,10 @@ class BatchJob:
 
     def __init__(self, decks: list[str], bots: list[str], games: int, parallel: int = 1,
                  seed: int | None = None, save_games: bool = False, learn: bool = True,
-                 deals: bool = False) -> None:
+                 deals: bool = False, explore: float = 1.0) -> None:
         self.decks, self.bots, self.games = decks, bots, games
         self.parallel, self.seed, self.save_games, self.learn = parallel, seed, save_games, learn
-        self.deals = deals
+        self.deals, self.explore = deals, explore
         self.records: list[GameRecord] = []
         self.status = "running"  # running (-> stopping) -> finished / stopped / error
         self.error: str | None = None
@@ -54,7 +54,7 @@ class BatchJob:
     def _run(self) -> None:
         try:
             run_many(self.decks, self.bots, self.games, parallel=self.parallel, seed=self.seed,
-                     save_games=self.save_games, learn=self.learn,
+                     save_games=self.save_games, learn=self.learn, explore=self.explore,
                      on_result=self._on_result, stop=self._stop, abort=self._abort, deals=self.deals)
             self.status = "stopped" if self._stop.is_set() else "finished"
         except Exception as e:
@@ -92,6 +92,7 @@ class BatchJob:
             "elapsed": round(time.time() - self.started),
             "parallel": self.parallel,
             "learn": self.learn,
+            "explore": self.explore,
             "seats": seats,
             "recent": list(reversed(recent)),  # newest first
         }

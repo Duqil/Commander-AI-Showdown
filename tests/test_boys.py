@@ -460,6 +460,18 @@ class BrainTest(unittest.TestCase):
             brain.learn([step], reward=1.0)
         self.assertAlmostEqual(slow.weights["mulligan"]["x"], fast.weights["attack"]["x"] / 4)
 
+    def test_explore_setting_leans_towards_favorite(self):
+        """Less exploring = the favorite gets picked more often; 0 = always."""
+        brain = Brain("a", weights={"play": {"x": 1.0}})
+        opts = [{"x": 1.0}, {}]
+        full = brain.probabilities("play", opts, 1.0)[0]
+        half = brain.probabilities("play", opts, 0.5)[0]
+        self.assertGreater(half, full)
+        self.assertGreater(full, 0.5)
+        rng = random.Random(0)
+        self.assertTrue(all(brain.choose("play", opts, rng, explore=0).picked == 0 for _ in range(20)))
+        self.assertEqual(brain.temperature, 1.0)  # the brain's own setting is untouched
+
     def test_learns_to_prefer_rewarded_feature(self):
         """Option with feature "good" pays off, the other doesn't. The weight should grow."""
         brain = Brain("t")

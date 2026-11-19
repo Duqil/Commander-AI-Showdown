@@ -67,7 +67,7 @@ def bots_available() -> list[str]:
 
 
 def play_one(index: int, decks: list[str], bots: list[str], seed: int | None,
-             save_game: bool = False, learn: bool = True, explore: bool = True,
+             save_game: bool = False, learn: bool = True, explore: float = 1.0,
              abort: threading.Event | None = None, deals: bool = False,
              forge: Forge | None = None) -> GameRecord | None:
     """Play one game and return its record. Boys learn when it ends (if learn=True).
@@ -152,7 +152,7 @@ def run_many(
     seed: int | None = None,
     save_games: bool = False,
     learn: bool = True,
-    explore: bool = True,
+    explore: float = 1.0,
     on_result: Callable[[GameRecord], None] | None = None,
     stop: threading.Event | None = None,
     abort: threading.Event | None = None,
@@ -274,7 +274,9 @@ def main() -> None:
     parser.add_argument("--save-games", action="store_true", help="save each game for the viewer (games/)")
     parser.add_argument("--no-learn", action="store_true", help="Boys play but don't learn")
     parser.add_argument("--greedy", action="store_true",
-                        help="Boys always take their best option, no exploring (use with --no-learn to test them)")
+                        help="Boys always take their best option, no exploring (same as --explore 0)")
+    parser.add_argument("--explore", type=float, default=1.0,
+                        help="how much Boys explore, from 1.0 (a lot) to 0 (not at all: always their best option)")
     parser.add_argument("--deals", action="store_true", help="let bots make deals with each other")
     parser.add_argument("--report", action="store_true", help="only show the training history")
     args = parser.parse_args()
@@ -290,7 +292,7 @@ def main() -> None:
     print(f"Playing {args.games} games, {args.parallel} at a time. Ctrl+C stops.\n", flush=True)
 
     records = run_many(args.decks, bots, args.games, parallel=args.parallel, seed=args.seed,
-                       save_games=args.save_games, learn=not args.no_learn, explore=not args.greedy,
+                       save_games=args.save_games, learn=not args.no_learn, explore=0.0 if args.greedy else max(0.0, min(args.explore, 1.0)),
                        deals=args.deals,
                        on_result=lambda r: print_record(r, args.games))
 

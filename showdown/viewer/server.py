@@ -15,7 +15,7 @@ What the browser can ask for (an "API"):
     POST /api/saved/load            watch a saved game again. Body: {"id": "..."}
     GET  /api/card-image?name=X     a card picture (tokens: &token=1, and &colors=W&pt=2/2&oracle=...)
     POST /api/batch/start           run many games without watching. Body: {"decks", "bots",
-                                    "games": 20, "parallel": 1, "seed", "save_games", "learn", "deals"}
+                                    "games": 20, "parallel": 1, "seed", "save_games", "learn", "deals", "explore"}
     GET  /api/batch                 progress and results of that batch
     GET  /api/stats?source=batch    win rates per deck and bot (source is optional)
     POST /api/batch/stop            start no more games. Body {"now": true} also ends running ones
@@ -61,6 +61,14 @@ def number(value, default: int | None) -> int | None:
     if value in (None, ""):
         return default
     return int(value)
+
+
+def fraction(value, default: float) -> float:
+    """A number from 0 to 1 from the browser ("0.5" or 0.5); missing -> default.
+    Raises ValueError for anything that isn't a number, which becomes a 400 answer."""
+    if value in (None, ""):
+        return default
+    return max(0.0, min(float(value), 1.0))
 
 
 def valid_bot(name: str) -> bool:
@@ -186,7 +194,8 @@ class Handler(BaseHTTPRequestHandler):
             parallel = max(1, min(number(body.get("parallel"), 1), 5))
             STATE.batch = BatchJob(decks, bots, games, parallel, seed=number(body.get("seed"), None),
                                    save_games=bool(body.get("save_games")), learn=bool(body.get("learn", True)),
-                                   deals=bool(body.get("deals")))
+                                   deals=bool(body.get("deals")),
+                                   explore=fraction(body.get("explore"), 1.0))
             STATE.batch.start()
             return self.send_json(STATE.batch.summary())
         if path == "/api/batch/stop":

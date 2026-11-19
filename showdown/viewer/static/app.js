@@ -175,6 +175,7 @@ $("#batch-start").onclick = async () => {
       games: Number($("#batch-games").value),
       parallel: Number($("#batch-parallel").value),
       learn: $("#batch-learn").checked,
+      explore: Number($("#batch-explore").value),
       save_games: $("#batch-save").checked,
       seed: $("#seed").value,
       deals: $("#deals").checked,

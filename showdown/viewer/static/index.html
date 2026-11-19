@@ -47,6 +47,14 @@
       <label title="Each game at the same time needs about 2 GB of memory">At once
         <select id="batch-parallel"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option></select></label>
       <label><input type="checkbox" id="batch-learn" checked> Boys learn</label>
+      <label title="How often the Boys try something other than their favorite play. A lot = learn new things; not at all = see how good they really are.">How much should they explore?
+        <select id="batch-explore">
+          <option value="1" selected>A lot</option>
+          <option value="0.75">Quite a bit</option>
+          <option value="0.5">Some</option>
+          <option value="0.25">A little</option>
+          <option value="0">Not at all</option>
+        </select></label>
       <label><input type="checkbox" id="batch-save"> Save games for replay</label>
     </div>
     <button id="batch-start">Run games</button>
