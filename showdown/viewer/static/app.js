@@ -926,7 +926,22 @@ function isShownInLog(ev) {
 
 /** Forge adds an internal card number after names, "Garnet (403)": drop it, it means nothing to us. */
 function cleanText(text) {
-  return text.replace(/ \(\d+\)/g, "");
+  return shortenDetails(text.replace(/ \(\d+\)/g, ""));
+}
+
+// Forge ends many lines with details in brackets, like
+//   "[Card: Season of Weaving, Activator: 1-Riku, SpellAbility: Choose up to five ...]".
+// "SpellAbility:" repeats the whole rules text of the spell that set a trigger
+// off, which can be longer than the line itself. The Card part already names
+// that spell, so we drop the SpellAbility text. It runs until the next
+// "Key:" part (a capitalised word or two and a colon) or the closing bracket.
+const NEXT_DETAIL = "(?=, [A-Z][A-Za-z]*(?: [A-Z][A-Za-z]*)? ?: |\\]$)";
+function shortenDetails(text) {
+  return text
+    // "s": "." also matches line breaks (modal spells list their modes on new lines).
+    .replace(new RegExp(", SpellAbility: .*?" + NEXT_DETAIL, "s"), "")        // in the middle or at the end
+    .replace(new RegExp("\\[SpellAbility: .*?" + NEXT_DETAIL + "(, )?", "s"), "[") // first in the brackets
+    .replace(/ \[\]$/, "");                                              // nothing else was in them
 }
 
 function makeLogLine(ev) {

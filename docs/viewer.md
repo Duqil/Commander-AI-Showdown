@@ -84,6 +84,8 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
 * **Log.** Forge's game log plus what the Python bots decided (in blue),
   and choices Forge doesn't log itself ("2-Anhelo chose Red for Thriving Moor").
   Phase and mana lines are only in the **Phases & mana** tab.
+  A trigger set off by a spell names that spell ("[Card: Fiery Confluence,
+  Activator: 1-Riku]") without repeating its whole rules text.
 
 ## Stats
 
