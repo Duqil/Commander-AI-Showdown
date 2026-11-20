@@ -934,12 +934,54 @@ function showBanner(text, ms = 1600, cls = "") {
 // ===========================================================================
 function isShownInLog(ev) {
   if (app.logTab === "politics") return ev.kind.startsWith("deal_");
+  // The bot's own "keeps its hand"/"mulligans" line says the same as Forge's
+  // "has kept a hand of 7 cards" right after it, so it's small print.
+  if (ev.kind === "bot_choice" && ev.category === "MULLIGAN") return app.logTab === "all";
   if (ev.kind !== "log") return true;
   if (!ev.text) return false; // a snapshot without text
-  if (ev.category === "DETAIL" && SHOWN_DETAIL.test(ev.text)) return true;
+  if (ev.category === "DETAIL" && SHOWN_DETAIL.test(ev.text)) return logText(ev) !== "";
   const text = ev.text.replace(/ \(\d+\)/g, "");
   if (ROUTINE.some((r) => r.category === ev.category && r.text.test(text))) return app.logTab === "all";
   return !NOISY.has(ev.category) || app.logTab === "all";
+}
+
+/**
+ * The text a log line shows. Two lines get trimmed:
+ *  - "X's exile gets: [A], [B]" drops cards that a "A was put into Exile
+ *    from Battlefield" line just named. The exile line is there for cards
+ *    that left the library or hand without a word from Forge. If nothing is
+ *    left, the line is hidden.
+ *  - Reminder text in brackets, "scry 1. (Look at the top card of your
+ *    library. ...)", is cut in the main log; "Phases & mana" keeps it.
+ */
+function logText(ev) {
+  if (ev.category === "DETAIL" && / exile gets: /.test(ev.text)) {
+    if (ev._exileText === undefined) ev._exileText = trimKnownExiles(ev);
+    return ev._exileText;
+  }
+  return app.logTab === "all" ? ev.text : dropReminderText(ev.text);
+}
+
+// "(Look at the top card of your library. You may put it on the bottom.)":
+// a capital letter, ends with a full stop. "(Targeting: ...)" stays.
+function dropReminderText(text) {
+  return text.replace(/ \((?!Targeting)[A-Z][^()]*\.\)/g, "");
+}
+
+function trimKnownExiles(ev) {
+  const named = new Set();
+  for (let i = ev.seq - 1; i >= 0 && i >= ev.seq - 60; i--) {   // look back over this batch of lines
+    const e = app.events[i];
+    if (e.category === "TURN" || (e.category === "DETAIL" && / exile gets: /.test(e.text))) break;
+    const m = e.category === "ZONE_CHANGE" && /^(.*) was put into Exile from /s.exec(e.text.replace(/ \(\d+\)/g, ""));
+    if (m) named.add(m[1]);
+  }
+  if (!named.size) return ev.text;
+  const [head, list] = ev.text.split(/(?<= exile gets: )/);
+  const cards = list.match(/\[[^\]]*\](?: \(face down\))?/g);
+  if (!cards) return named.has(list) ? "" : ev.text;   // a game saved before the brackets
+  const left = cards.filter((c) => c.endsWith("(face down)") || !named.has(c.slice(1, -1)));
+  return left.length ? head + left.join(", ") : "";
 }
 
 /** The small grey label in front of a log line: Forge's category, or for
@@ -991,7 +1033,7 @@ function makeLogLine(ev) {
   if (ev.category === "TURN") line.classList.add("turn");
   if (ev.player && ev.kind !== "log") line.style.borderLeftColor = `var(--seat-${seatIndex(ev.player)})`;
   if (ev.kind === "log" && ev.category !== "TURN") line.append(el("span", "cat", categoryLabel(ev)));
-  line.append(document.createTextNode(cleanText(ev.text)));
+  line.append(document.createTextNode(cleanText(logText(ev))));
   // Forge logs life changes as "Life: 2-Anhelo 33 > 36": green when it went up.
   const life = ev.category === "LIFE" && /(\d+)\s*>\s*(\d+)/.exec(ev.text);
   if (life && Number(life[2]) > Number(life[1])) line.classList.add("gain");

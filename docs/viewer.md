@@ -90,7 +90,9 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   Routine lines move to **Phases & mana** too: "X enters tapped.", a Saga's
   first lore counter, and Forge's "scried 1 card(s) to the top" (the scry
   line already names the card). A trigger's "[Zone Changer: X]" is dropped
-  when the line already names X.
+  when the line already names X. Reminder text in brackets ("scry 1. (Look at
+  the top card ...)") and the bots' own mulligan lines are only in **Phases &
+  mana**; an exile line skips cards that a "was put into Exile" line just named.
   A trigger set off by a spell names that spell ("[Card: Fiery Confluence,
   Activator: 1-Riku]") without repeating its whole rules text.
 
