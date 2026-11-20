@@ -230,6 +230,7 @@ class DealBook:
     _targeted: dict[str, set[int]] = field(default_factory=dict)      # player -> opponents' cards they aimed harm at
     _wiped: dict[str, int] = field(default_factory=dict)              # X -> non-lands of X's gone this game turn
     _pay_start: dict[int, float] = field(default_factory=dict)        # removal deal id -> X's threat at turn start
+    _harm: dict[str, dict[str, int]] = field(default_factory=dict)    # victim -> {who hurt them: game turn}
 
     def __post_init__(self) -> None:
         for p in self.players:
@@ -272,7 +273,18 @@ class DealBook:
             "sharing": any(sp.giver == name and not sp.over for sp in self.shares),
             # Players whose sharing plan includes me (attacking them is rude).
             "sharing_with_me": sorted({sp.giver for sp in self.shares if not sp.over and name in sp.order}),
+            # Players who hurt me in the last round: damage, or harm aimed at me or my cards.
+            "hurt_me": self.hurt_me(name, turn),
         }
+
+    def hurt_me(self, victim: str, turn: int) -> list[str]:
+        """Who hurt ``victim`` in the last round (every player's turn once)."""
+        window = len(self._alive or self.players)
+        return sorted(p for p, t in self._harm.get(victim, {}).items() if turn - t < window)
+
+    def _hurt(self, victim: str | None, by: str | None) -> None:
+        if victim and by and victim != by:
+            self._harm.setdefault(victim, {})[by] = self._turn
 
     def _share_next(self, giver: str) -> str | None:
         plan = next((sp for sp in self.shares if sp.giver == giver and not sp.over), None)
@@ -546,6 +558,8 @@ class DealBook:
         messages: list[dict] = []
         for cand in picked:
             owner = cand["name"] if cand.get("is_player") else cand.get("controller")
+            if harmful:
+                self._hurt(owner, player)
             if harmful and not cand.get("is_player") and owner != player and "id" in cand:
                 self._targeted.setdefault(player, set()).add(cand["id"])
             if not harmful and cand.get("is_player") and owner != player:
@@ -625,6 +639,7 @@ class DealBook:
         m = DAMAGE_LINE.match(line)
         if m:
             dealer = controllers.get(int(m["id"])) or self._cards.get(int(m["id"]), {}).get("controller")
+            self._hurt(m["target"], dealer)
             for r in owed:
                 if dealer == r.victim and m["target"] == r.breaker:
                     r.damage += int(m["amount"])

@@ -840,6 +840,7 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
     danger = min(threat.danger_to_me(state), 2.0) / 2
     simple = _simple.offer_deal(view)
     menu = view.get("menu", DEAL_TYPES)  # the deal types allowed right now (peace may be on ice)
+    hurt_me = set(hurt_me_lately(view))
     protected = set(view["deals"]["protected"])
     runaway = runaway_leader(state)
     # Favours need a way to pay: a card whose text removes, or gives (deals.py).
@@ -881,6 +882,8 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
                 # Ganging up on someone far ahead: what gang-ups are for (starts positive).
                 "gang_against_runaway": _flag(against["name"] == runaway),
                 "gang_against_threat_rank": threat.threat_rank(state, against["name"]),
+                # They hurt me lately (damage, or harm aimed at me or my cards): a reason to gang up.
+                "gang_against_hurt_me": _flag(against["name"] in hurt_me),
                 "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], against["name"])),
             }
             for rounds in DEAL_LENGTHS + (UNTIL_OUT,) if "gang_up" in menu else ():
@@ -929,6 +932,39 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
     return feats, offers
 
 
+def hurt_me_lately(view: Decision) -> list[str]:
+    """Opponents who hurt me in the last round: damage (from the log) or harm
+    aimed at me or my cards (deals.py remembers both)."""
+    state = view["state"]
+    me = state.get("you")
+    hurt = set(view.get("deals", {}).get("hurt_me", []))
+    hurt |= {p["name"] for p in threat.opponents(state) if threat.recent_damage_to(p, me) > 0}
+    return sorted(hurt)
+
+
+def offer_type_options(view: Decision, types: list[str]) -> list[Features]:
+    """Step 2 of offering: which KIND of deal (gang-up, removal, gift, share...).
+
+    Picking the kind first, then the details (step 3, offer_options), keeps
+    a kind from winning just because it has more variations: a gang-up has
+    about 30 (every partner x every target x 5 lengths), a gift only a few.
+    """
+    state = view["state"]
+    opponents = threat.opponents(state)
+    danger = min(threat.danger_to_me(state), 2.0) / 2
+    simple = _simple.offer_deal(view) or {}
+    hurt = hurt_me_lately(view)
+    result = []
+    for t in types:
+        f: Features = {f"type_{t}": 1.0, f"type_{t}_danger": danger, "simple_prior": _flag(simple.get("type") == t)}
+        if t == "gang_up":
+            # Gang-ups are more tempting against someone far ahead, or someone who hurt me lately.
+            f["type_gang_vs_runaway"] = _flag(runaway_leader(state) is not None)
+            f["type_gang_vs_hurt_me"] = _flag(bool(hurt) and len(opponents) >= 2)
+        result.append(f)
+    return result
+
+
 def answer_options(view: Decision) -> list[Features]:
     """Two options: accept (index 0) or decline (index 1)."""
     state = view["state"]
@@ -974,6 +1010,7 @@ def answer_options(view: Decision) -> list[Features]:
         accept["accept_against_runaway"] = _flag(offer.get("against") == runaway_leader(state))
         # Attacking someone we already have a deal with would break that deal.
         accept["accept_against_partner"] = _flag(offer.get("against") in view["deals"]["protected"])
+        accept["accept_against_hurt_me"] = _flag(offer.get("against") in hurt_me_lately(view))
         # Neither of us could hurt the target much yet: nothing to gain.
         offerer_p = next((p for p in state.get("players", []) if p["name"] == offerer), {})
         accept["accept_gang_pointless"] = _flag(threat.board_power(threat.me(state)) + threat.board_power(offerer_p)

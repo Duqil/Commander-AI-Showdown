@@ -254,5 +254,18 @@ hurt you, but whom you could hurt, is a bad trade.
 |---|---|
 | `simple` | Never breaks a deal. Offers last 2 rounds. Only offers from round 3 on, and only once the strongest opponent has at least 3 power on the board. Then: if someone else leads, asks the next strongest to gang up on the leader; if it leads itself, offers peace to the strongest. Accepts from players it trusts, unless they lead or would gain clearly more than it does. |
 | `random` | Offers a random deal (random length) 30% of the time, accepts half, and breaks deals often since it attacks at random. |
-| `boy:<name>` | Learns whether to offer this turn (`offer_whether`), then which deal and how long (`offer`), what to accept and when breaking pays. Starts out close to SimpleBot. Also sees how far into the game it is and how much power is on the table, so it can learn that early deals don't pay. |
+| `boy:<name>` | Learns whether to offer this turn (`offer_whether`), then which kind of deal (`offer_type`: gang-up, removal, gift, share...), then which one exactly and how long (`offer`), what to accept and when breaking pays. Starts out close to SimpleBot. Also sees how far into the game it is and how much power is on the table, so it can learn that early deals don't pay. |
+
+**Why pick the kind first?** (Adam, 2026-11-20.) With peace on ice, Boys
+offered gang-ups 80% of the time, partly because a gang-up has about 30
+variations (every partner x every target x 5 lengths) while a gift has a few:
+picking one option out of all of them lands on a gang-up most of the time.
+Choosing the kind first gives each kind a fair chance.
+
+**Gang-ups need a reason (a liking, not a rule).** Boys start out liking a
+gang-up more against a player far ahead (`type_gang_vs_runaway`,
+`gang_against_runaway`) or someone who hurt them in the last round
+(`type_gang_vs_hurt_me`, `gang_against_hurt_me`, `accept_against_hurt_me`, all
++1). "Hurt" means damage in Forge's log, or something harmful aimed at them or
+their cards. `DealBook` remembers it and tells bots as `"hurt_me"`.
 | `forge` | Forge's own AI can't make deals: offers to it are declined. |

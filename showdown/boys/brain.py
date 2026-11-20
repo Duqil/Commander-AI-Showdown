@@ -120,6 +120,10 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    # can hit that card; accepting likes a clear promise, more so on an engine.
                    "removal_named_can_hit": 0.5, "removal_named": -0.3,
                    "accept_named": 0.3, "accept_named_engine": 0.5,
+                   # Gang-ups need a reason (Adam, 2026-11-20): more tempting against someone
+                   # far ahead or someone who hurt us lately. Not a rule, just a starting liking.
+                   "type_gang_vs_runaway": 1.0, "type_gang_vs_hurt_me": 1.0,
+                   "gang_against_hurt_me": 1.0, "accept_against_hurt_me": 1.0,
                    # and plays that can pay it (a removal spell, Loran's "each draw").
                    "play_pays_removal": 1.5, "play_gives_gift": 1.5}
 
@@ -141,7 +145,8 @@ KIND_RATE = {"mulligan": 0.25}
 CARD_RATE = 0.5
 CARD_SHRINK = 0.005
 
-DECISION_KINDS = ("mulligan", "play", "attack", "target", "pick_card", "keyword_cost", "offer_whether", "offer", "answer")
+DECISION_KINDS = ("mulligan", "play", "attack", "target", "pick_card", "keyword_cost", "offer_whether", "offer_type",
+                  "offer", "answer")
 
 
 @dataclass

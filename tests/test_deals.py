@@ -214,15 +214,17 @@ class OfferCostTest(unittest.TestCase):
     def test_offer_fee_and_declined_fee(self):
         from showdown.boys.reward import OFFER_DECLINED, OFFER_MADE
         self.assertIsNotNone(self.boy.offer_deal(self.view()))
-        whether, which = self.boy.steps[-2:]
+        whether, kind, which = self.boy.steps[-3:]
+        self.assertEqual([s.kind for s in (whether, kind, which)], ["offer_whether", "offer_type", "offer"])
         self.assertEqual((whether.deal_bonus, which.deal_bonus), (OFFER_MADE, 0.0))
         self.boy.offer_answered({"id": 1}, accepted=False)
-        self.assertEqual((whether.deal_bonus, which.deal_bonus), (OFFER_MADE + OFFER_DECLINED, OFFER_DECLINED))
+        self.assertEqual((whether.deal_bonus, kind.deal_bonus, which.deal_bonus),
+                         (OFFER_MADE + OFFER_DECLINED, OFFER_DECLINED, OFFER_DECLINED))
 
     def test_accepted_offer_only_pays_the_small_fee(self):
         from showdown.boys.reward import OFFER_MADE
         self.boy.offer_deal(self.view())
-        whether = self.boy.steps[-2]
+        whether = self.boy.steps[-3]
         self.boy.offer_answered({"id": 1}, accepted=True)
         self.assertEqual(whether.deal_bonus, OFFER_MADE)
 
@@ -718,6 +720,36 @@ class NamedRemovalTest(unittest.TestCase):
         self.assertTrue(named)
         self.assertEqual(named[0][0]["removal_named_can_hit"], 1.0)
         self.assertTrue(all(o["against"] == "3-C" for _, o in named))
+
+
+class GangUpReasonTest(unittest.TestCase):
+    """Pick the kind of deal first; gang-ups are more tempting with a reason (Adam, 2026-11-20)."""
+
+    def test_harm_is_remembered_for_a_round(self):
+        book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+        book.observe(state(turn=5, active="3-C"))
+        book.see_log("Goblin (12) deals 3 combat damage to 1-A.", {12: "3-C"})
+        book.note_target("4-D", target_decision(5, [{"name": "1-A", "is_player": True}], api="LoseLife"), [0])
+        self.assertEqual(book.view_for("1-A", state(turn=8))["hurt_me"], ["3-C", "4-D"])
+        self.assertEqual(book.view_for("1-A", state(turn=9))["hurt_me"], [])  # a round later: forgotten
+
+    def test_one_option_per_kind_and_gang_reason_features(self):
+        from showdown.boys.features import offer_type_options
+        s = favour_state(turn=9)
+        view = {"state": s, "deals": {"active": [], "trust": {}, "protected": [], "hurt_me": ["3-C"]}}
+        opts = offer_type_options(view, ["gang_up", "removal"])
+        self.assertEqual(len(opts), 2)
+        self.assertEqual(opts[0]["type_gang_vs_hurt_me"], 1.0)
+        self.assertNotIn("type_gang_vs_hurt_me", opts[1])
+
+    def test_gang_option_knows_who_hurt_me(self):
+        from showdown.boys.features import offer_options
+        s = state(turn=9)
+        view = {"state": s, "menu": ["gang_up"], "deals": {**DealBook(["1-A", "2-B", "3-C", "4-D"]).view_for("1-A", s),
+                                                         "hurt_me": ["3-C"]}}
+        feats, offers = offer_options(view)
+        for f, o in zip(feats, offers):
+            self.assertEqual(f["gang_against_hurt_me"], 1.0 if o["against"] == "3-C" else 0.0)
 
 
 class PeaceOnIceTest(unittest.TestCase):
