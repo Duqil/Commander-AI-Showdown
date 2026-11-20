@@ -896,7 +896,7 @@ public class PythonPlayerController extends PlayerControllerAi {
      * Forge's log only says "scry 2", not which cards went where. Add a
      * "Detail:" line to the game log (the viewer shows those in the
      * "Phases & mana" tab, not the main log), e.g.
-     * "Detail: 1-Riku scry: Island on top, Shock to the bottom".
+     * "Detail: 1-Riku scry: [Island] on top, [Shock] to the bottom".
      */
     @Override
     public org.apache.commons.lang3.tuple.ImmutablePair<CardCollection, CardCollection> arrangeForScry(CardCollection topN) {
@@ -927,10 +927,11 @@ public class PythonPlayerController extends PlayerControllerAi {
                 "Detail: " + getPlayer().getName() + " " + what + ": " + String.join(", ", parts));
     }
 
+    /** "[Island] and [Shock]": brackets show where each card name starts and ends. */
     private static String names(CardCollection cards) {
         List<String> out = new ArrayList<>();
         for (Card c : cards) {
-            out.add(c.getName());
+            out.add("[" + c.getName() + "]");
         }
         return String.join(" and ", out);
     }

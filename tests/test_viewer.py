@@ -389,7 +389,7 @@ class DetailLinesTest(unittest.TestCase):
         hidden = {"id": 7, "name": "", "face_down": True, "real_name": "Shock"}
         events = b.feed({"type": "event", "entries": [], "state": self._state([hidden])})
         details = [e for e in events if e["category"] == "DETAIL"]
-        self.assertEqual(details[0]["text"], "3-Kuja's exile gets: Shock (face down)")
+        self.assertEqual(details[0]["text"], "3-Kuja's exile gets: [Shock] (face down)")
         # Seen once: no second line for the same card.
         again = b.feed({"type": "event", "entries": [], "state": self._state([hidden])})
         self.assertFalse([e for e in again if e["category"] == "DETAIL"])

@@ -38,7 +38,22 @@ const EVENT_STYLES = {
 };
 // Forge log categories that get their own pacing.
 const CATEGORY_DELAY = { TURN: 1000, PHASE: 120, MANA: 40, STATE: 150, COMBAT: 700, DAMAGE: 600 };
-const NOISY = new Set(["PHASE", "MANA", "STATE", "DETAIL"]); // only in the "Phases & mana" tab (DETAIL: scry and exile details)
+const NOISY = new Set(["PHASE", "MANA", "STATE", "DETAIL"]); // only in the "Phases & mana" tab (DETAIL: the bridge's extra lines)
+// ...except these DETAIL lines, which name hidden cards and are short and rare
+// enough (a handful per game) for the main log: "Riku's exile gets: X" and
+// "Kuja scry: X on top". The regex also gives the label shown on the line.
+const SHOWN_DETAIL = / (exile) gets: | (scry|surveil): /;
+// Lines that say something routine, or that another line already says better.
+// They go to the "Phases & mana" tab with the other small print. Generic
+// patterns, no card names:
+//   "Temple of Mystery enters tapped."        (a tapland, rule 614.1c)
+//   "Fall of the Titans enters with a lore counter on it."   (every Saga)
+//   "2-Swarmlord scried 1 card(s) to the top of the library"  (the SCRY line names the card)
+const ROUTINE = [
+  { category: "EFFECT_REPLACED", text: /^[^.]* enters tapped(?: unless [^.]*)?\.$/ },
+  { category: "EFFECT_REPLACED", text: /^[^.]* enters with a lore counter on it\.$/ },
+  { category: "STACK_RESOLVE", text: /^\S+ (?:scried|surveiled) \d+ card\(s\) to the (?:top|bottom) of the library$/ },
+];
 const SPEEDS = [0.5, 0.75, 1, 2, 4, Infinity];    // Infinity = "Max": jump straight to the latest event
 const PHASE_NAMES = {
   UNTAP: "Untap", UPKEEP: "Upkeep", DRAW: "Draw", MAIN1: "Main 1",
@@ -919,14 +934,97 @@ function showBanner(text, ms = 1600, cls = "") {
 // ===========================================================================
 function isShownInLog(ev) {
   if (app.logTab === "politics") return ev.kind.startsWith("deal_");
+  // The bot's own "keeps its hand"/"mulligans" line says the same as Forge's
+  // "has kept a hand of 7 cards" right after it, so it's small print.
+  if (ev.kind === "bot_choice" && ev.category === "MULLIGAN") return app.logTab === "all";
   if (ev.kind !== "log") return true;
   if (!ev.text) return false; // a snapshot without text
+  if (ev.category === "DETAIL" && SHOWN_DETAIL.test(ev.text)) return logText(ev) !== "";
+  const text = ev.text.replace(/ \(\d+\)/g, "");
+  if (ROUTINE.some((r) => r.category === ev.category && r.text.test(text))) return app.logTab === "all";
   return !NOISY.has(ev.category) || app.logTab === "all";
+}
+
+/**
+ * The text a log line shows. Two lines get trimmed:
+ *  - "X's exile gets: [A], [B]" drops cards that a "A was put into Exile
+ *    from Battlefield" line just named. The exile line is there for cards
+ *    that left the library or hand without a word from Forge. If nothing is
+ *    left, the line is hidden.
+ *  - Reminder text in brackets, "scry 1. (Look at the top card of your
+ *    library. ...)", is cut in the main log; "Phases & mana" keeps it.
+ */
+function logText(ev) {
+  if (ev.category === "DETAIL" && / exile gets: /.test(ev.text)) {
+    if (ev._exileText === undefined) ev._exileText = trimKnownExiles(ev);
+    return ev._exileText;
+  }
+  return app.logTab === "all" ? ev.text : dropReminderText(ev.text);
+}
+
+// "(Look at the top card of your library. You may put it on the bottom.)":
+// a capital letter, ends with a full stop. "(Targeting: ...)" stays.
+function dropReminderText(text) {
+  return text.replace(/ \((?!Targeting)[A-Z][^()]*\.\)/g, "");
+}
+
+function trimKnownExiles(ev) {
+  const named = new Set();
+  for (let i = ev.seq - 1; i >= 0 && i >= ev.seq - 60; i--) {   // look back over this batch of lines
+    const e = app.events[i];
+    if (e.category === "TURN" || (e.category === "DETAIL" && / exile gets: /.test(e.text))) break;
+    const m = e.category === "ZONE_CHANGE" && /^(.*) was put into Exile from /s.exec(e.text.replace(/ \(\d+\)/g, ""));
+    if (m) named.add(m[1]);
+  }
+  if (!named.size) return ev.text;
+  const [head, list] = ev.text.split(/(?<= exile gets: )/);
+  const cards = list.match(/\[[^\]]*\](?: \(face down\))?/g);
+  if (!cards) return named.has(list) ? "" : ev.text;   // a game saved before the brackets
+  const left = cards.filter((c) => c.endsWith("(face down)") || !named.has(c.slice(1, -1)));
+  return left.length ? head + left.join(", ") : "";
+}
+
+/** The small grey label in front of a log line: Forge's category, or for
+ * a DETAIL line about hidden cards, what happened ("exile", "scry"). */
+function categoryLabel(ev) {
+  const m = ev.category === "DETAIL" && SHOWN_DETAIL.exec(ev.text);
+  if (m) return m[1] || m[2];
+  return ev.category.toLowerCase().replace("_", " ");
 }
 
 /** Forge adds an internal card number after names, "Garnet (403)": drop it, it means nothing to us. */
 function cleanText(text) {
-  return text.replace(/ \(\d+\)/g, "");
+  return shortenDetails(text.replace(/ \(\d+\)/g, ""));
+}
+
+// Forge ends many lines with details in brackets, like
+//   "[Card: Season of Weaving, Activator: 1-Riku, SpellAbility: Choose up to five ...]".
+// "SpellAbility:" repeats the whole rules text of the spell that set a trigger
+// off, which can be longer than the line itself. The Card part already names
+// that spell, so we drop the SpellAbility text. It runs until the next
+// "Key:" part (a capitalised word or two and a colon) or the closing bracket.
+const NEXT_DETAIL = "(?=, [A-Z][A-Za-z]*(?: [A-Z][A-Za-z]*)? ?: |\\]$)";
+function shortenDetails(text) {
+  return dropKnownZoneChanger(text)
+    // "s": "." also matches line breaks (modal spells list their modes on new lines).
+    .replace(new RegExp(", SpellAbility: .*?" + NEXT_DETAIL, "s"), "")        // in the middle or at the end
+    .replace(new RegExp("\\[SpellAbility: .*?" + NEXT_DETAIL + "(, )?", "s"), "[") // first in the brackets
+    .replace(/ \[\]$/, "");                                              // nothing else was in them
+}
+
+/**
+ * "Zone Changer: X" names the card that entered (or left) a zone and set the
+ * trigger off. Useful for Blood Artist ("Zone Changer: Hero Token" = what
+ * died), but a repeat when the line already names it:
+ *   "When Temple of Mystery enters, scry 1. [Zone Changer: Temple of Mystery]"
+ */
+function dropKnownZoneChanger(text) {
+  const m = /^(.*) \[(.*)\]$/s.exec(text);
+  if (!m) return text;
+  const [, main, inside] = m;
+  const kept = inside.split(/, (?=[A-Z][A-Za-z]*(?: [A-Z][A-Za-z]*)? ?: )/)
+    .filter((part) => !(part.startsWith("Zone Changer: ") && main.includes(part.slice(14))));
+  return kept.length ? `${main} [${kept.join(", ")}]` : main;
 }
 
 function makeLogLine(ev) {
@@ -934,8 +1032,8 @@ function makeLogLine(ev) {
   const line = el("div", `log-line ${style.cls || ""} cat-${ev.category}`);
   if (ev.category === "TURN") line.classList.add("turn");
   if (ev.player && ev.kind !== "log") line.style.borderLeftColor = `var(--seat-${seatIndex(ev.player)})`;
-  if (ev.kind === "log" && ev.category !== "TURN") line.append(el("span", "cat", ev.category.toLowerCase().replace("_", " ")));
-  line.append(document.createTextNode(cleanText(ev.text)));
+  if (ev.kind === "log" && ev.category !== "TURN") line.append(el("span", "cat", categoryLabel(ev)));
+  line.append(document.createTextNode(cleanText(logText(ev))));
   // Forge logs life changes as "Life: 2-Anhelo 33 > 36": green when it went up.
   const life = ev.category === "LIFE" && /(\d+)\s*>\s*(\d+)/.exec(ev.text);
   if (life && Number(life[2]) > Number(life[1])) line.classList.add("gain");
