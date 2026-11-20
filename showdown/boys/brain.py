@@ -125,6 +125,8 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "type_gang_vs_runaway": 1.0, "type_gang_vs_hurt_me": 1.0,
                    "gang_against_hurt_me": 1.0, "accept_against_hurt_me": 1.0,
                    "offer_no_reason": -1.5,
+                   # The target of a gang-up pushes back: a milder pull than revenge (1.5).
+                   "attack_push_back": 0.75, "hurt_push_back_target": 0.75,
                    # and plays that can pay it (a removal spell, Loran's "each draw").
                    "play_pays_removal": 1.5, "play_gives_gift": 1.5}
 

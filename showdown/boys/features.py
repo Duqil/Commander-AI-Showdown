@@ -523,6 +523,8 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
             f["attack_grudge"] = 1.0          # they broke a deal with us this game
         if d["name"] in deals.get("revenge", []):
             f["attack_revenge"] = 1.0         # ...and we haven't paid them back yet (one real setback)
+        if d["name"] in deals.get("push_back", []):
+            f["attack_push_back"] = 1.0       # they're ganging up on us: push back (one real setback)
         if d["name"] in deals.get("sharing_with_me", []):
             f["attack_my_sharer"] = 1.0       # they share their gifts with us: attacking them is rude
         if target is not None:
@@ -716,6 +718,8 @@ def target_options(decision: Decision) -> list[Features]:
         deals = decision.get("deals", {})
         if harmful and not mine and owner in deals.get("revenge", []):
             f["hurt_revenge_target"] = 1.0
+        if harmful and not mine and owner in deals.get("push_back", []):
+            f["hurt_push_back_target"] = 1.0  # ganging up on us: push back
         # Paying a favour we promised (deals.py): harm on X's stuff, or help for our partner.
         owed = deals.get("owed", [])
         # A named removal ("remove Kefka") is only paid by that card.

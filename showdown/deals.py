@@ -211,6 +211,10 @@ class Revenge:
     damage: int = 0                  # damage the victim dealt the breaker this game turn
     start_threat: float | None = None  # the breaker's threat at the start of the victim's turn
     done: bool = False
+    # Push back (Adam, 2026-11-20): the target of a gang-up leans toward hitting
+    # each gang member, the same "one real setback" as revenge, but no grudge
+    # (nobody betrayed anyone), and it's over when the gang-up is.
+    pushback: bool = False
 
 
 @dataclass
@@ -252,7 +256,11 @@ class DealBook:
 
     def revenge_owed(self, victim: str) -> list[str]:
         """Breakers this player still owes a revenge (one real setback each)."""
-        return sorted({r.breaker for r in self.revenge if r.victim == victim and not r.done})
+        return sorted({r.breaker for r in self.revenge if r.victim == victim and not r.done and not r.pushback})
+
+    def pushback_owed(self, target: str) -> list[str]:
+        """Gang members ganging up on this player that it hasn't pushed back against yet."""
+        return sorted({r.breaker for r in self.revenge if r.victim == target and not r.done and r.pushback})
 
     def view_for(self, name: str, state: dict) -> dict[str, Any]:
         """What a bot is told about deals (added to its decisions as "deals")."""
@@ -268,6 +276,8 @@ class DealBook:
             "grudges": sorted(self.grudges.get(name, set())),
             # ...and the ones I haven't paid back yet: one real setback each.
             "revenge": self.revenge_owed(name),
+            # Players ganging up on me that I haven't pushed back against yet (one setback each).
+            "push_back": self.pushback_owed(name),
             # Favours I promised and haven't paid yet (removal on X, or a gift to my partner):
             "owed": [{"kind": d.kind, "to": d.b, "against": d.against, "pay_by": d.pay_by, "card_id": d.card_id}
                      for d in self._owing() if d.a == name],
@@ -353,6 +363,10 @@ class DealBook:
             # A new deal that goes against an old one breaks the old one.
             broken = self._contradictions(deal, turn)
             self.deals.append(deal)
+            if deal.kind == "gang_up":  # the target will push back against both of them
+                for member in (deal.a, deal.b):
+                    if member not in self.pushback_owed(deal.against):
+                        self.revenge.append(Revenge(deal.against, member, deal, pushback=True))
             messages.append(deal_message("accept", deal, turn))
             messages += broken
         else:
@@ -521,7 +535,10 @@ class DealBook:
             self._wiped = {}
             self._pay_start = {d.id: threat.threat_score(players[d.against]) for d in self._unpaid_of(active, "removal", turn)
                                if d.against in players}
+            on = self.active(turn)
             for r in self.revenge:
+                if r.pushback and not r.done and r.deal not in on:
+                    r.done = True  # the gang-up is over (ended, expired or broken): so is the push back
                 r.damage = 0  # damage counts per game turn
                 r.start_threat = threat.threat_score(players[r.breaker]) \
                     if r.victim == active and r.breaker in players else None
@@ -698,6 +715,8 @@ class DealBook:
 
     def _revenge_done(self, r: Revenge, what: str) -> dict:
         r.done = True
+        if r.pushback:
+            return deal_message("pushback", r.deal, self._turn, victim=r.victim, breaker=r.breaker, what=what)
         return deal_message("revenge", r.deal, self._turn, victim=r.victim, breaker=r.breaker,
                             what=what)
 
@@ -838,6 +857,8 @@ def deal_message(event: str, deal: Deal, turn: int, **extra: Any) -> dict:
         text = f"{deal.b} declines {deal.a}'s deal" + (f" ({reason})" if reason else "")
     elif event == "revenge":
         text = f"{extra['what']}. {extra['victim']} has taken revenge, and it's over."
+    elif event == "pushback":
+        text = f"{extra['what']}. {extra['victim']} pushed back against {extra['breaker']}'s gang-up."
     elif event == "paid":
         text = extra["what"]
     else:

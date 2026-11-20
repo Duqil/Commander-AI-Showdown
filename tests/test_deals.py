@@ -753,6 +753,45 @@ class GangUpReasonTest(unittest.TestCase):
             self.assertEqual(f["gang_against_hurt_me"], 1.0 if o["against"] == "3-C" else 0.0)
 
 
+class PushBackTest(unittest.TestCase):
+    """The target of a gang-up pushes back: one real setback per gang member (Adam, 2026-11-20)."""
+
+    def setUp(self):
+        self.book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+        bots = {"1-A": Offerer({"type": "gang_up", "to": "2-B", "against": "3-C", "rounds": 2}), "2-B": Accepter()}
+        self.book.offer_phase(state(turn=9), bots)
+
+    def test_target_pushes_back_against_both_no_grudge(self):
+        view = self.book.view_for("3-C", state(turn=9))
+        self.assertEqual(view["push_back"], ["1-A", "2-B"])
+        self.assertEqual(view["revenge"], [])
+        self.assertEqual(view["grudges"], [])
+        self.assertEqual(self.book.trust["3-C"]["1-A"], 1.0)  # Adam: push back only, no trust drop
+
+    def test_one_setback_ends_it_for_that_member(self):
+        self.book.observe(state(turn=11, active="3-C"))
+        msgs = self.book.see_log("Dragon (5) deals 5 combat damage to 1-A.", {5: "3-C"})
+        self.assertEqual([m["event"] for m in msgs], ["pushback"])
+        self.assertEqual(msgs[0]["text"], "3-C dealt 5 damage to 1-A. 3-C pushed back against 1-A's gang-up.")
+        self.assertEqual(self.book.view_for("3-C", state(turn=11))["push_back"], ["2-B"])
+        kinds = [e["kind"] for e in TimelineBuilder().feed(msgs[0])]
+        self.assertEqual(kinds, ["deal_pushback"])
+
+    def test_over_when_the_gang_up_is(self):
+        self.book.observe(state(turn=18, active="3-C"))  # 2 rounds from turn 9: over after turn 17
+        self.assertEqual(self.book.view_for("3-C", state(turn=18))["push_back"], [])
+
+    def test_simplebot_hits_the_gang_first(self):
+        decision = attack("1-A")
+        decision["defenders"] = [d | {"is_player": True} for d in decision["defenders"][1:]]
+        decision["attackers"] = [{"id": 7, "power": 3, "can_attack": [1, 2, 3]}]
+        decision["state"]["players"][3]["battlefield"] = [card(60, "Giant", "4-D", power=9)]  # D is the leader
+        decision["deals"] = {"protected": [], "gang_targets": [], "grudges": [], "revenge": [], "push_back": ["2-B"]}
+        self.assertEqual(SimpleBot().declare_attackers(decision)["7"], 1)  # push back against B
+        decision["deals"]["push_back"] = []
+        self.assertEqual(SimpleBot().declare_attackers(decision)["7"], 3)  # back to the biggest threat
+
+
 class PeaceOnIceTest(unittest.TestCase):
     """Plain peace deals can be switched off (Adam, 2026-11-19); the other deals still work."""
 

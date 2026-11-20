@@ -31,6 +31,7 @@ const EVENT_STYLES = {
   deal_kept:    { cls: "deal accept", delay: 300 },   // a deal ran its full length unbroken: a quiet line only
   deal_end:     { cls: "deal decline", delay: 300 },  // nothing left to deal about (a player is out): a quiet line
   deal_revenge: { cls: "deal revenge", banner: true, delay: 600 },  // the betrayed player set the breaker back: it's over
+  deal_pushback: { cls: "deal revenge", delay: 500 }, // a gang-up's target set a gang member back
   deal_paid:    { cls: "deal accept", delay: 400 },   // a favour (removal or gift) was paid as promised
   deal_share:   { cls: "deal", delay: 400 },          // a sharing plan for a recurring gift was announced
   deal_shared:  { cls: "deal accept", delay: 300 },   // a gift went to the next player in line
@@ -1160,8 +1161,9 @@ async function loadStats() {
 //     waits for it, like the cast animation.
 // ===========================================================================
 const DEAL_COLORS = { deal_offer: "#c38bff", deal_accept: "#57ab5a", deal_decline: "#8a94a6", deal_break: "#e5534b",
-                      deal_revenge: "#e0a040", deal_paid: "#d4b44a" };
+                      deal_revenge: "#e0a040", deal_pushback: "#e0a040", deal_paid: "#d4b44a" };
 const DEAL_ICONS = { deal_offer: "🤝?", deal_accept: "🤝", deal_decline: "✋", deal_break: "💔", deal_revenge: "⚔",
+                     deal_pushback: "🛡",
                      deal_paid: "🎁" };
 
 /** Deals that are on and revenge still owed, as of the playhead. Reads only the deal events. */
@@ -1227,7 +1229,7 @@ function playDealMoment(ev) {
   const deal = ev.data?.deal;
   if (!deal || app.speed === Infinity) return;
   // Who "speaks": the offerer offers, the other one answers, the breaker breaks.
-  const from = ev.kind === "deal_offer" ? deal.a : (ev.kind === "deal_break" || ev.kind === "deal_revenge") ? ev.player : deal.b;
+  const from = ev.kind === "deal_offer" ? deal.a : (ev.kind === "deal_break" || ev.kind === "deal_revenge" || ev.kind === "deal_pushback") ? ev.player : deal.b;
   const to = from === deal.a ? deal.b : deal.a;
   const a = $(`#boards [data-player="${CSS.escape(from)}"]`), b = $(`#boards [data-player="${CSS.escape(to)}"]`);
   if (!a || !b) return;

@@ -167,6 +167,21 @@ SimpleBot attacks them first, and Boys start out liking `attack_revenge` and
 `hurt_revenge_target` (+1.5 each). After that, the grudge stays (no new
 deals, lower trust) but the hunt is over. All of this lasts one game.
 
+## Push back: the target of a gang-up hits back
+
+(Adam, 2026-11-20.) When a gang-up on *X* is accepted, *X* leans toward
+hitting both gang members: one real setback each, tested the same way as
+revenge (5+ damage in one turn, removing something important, or knocking
+their board down by a fifth). It ends when that setback lands ("Zangief dealt
+5 damage to Kuja. Zangief pushed back against Kuja's gang-up.", a 🛡 moment in
+the viewer) or when the gang-up is over. Unlike revenge there's no grudge and
+no trust change: nobody betrayed anyone.
+
+Bots see it as `"push_back"` in their deals view. SimpleBot attacks them right
+after any revenge it owes. Boys start with `attack_push_back` and
+`hurt_push_back_target` at +0.75 (revenge is +1.5). A gang-up now has a price,
+so the Boys can learn to save it for when it's worth it.
+
 ## What breaking costs a Boy
 
 Trust and grudges only last one game, so on their own they didn't stop the
