@@ -113,6 +113,9 @@ ZONE_LINE = re.compile(r"^(?:Zone Change: )?(?P<name>.+?) \((?P<id>\d+)\) was pu
 #   * a wipe: this many of X's non-land permanents gone in the payer's turn,
 #   * or X's threat score falling by a fifth during the payer's turn.
 WIPE_COUNT = 3
+# "Hurt me lately" (a reason to gang up): this much damage in the last round,
+# or anything harmful aimed at me or my cards (that counts as HURT_DAMAGE).
+HURT_DAMAGE = 3
 PAY_THREAT_DROP = 0.2
 ENGINE_DAMAGE = 2
 DAMAGE_LINE = re.compile(r"^(?P<source>.+?) \((?P<id>\d+)\) deals (?P<amount>\d+) (?:non-combat |combat )?damage to (?P<target>.+?)\.$")
@@ -230,7 +233,7 @@ class DealBook:
     _targeted: dict[str, set[int]] = field(default_factory=dict)      # player -> opponents' cards they aimed harm at
     _wiped: dict[str, int] = field(default_factory=dict)              # X -> non-lands of X's gone this game turn
     _pay_start: dict[int, float] = field(default_factory=dict)        # removal deal id -> X's threat at turn start
-    _harm: dict[str, dict[str, int]] = field(default_factory=dict)    # victim -> {who hurt them: game turn}
+    _harm: dict[str, list[tuple[int, str, int]]] = field(default_factory=dict)  # victim -> [(turn, who, how much)]
 
     def __post_init__(self) -> None:
         for p in self.players:
@@ -278,13 +281,19 @@ class DealBook:
         }
 
     def hurt_me(self, victim: str, turn: int) -> list[str]:
-        """Who hurt ``victim`` in the last round (every player's turn once)."""
+        """Who really hurt ``victim`` in the last round (every player's turn once):
+        HURT_DAMAGE+ damage in total, or something harmful aimed at them or their cards.
+        A 1-damage ping now and then doesn't count."""
         window = len(self._alive or self.players)
-        return sorted(p for p, t in self._harm.get(victim, {}).items() if turn - t < window)
+        total: dict[str, int] = {}
+        for t, who, amount in self._harm.get(victim, []):
+            if turn - t < window:
+                total[who] = total.get(who, 0) + amount
+        return sorted(p for p, n in total.items() if n >= HURT_DAMAGE)
 
-    def _hurt(self, victim: str | None, by: str | None) -> None:
+    def _hurt(self, victim: str | None, by: str | None, amount: int = HURT_DAMAGE) -> None:
         if victim and by and victim != by:
-            self._harm.setdefault(victim, {})[by] = self._turn
+            self._harm.setdefault(victim, []).append((self._turn, by, amount))
 
     def _share_next(self, giver: str) -> str | None:
         plan = next((sp for sp in self.shares if sp.giver == giver and not sp.over), None)
@@ -639,7 +648,7 @@ class DealBook:
         m = DAMAGE_LINE.match(line)
         if m:
             dealer = controllers.get(int(m["id"])) or self._cards.get(int(m["id"]), {}).get("controller")
-            self._hurt(m["target"], dealer)
+            self._hurt(m["target"], dealer, int(m["amount"]))
             for r in owed:
                 if dealer == r.victim and m["target"] == r.breaker:
                     r.damage += int(m["amount"])

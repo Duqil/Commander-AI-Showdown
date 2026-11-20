@@ -26,7 +26,7 @@ from typing import Any
 
 from showdown.bots.simple_bot import SimpleBot
 from showdown.boys import cards, colors, combat, commander, mana, threat, timing
-from showdown.deals import DEAL_TYPES, GIFT_TEXT, PAY_LENGTHS, biggest_threat_card, can_hit, card_of, gift_cards, recurring_gift_cards, removal_cards, removes
+from showdown.deals import DEAL_TYPES, GIFT_TEXT, HURT_DAMAGE, PAY_LENGTHS, biggest_threat_card, can_hit, card_of, gift_cards, recurring_gift_cards, removal_cards, removes
 
 Features = dict[str, float]
 Decision = dict[str, Any]
@@ -790,6 +790,11 @@ def offer_whether_options(view: Decision) -> list[Features]:
         "offer_when_leading": _flag(i_lead),
         "offer_in_danger": min(threat.danger_to_me(state), 2.0) / 2,
         "offer_vs_runaway_leader": _flag(runaway),
+        # A deal needs a reason: someone far ahead, someone who hurt me lately,
+        # or a favour I could pay. Without any, offering starts out disliked
+        # (brain.py), since all that's left is a gang-up for its own sake.
+        "offer_no_reason": _flag(not runaway and not hurt_me_lately(view)
+                                 and not removal_cards(me) and not gift_cards(me)),
     }
     return [no, yes]
 
@@ -938,7 +943,7 @@ def hurt_me_lately(view: Decision) -> list[str]:
     state = view["state"]
     me = state.get("you")
     hurt = set(view.get("deals", {}).get("hurt_me", []))
-    hurt |= {p["name"] for p in threat.opponents(state) if threat.recent_damage_to(p, me) > 0}
+    hurt |= {p["name"] for p in threat.opponents(state) if threat.recent_damage_to(p, me) >= HURT_DAMAGE}
     return sorted(hurt)
 
 
@@ -952,11 +957,12 @@ def offer_type_options(view: Decision, types: list[str]) -> list[Features]:
     state = view["state"]
     opponents = threat.opponents(state)
     danger = min(threat.danger_to_me(state), 2.0) / 2
-    simple = _simple.offer_deal(view) or {}
     hurt = hurt_me_lately(view)
     result = []
     for t in types:
-        f: Features = {f"type_{t}": 1.0, f"type_{t}_danger": danger, "simple_prior": _flag(simple.get("type") == t)}
+        # No simple_prior here: SimpleBot never offers favours, so following it
+        # would push every Boy toward gang-ups again.
+        f: Features = {f"type_{t}": 1.0, f"type_{t}_danger": danger}
         if t == "gang_up":
             # Gang-ups are more tempting against someone far ahead, or someone who hurt me lately.
             f["type_gang_vs_runaway"] = _flag(runaway_leader(state) is not None)

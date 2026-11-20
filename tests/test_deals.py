@@ -729,6 +729,7 @@ class GangUpReasonTest(unittest.TestCase):
         book = DealBook(["1-A", "2-B", "3-C", "4-D"])
         book.observe(state(turn=5, active="3-C"))
         book.see_log("Goblin (12) deals 3 combat damage to 1-A.", {12: "3-C"})
+        book.see_log("Elf (13) deals 1 combat damage to 1-A.", {13: "2-B"})  # a ping: not enough
         book.note_target("4-D", target_decision(5, [{"name": "1-A", "is_player": True}], api="LoseLife"), [0])
         self.assertEqual(book.view_for("1-A", state(turn=8))["hurt_me"], ["3-C", "4-D"])
         self.assertEqual(book.view_for("1-A", state(turn=9))["hurt_me"], [])  # a round later: forgotten

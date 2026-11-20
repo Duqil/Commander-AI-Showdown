@@ -266,6 +266,8 @@ Choosing the kind first gives each kind a fair chance.
 gang-up more against a player far ahead (`type_gang_vs_runaway`,
 `gang_against_runaway`) or someone who hurt them in the last round
 (`type_gang_vs_hurt_me`, `gang_against_hurt_me`, `accept_against_hurt_me`, all
-+1). "Hurt" means damage in Forge's log, or something harmful aimed at them or
-their cards. `DealBook` remembers it and tells bots as `"hurt_me"`.
++1). "Hurt" means 3+ damage in the last round (`HURT_DAMAGE`; a 1-damage ping doesn't count), or something harmful aimed at them or
+their cards. `DealBook` remembers it and tells bots as `"hurt_me"`. Offering at all
+with no reason (nobody far ahead, nobody hurt me, no favour I could pay)
+starts out disliked (`offer_no_reason` -1.5).
 | `forge` | Forge's own AI can't make deals: offers to it are declined. |
