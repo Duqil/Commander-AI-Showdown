@@ -20,6 +20,14 @@ as a line starting with `Deal:` and shows up in the browser viewer's timeline.
 | `removal` | "I'll remove something of *X*'s. In return: peace for N rounds." |
 | `gift` | "I'll give you something (a card, a Treasure...). In return: peace for N rounds." |
 
+**Plain peace is on ice for now** (Adam, 2026-11-19): it never felt right, so
+games run without `peace` offers while we watch how the other deals get used.
+Bots are told the menu without it, and an offer of it is refused. Favours
+still come with peace, since that's what the offerer gets in return. To turn
+plain peace back on, set `PEACE_DEALS = True` at the top of
+`showdown/deals.py`, or start with the environment variable
+`SHOWDOWN_PEACE_DEALS=1` (`python -m showdown.batch --deals --peace` does that).
+
 The offerer picks N: 1, 2, 3 or 4 rounds (`"rounds"` in the offer, 2 if a bot
 doesn't say). A gang-up can also last until *X* is out of the game
 (`"rounds": 0`). A round is every player taking one turn, so 2 rounds at a
@@ -159,6 +167,21 @@ SimpleBot attacks them first, and Boys start out liking `attack_revenge` and
 `hurt_revenge_target` (+1.5 each). After that, the grudge stays (no new
 deals, lower trust) but the hunt is over. All of this lasts one game.
 
+## Push back: the target of a gang-up hits back
+
+(Adam, 2026-11-20.) When a gang-up on *X* is accepted, *X* leans toward
+hitting both gang members: one real setback each, tested the same way as
+revenge (5+ damage in one turn, removing something important, or knocking
+their board down by a fifth). It ends when that setback lands ("Zangief dealt
+5 damage to Kuja. Zangief pushed back against Kuja's gang-up.", a 🛡 moment in
+the viewer) or when the gang-up is over. Unlike revenge there's no grudge and
+no trust change: nobody betrayed anyone.
+
+Bots see it as `"push_back"` in their deals view. SimpleBot attacks them right
+after any revenge it owes. Boys start with `attack_push_back` and
+`hurt_push_back_target` at +0.75 (revenge is +1.5). A gang-up now has a price,
+so the Boys can learn to save it for when it's worth it.
+
 ## What breaking costs a Boy
 
 Trust and grudges only last one game, so on their own they didn't stop the
@@ -246,5 +269,20 @@ hurt you, but whom you could hurt, is a bad trade.
 |---|---|
 | `simple` | Never breaks a deal. Offers last 2 rounds. Only offers from round 3 on, and only once the strongest opponent has at least 3 power on the board. Then: if someone else leads, asks the next strongest to gang up on the leader; if it leads itself, offers peace to the strongest. Accepts from players it trusts, unless they lead or would gain clearly more than it does. |
 | `random` | Offers a random deal (random length) 30% of the time, accepts half, and breaks deals often since it attacks at random. |
-| `boy:<name>` | Learns whether to offer this turn (`offer_whether`), then which deal and how long (`offer`), what to accept and when breaking pays. Starts out close to SimpleBot. Also sees how far into the game it is and how much power is on the table, so it can learn that early deals don't pay. |
+| `boy:<name>` | Learns whether to offer this turn (`offer_whether`), then which kind of deal (`offer_type`: gang-up, removal, gift, share...), then which one exactly and how long (`offer`), what to accept and when breaking pays. Starts out close to SimpleBot. Also sees how far into the game it is and how much power is on the table, so it can learn that early deals don't pay. |
+
+**Why pick the kind first?** (Adam, 2026-11-20.) With peace on ice, Boys
+offered gang-ups 80% of the time, partly because a gang-up has about 30
+variations (every partner x every target x 5 lengths) while a gift has a few:
+picking one option out of all of them lands on a gang-up most of the time.
+Choosing the kind first gives each kind a fair chance.
+
+**Gang-ups need a reason (a liking, not a rule).** Boys start out liking a
+gang-up more against a player far ahead (`type_gang_vs_runaway`,
+`gang_against_runaway`) or someone who hurt them in the last round
+(`type_gang_vs_hurt_me`, `gang_against_hurt_me`, `accept_against_hurt_me`, all
++1). "Hurt" means 3+ damage in the last round (`HURT_DAMAGE`; a 1-damage ping doesn't count), or something harmful aimed at them or
+their cards. `DealBook` remembers it and tells bots as `"hurt_me"`. Offering at all
+with no reason (nobody far ahead, nobody hurt me, no favour I could pay)
+starts out disliked (`offer_no_reason` -1.5).
 | `forge` | Forge's own AI can't make deals: offers to it are declined. |

@@ -55,6 +55,7 @@ game log and in the browser viewer's timeline.
 from __future__ import annotations
 
 import copy
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -70,6 +71,18 @@ OTHERS_TRUST_LOSS = 0.25
 KEPT_TRUST_GAIN = 0.1   # a deal ran its full length: both partners trust each other a bit more
 HELP_TRUST_GAIN = 0.05  # you attacked the gang-up target: your partner trusts you a bit more
 DEAL_TYPES = ("peace", "gang_up", "removal", "gift")
+# Plain peace deals ("no attacks for N rounds") are ON ICE (Adam, 2026-11-19):
+# they never felt right, so for now games run without them and we watch how
+# the other deals get used. To turn them back on, set PEACE_DEALS = True here,
+# or start with the environment variable SHOWDOWN_PEACE_DEALS=1
+# (python -m showdown.batch --peace does that for you).
+PEACE_DEALS = os.environ.get("SHOWDOWN_PEACE_DEALS", "") == "1"
+
+
+def enabled_deal_types() -> tuple[str, ...]:
+    """The deal types bots may offer right now."""
+    return DEAL_TYPES if PEACE_DEALS or os.environ.get("SHOWDOWN_PEACE_DEALS") == "1" \
+        else tuple(t for t in DEAL_TYPES if t != "peace")
 FAVOURS = ("removal", "gift")   # deals where the offerer pays first (see "Favours" below)
 PAY_LENGTHS = (1, 2)            # the offerer promises to pay a favour within 1 or 2 rounds...
 PAY_ROUNDS = 2                  # ...2 if they don't say (Adam, 2026-11-18: 1 round alone was strict)
@@ -100,6 +113,9 @@ ZONE_LINE = re.compile(r"^(?:Zone Change: )?(?P<name>.+?) \((?P<id>\d+)\) was pu
 #   * a wipe: this many of X's non-land permanents gone in the payer's turn,
 #   * or X's threat score falling by a fifth during the payer's turn.
 WIPE_COUNT = 3
+# "Hurt me lately" (a reason to gang up): this much damage in the last round,
+# or anything harmful aimed at me or my cards (that counts as HURT_DAMAGE).
+HURT_DAMAGE = 3
 PAY_THREAT_DROP = 0.2
 ENGINE_DAMAGE = 2
 DAMAGE_LINE = re.compile(r"^(?P<source>.+?) \((?P<id>\d+)\) deals (?P<amount>\d+) (?:non-combat |combat )?damage to (?P<target>.+?)\.$")
@@ -195,6 +211,10 @@ class Revenge:
     damage: int = 0                  # damage the victim dealt the breaker this game turn
     start_threat: float | None = None  # the breaker's threat at the start of the victim's turn
     done: bool = False
+    # Push back (Adam, 2026-11-20): the target of a gang-up leans toward hitting
+    # each gang member, the same "one real setback" as revenge, but no grudge
+    # (nobody betrayed anyone), and it's over when the gang-up is.
+    pushback: bool = False
 
 
 @dataclass
@@ -217,6 +237,7 @@ class DealBook:
     _targeted: dict[str, set[int]] = field(default_factory=dict)      # player -> opponents' cards they aimed harm at
     _wiped: dict[str, int] = field(default_factory=dict)              # X -> non-lands of X's gone this game turn
     _pay_start: dict[int, float] = field(default_factory=dict)        # removal deal id -> X's threat at turn start
+    _harm: dict[str, list[tuple[int, str, int]]] = field(default_factory=dict)  # victim -> [(turn, who, how much)]
 
     def __post_init__(self) -> None:
         for p in self.players:
@@ -235,7 +256,11 @@ class DealBook:
 
     def revenge_owed(self, victim: str) -> list[str]:
         """Breakers this player still owes a revenge (one real setback each)."""
-        return sorted({r.breaker for r in self.revenge if r.victim == victim and not r.done})
+        return sorted({r.breaker for r in self.revenge if r.victim == victim and not r.done and not r.pushback})
+
+    def pushback_owed(self, target: str) -> list[str]:
+        """Gang members ganging up on this player that it hasn't pushed back against yet."""
+        return sorted({r.breaker for r in self.revenge if r.victim == target and not r.done and r.pushback})
 
     def view_for(self, name: str, state: dict) -> dict[str, Any]:
         """What a bot is told about deals (added to its decisions as "deals")."""
@@ -251,6 +276,8 @@ class DealBook:
             "grudges": sorted(self.grudges.get(name, set())),
             # ...and the ones I haven't paid back yet: one real setback each.
             "revenge": self.revenge_owed(name),
+            # Players ganging up on me that I haven't pushed back against yet (one setback each).
+            "push_back": self.pushback_owed(name),
             # Favours I promised and haven't paid yet (removal on X, or a gift to my partner):
             "owed": [{"kind": d.kind, "to": d.b, "against": d.against, "pay_by": d.pay_by, "card_id": d.card_id}
                      for d in self._owing() if d.a == name],
@@ -259,7 +286,24 @@ class DealBook:
             "sharing": any(sp.giver == name and not sp.over for sp in self.shares),
             # Players whose sharing plan includes me (attacking them is rude).
             "sharing_with_me": sorted({sp.giver for sp in self.shares if not sp.over and name in sp.order}),
+            # Players who hurt me in the last round: damage, or harm aimed at me or my cards.
+            "hurt_me": self.hurt_me(name, turn),
         }
+
+    def hurt_me(self, victim: str, turn: int) -> list[str]:
+        """Who really hurt ``victim`` in the last round (every player's turn once):
+        HURT_DAMAGE+ damage in total, or something harmful aimed at them or their cards.
+        A 1-damage ping now and then doesn't count."""
+        window = len(self._alive or self.players)
+        total: dict[str, int] = {}
+        for t, who, amount in self._harm.get(victim, []):
+            if turn - t < window:
+                total[who] = total.get(who, 0) + amount
+        return sorted(p for p, n in total.items() if n >= HURT_DAMAGE)
+
+    def _hurt(self, victim: str | None, by: str | None, amount: int = HURT_DAMAGE) -> None:
+        if victim and by and victim != by:
+            self._harm.setdefault(victim, []).append((self._turn, by, amount))
 
     def _share_next(self, giver: str) -> str | None:
         plan = next((sp for sp in self.shares if sp.giver == giver and not sp.over), None)
@@ -284,7 +328,7 @@ class DealBook:
         public = public_state(state, offerer)
         bot = bots[offerer]
         offer = bot.offer_deal({"kind": "offer_deal", "player": offerer, "state": public,
-                                "menu": list(DEAL_TYPES), "lengths": list(DEAL_LENGTHS),
+                                "menu": list(enabled_deal_types()), "lengths": list(DEAL_LENGTHS),
                                 "pay_lengths": list(PAY_LENGTHS),
                                 "deals": self.view_for(offerer, public)})
         if not offer or not self._valid_offer(offer, offerer, public):
@@ -319,6 +363,10 @@ class DealBook:
             # A new deal that goes against an old one breaks the old one.
             broken = self._contradictions(deal, turn)
             self.deals.append(deal)
+            if deal.kind == "gang_up":  # the target will push back against both of them
+                for member in (deal.a, deal.b):
+                    if member not in self.pushback_owed(deal.against):
+                        self.revenge.append(Revenge(deal.against, member, deal, pushback=True))
             messages.append(deal_message("accept", deal, turn))
             messages += broken
         else:
@@ -332,7 +380,7 @@ class DealBook:
         if offer.get("type") == "share":
             return bool(recurring_gift_cards(me)) and not any(sp.giver == offerer and not sp.over
                                                               for sp in self.shares)
-        if offer.get("type") not in DEAL_TYPES or offer.get("to") not in alive or offer["to"] == offerer:
+        if offer.get("type") not in enabled_deal_types() or offer.get("to") not in alive or offer["to"] == offerer:
             return False
         if offer["type"] == "removal" and not removal_cards(me):
             return False  # can't pay: nothing that removes
@@ -487,7 +535,10 @@ class DealBook:
             self._wiped = {}
             self._pay_start = {d.id: threat.threat_score(players[d.against]) for d in self._unpaid_of(active, "removal", turn)
                                if d.against in players}
+            on = self.active(turn)
             for r in self.revenge:
+                if r.pushback and not r.done and r.deal not in on:
+                    r.done = True  # the gang-up is over (ended, expired or broken): so is the push back
                 r.damage = 0  # damage counts per game turn
                 r.start_threat = threat.threat_score(players[r.breaker]) \
                     if r.victim == active and r.breaker in players else None
@@ -533,6 +584,8 @@ class DealBook:
         messages: list[dict] = []
         for cand in picked:
             owner = cand["name"] if cand.get("is_player") else cand.get("controller")
+            if harmful:
+                self._hurt(owner, player)
             if harmful and not cand.get("is_player") and owner != player and "id" in cand:
                 self._targeted.setdefault(player, set()).add(cand["id"])
             if not harmful and cand.get("is_player") and owner != player:
@@ -612,6 +665,7 @@ class DealBook:
         m = DAMAGE_LINE.match(line)
         if m:
             dealer = controllers.get(int(m["id"])) or self._cards.get(int(m["id"]), {}).get("controller")
+            self._hurt(m["target"], dealer, int(m["amount"]))
             for r in owed:
                 if dealer == r.victim and m["target"] == r.breaker:
                     r.damage += int(m["amount"])
@@ -661,6 +715,8 @@ class DealBook:
 
     def _revenge_done(self, r: Revenge, what: str) -> dict:
         r.done = True
+        if r.pushback:
+            return deal_message("pushback", r.deal, self._turn, victim=r.victim, breaker=r.breaker, what=what)
         return deal_message("revenge", r.deal, self._turn, victim=r.victim, breaker=r.breaker,
                             what=what)
 
@@ -801,6 +857,8 @@ def deal_message(event: str, deal: Deal, turn: int, **extra: Any) -> dict:
         text = f"{deal.b} declines {deal.a}'s deal" + (f" ({reason})" if reason else "")
     elif event == "revenge":
         text = f"{extra['what']}. {extra['victim']} has taken revenge, and it's over."
+    elif event == "pushback":
+        text = f"{extra['what']}. {extra['victim']} pushed back against {extra['breaker']}'s gang-up."
     elif event == "paid":
         text = extra["what"]
     else:

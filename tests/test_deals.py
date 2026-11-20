@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import unittest
 
+from showdown import deals
 from showdown.bots.base import Bot
 from showdown.bots.simple_bot import SimpleBot
 from showdown.deals import DealBook
 from showdown.viewer.events import TimelineBuilder
+
+# Most tests here use peace deals, so they switch them on (they're on ice in
+# real games for now: deals.PEACE_DEALS). PeaceOnIceTest checks the "off" side.
+deals.PEACE_DEALS = True
 
 
 def state(turn=5, active="1-A", you="1-A", lives=(30, 40, 20, 25)):
@@ -209,15 +214,17 @@ class OfferCostTest(unittest.TestCase):
     def test_offer_fee_and_declined_fee(self):
         from showdown.boys.reward import OFFER_DECLINED, OFFER_MADE
         self.assertIsNotNone(self.boy.offer_deal(self.view()))
-        whether, which = self.boy.steps[-2:]
+        whether, kind, which = self.boy.steps[-3:]
+        self.assertEqual([s.kind for s in (whether, kind, which)], ["offer_whether", "offer_type", "offer"])
         self.assertEqual((whether.deal_bonus, which.deal_bonus), (OFFER_MADE, 0.0))
         self.boy.offer_answered({"id": 1}, accepted=False)
-        self.assertEqual((whether.deal_bonus, which.deal_bonus), (OFFER_MADE + OFFER_DECLINED, OFFER_DECLINED))
+        self.assertEqual((whether.deal_bonus, kind.deal_bonus, which.deal_bonus),
+                         (OFFER_MADE + OFFER_DECLINED, OFFER_DECLINED, OFFER_DECLINED))
 
     def test_accepted_offer_only_pays_the_small_fee(self):
         from showdown.boys.reward import OFFER_MADE
         self.boy.offer_deal(self.view())
-        whether = self.boy.steps[-2]
+        whether = self.boy.steps[-3]
         self.boy.offer_answered({"id": 1}, accepted=True)
         self.assertEqual(whether.deal_bonus, OFFER_MADE)
 
@@ -713,6 +720,119 @@ class NamedRemovalTest(unittest.TestCase):
         self.assertTrue(named)
         self.assertEqual(named[0][0]["removal_named_can_hit"], 1.0)
         self.assertTrue(all(o["against"] == "3-C" for _, o in named))
+
+
+class GangUpReasonTest(unittest.TestCase):
+    """Pick the kind of deal first; gang-ups are more tempting with a reason (Adam, 2026-11-20)."""
+
+    def test_harm_is_remembered_for_a_round(self):
+        book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+        book.observe(state(turn=5, active="3-C"))
+        book.see_log("Goblin (12) deals 3 combat damage to 1-A.", {12: "3-C"})
+        book.see_log("Elf (13) deals 1 combat damage to 1-A.", {13: "2-B"})  # a ping: not enough
+        book.note_target("4-D", target_decision(5, [{"name": "1-A", "is_player": True}], api="LoseLife"), [0])
+        self.assertEqual(book.view_for("1-A", state(turn=8))["hurt_me"], ["3-C", "4-D"])
+        self.assertEqual(book.view_for("1-A", state(turn=9))["hurt_me"], [])  # a round later: forgotten
+
+    def test_one_option_per_kind_and_gang_reason_features(self):
+        from showdown.boys.features import offer_type_options
+        s = favour_state(turn=9)
+        view = {"state": s, "deals": {"active": [], "trust": {}, "protected": [], "hurt_me": ["3-C"]}}
+        opts = offer_type_options(view, ["gang_up", "removal"])
+        self.assertEqual(len(opts), 2)
+        self.assertEqual(opts[0]["type_gang_vs_hurt_me"], 1.0)
+        self.assertNotIn("type_gang_vs_hurt_me", opts[1])
+
+    def test_gang_option_knows_who_hurt_me(self):
+        from showdown.boys.features import offer_options
+        s = state(turn=9)
+        view = {"state": s, "menu": ["gang_up"], "deals": {**DealBook(["1-A", "2-B", "3-C", "4-D"]).view_for("1-A", s),
+                                                         "hurt_me": ["3-C"]}}
+        feats, offers = offer_options(view)
+        for f, o in zip(feats, offers):
+            self.assertEqual(f["gang_against_hurt_me"], 1.0 if o["against"] == "3-C" else 0.0)
+
+
+class PushBackTest(unittest.TestCase):
+    """The target of a gang-up pushes back: one real setback per gang member (Adam, 2026-11-20)."""
+
+    def setUp(self):
+        self.book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+        bots = {"1-A": Offerer({"type": "gang_up", "to": "2-B", "against": "3-C", "rounds": 2}), "2-B": Accepter()}
+        self.book.offer_phase(state(turn=9), bots)
+
+    def test_target_pushes_back_against_both_no_grudge(self):
+        view = self.book.view_for("3-C", state(turn=9))
+        self.assertEqual(view["push_back"], ["1-A", "2-B"])
+        self.assertEqual(view["revenge"], [])
+        self.assertEqual(view["grudges"], [])
+        self.assertEqual(self.book.trust["3-C"]["1-A"], 1.0)  # Adam: push back only, no trust drop
+
+    def test_one_setback_ends_it_for_that_member(self):
+        self.book.observe(state(turn=11, active="3-C"))
+        msgs = self.book.see_log("Dragon (5) deals 5 combat damage to 1-A.", {5: "3-C"})
+        self.assertEqual([m["event"] for m in msgs], ["pushback"])
+        self.assertEqual(msgs[0]["text"], "3-C dealt 5 damage to 1-A. 3-C pushed back against 1-A's gang-up.")
+        self.assertEqual(self.book.view_for("3-C", state(turn=11))["push_back"], ["2-B"])
+        kinds = [e["kind"] for e in TimelineBuilder().feed(msgs[0])]
+        self.assertEqual(kinds, ["deal_pushback"])
+
+    def test_over_when_the_gang_up_is(self):
+        self.book.observe(state(turn=18, active="3-C"))  # 2 rounds from turn 9: over after turn 17
+        self.assertEqual(self.book.view_for("3-C", state(turn=18))["push_back"], [])
+
+    def test_simplebot_hits_the_gang_first(self):
+        decision = attack("1-A")
+        decision["defenders"] = [d | {"is_player": True} for d in decision["defenders"][1:]]
+        decision["attackers"] = [{"id": 7, "power": 3, "can_attack": [1, 2, 3]}]
+        decision["state"]["players"][3]["battlefield"] = [card(60, "Giant", "4-D", power=9)]  # D is the leader
+        decision["deals"] = {"protected": [], "gang_targets": [], "grudges": [], "revenge": [], "push_back": ["2-B"]}
+        self.assertEqual(SimpleBot().declare_attackers(decision)["7"], 1)  # push back against B
+        decision["deals"]["push_back"] = []
+        self.assertEqual(SimpleBot().declare_attackers(decision)["7"], 3)  # back to the biggest threat
+
+
+class PeaceOnIceTest(unittest.TestCase):
+    """Plain peace deals can be switched off (Adam, 2026-11-19); the other deals still work."""
+
+    def setUp(self):
+        deals.PEACE_DEALS = False
+        self.book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+
+    def tearDown(self):
+        deals.PEACE_DEALS = True
+
+    def test_peace_offers_are_refused_but_gang_ups_work(self):
+        bots = {"1-A": Offerer({"type": "peace", "to": "2-B", "rounds": 2}), "2-B": Accepter()}
+        self.assertEqual(self.book.offer_phase(state(turn=9), bots), [])
+        bots["1-A"] = Offerer({"type": "gang_up", "to": "2-B", "against": "3-C", "rounds": 2})
+        self.assertEqual([m["event"] for m in self.book.offer_phase(state(turn=13), bots)], ["offer", "accept"])
+
+    def test_bots_are_told_and_dont_offer_peace(self):
+        from showdown.boys.features import offer_options
+        menus = []
+
+        class Spy(Bot):
+            def offer_deal(self, view):
+                menus.append(view["menu"])
+                return None
+        self.book.offer_phase(state(turn=9), {"1-A": Spy()})
+        self.assertNotIn("peace", menus[0])
+        s = state(turn=9)
+        view = {"kind": "offer_deal", "player": "1-A", "state": s, "menu": menus[0],
+                "deals": self.book.view_for("1-A", s)}
+        _, offers = offer_options(view)
+        self.assertFalse(any(o["type"] == "peace" for o in offers))
+        self.assertIsNone(SimpleBot().offer_deal(view))  # SimpleBot's "we're ahead" peace: no deal instead
+
+    def test_environment_switch_turns_it_back_on(self):
+        import os
+        os.environ["SHOWDOWN_PEACE_DEALS"] = "1"
+        try:
+            self.assertIn("peace", deals.enabled_deal_types())
+        finally:
+            del os.environ["SHOWDOWN_PEACE_DEALS"]
+        self.assertNotIn("peace", deals.enabled_deal_types())
 
 
 class SharePlanTest(unittest.TestCase):

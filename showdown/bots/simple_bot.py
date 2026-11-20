@@ -226,11 +226,13 @@ class SimpleBot(Bot):
         protected = set(deals.get("protected", []))       # players we have a deal with
         gang_targets = set(deals.get("gang_targets", []))  # players we promised to attack
         revenge = set(deals.get("revenge", []))            # broke a deal with us, not paid back yet
+        push_back = set(deals.get("push_back", []))        # ganging up on us, not pushed back yet
         sharers = set(deals.get("sharing_with_me", []))     # share their gifts with us: be nice
         # How much we hit for if everything big attacks one player.
         power = sum(c.get("power", 0) for c in decision["attackers"] if c.get("power", 0) >= 2)
         # Defenders that are players: revenge first (one real setback, then
-        # it's over: showdown/deals.py notices), then gang-up targets, then
+        # it's over: showdown/deals.py notices), then players ganging up on
+        # us (push back, same idea), then gang-up targets, then
         # a player we can knock out this turn, then the biggest threat, and
         # lowest life only to break a tie. (Sorting by a tuple compares the
         # first item, then the next; False sorts before True, and the minus
@@ -238,7 +240,8 @@ class SimpleBot(Bot):
         # left out, so we never break a deal.
         targets = sorted(
             (d for d in decision["defenders"] if d["is_player"] and d["name"] not in protected),
-            key=lambda d: (d["name"] not in revenge, d["name"] not in gang_targets, d["name"] in sharers,
+            key=lambda d: (d["name"] not in revenge, d["name"] not in push_back, d["name"] not in gang_targets,
+                           d["name"] in sharers,
                            not threat.can_kill(players[d["name"]], power),
                            -threat.threat_score(players[d["name"]]),
                            players[d["name"]]["life"]),
@@ -287,6 +290,8 @@ class SimpleBot(Bot):
         if threat.board_power(leader) < MEANINGFUL_BOARD_POWER:
             return None  # the strongest opponent can barely hit anyone: a deal would mean nothing
         if threat.threat_score(threat.me(state)) > threat.threat_score(leader):
+            if "peace" not in view.get("menu", ["peace"]):
+                return None  # peace deals are on ice (deals.py)
             return {"type": "peace", "to": leader["name"], "rounds": 2}  # we're ahead: keep the strongest off us
         return {"type": "gang_up", "to": ranked[1]["name"], "against": leader["name"], "rounds": 2}
 

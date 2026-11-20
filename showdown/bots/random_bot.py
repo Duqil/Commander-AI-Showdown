@@ -39,7 +39,7 @@ class RandomBot(Bot):
             return None
         to, against = self.rng.sample(others, 2)
         rounds = self.rng.choice([1, 2, 3, 4])
-        if self.rng.random() < 0.5:
+        if self.rng.random() < 0.5 and "peace" in view.get("menu", ["peace"]):
             return {"type": "peace", "to": to, "rounds": rounds}
         return {"type": "gang_up", "to": to, "against": against, "rounds": rounds}
 

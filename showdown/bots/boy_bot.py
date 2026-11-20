@@ -157,7 +157,8 @@ class BoyBot(Bot):
     # --- deals -------------------------------------------------------------------------
 
     def offer_deal(self, view: Decision) -> dict | None:
-        # Two steps: first "offer anything this turn?", then "which deal?".
+        # Three steps: "offer anything this turn?", then "which kind of deal?"
+        # (gang-up, removal, gift...), then "which one exactly?".
         self.offer_steps = []
         if self._pick("offer_whether", features.offer_whether_options(view)) == 0:
             return None
@@ -165,9 +166,13 @@ class BoyBot(Bot):
         feats, offers = features.offer_options(view)
         if not offers:
             return None  # we already have deals with everyone
-        offer = offers[self._pick("offer", feats)]
+        types = list(dict.fromkeys(o["type"] for o in offers))  # each kind once, in order
+        kind = types[self._pick("offer_type", features.offer_type_options(view, types))]
+        which_kind = self.steps[-1]
+        mine = [i for i, o in enumerate(offers) if o["type"] == kind]
+        offer = offers[mine[self._pick("offer", [feats[i] for i in mine])]]
         whether.deal_bonus += OFFER_MADE  # asking isn't free (reward.py, "Politics")
-        self.offer_steps = [whether, self.steps[-1]]
+        self.offer_steps = [whether, which_kind, self.steps[-1]]
         return offer
 
     def offer_answered(self, deal: dict, accepted: bool) -> None:
@@ -194,7 +199,7 @@ class BoyBot(Bot):
             # We broke it by agreeing to a deal that went against it: the
             # offer or answer we just made pays.
             for step in reversed(self.steps):
-                if step.kind in ("offer", "answer"):
+                if step.kind in ("offer", "answer"):  # (the "offer_type" step before it isn't charged)
                     step.deal_bonus += BROKE_A_DEAL
                     break
         elif breaker == player:

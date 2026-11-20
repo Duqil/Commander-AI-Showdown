@@ -26,6 +26,7 @@ Python concepts used here:
 from __future__ import annotations
 
 import argparse
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -276,8 +277,12 @@ def main() -> None:
     parser.add_argument("--greedy", action="store_true",
                         help="Boys always take their best option, no exploring (use with --no-learn to test them)")
     parser.add_argument("--deals", action="store_true", help="let bots make deals with each other")
+    parser.add_argument("--peace", action="store_true",
+                        help="with --deals: also allow plain peace deals (on ice for now, see deals.py)")
     parser.add_argument("--report", action="store_true", help="only show the training history")
     args = parser.parse_args()
+    if args.peace:
+        os.environ["SHOWDOWN_PEACE_DEALS"] = "1"  # read by showdown/deals.py (and passed on to child processes)
 
     if args.report:
         print_report()
