@@ -54,6 +54,64 @@ def untapped_blockers(player: Player) -> list[dict]:
     return [c for c in creatures(player) if not c.get("tapped")]
 
 
+def has_keyword(card: dict, keyword: str) -> bool:
+    """Is ``keyword`` (e.g. "flying") one of the card's keyword lines?
+
+    Keywords sit on their own line of rules text: "Flying" or "Flying,
+    vigilance". A line like "Creatures you control have flying" doesn't
+    count, and neither does a keyword granted by another card, so this is a
+    rough guess.
+    """
+    for line in card.get("oracle", "").lower().splitlines():
+        words = [w.strip() for w in line.split("(")[0].split(",")]
+        if keyword in words:
+            return True
+    return False
+
+
+def can_block(blocker: dict, attacker: dict | None) -> bool:
+    """Flyers can only be blocked by creatures with flying or reach."""
+    if attacker is None or not has_keyword(attacker, "flying"):
+        return True
+    return has_keyword(blocker, "flying") or has_keyword(blocker, "reach")
+
+
+def blockers_for(player: Player, attacker: dict | None = None) -> list[dict]:
+    """Untapped creatures of ``player`` that could block this attacker."""
+    return [b for b in untapped_blockers(player) if can_block(b, attacker)]
+
+
+def kills(blocker: dict, toughness: int) -> bool:
+    """Would this blocker kill an attacker with ``toughness``? (Deathtouch always does.)"""
+    return blocker.get("power", 0) >= toughness or (blocker.get("power", 0) > 0 and has_keyword(blocker, "deathtouch"))
+
+
+def killer_blockers(player: Player, power: int, toughness: int, attacker: dict | None = None) -> list[dict]:
+    """Untapped creatures that could block a ``power``/``toughness`` attacker,
+    kill it, and survive the hit (a "bad block" for the attacker)."""
+    return [b for b in blockers_for(player, attacker)
+            if kills(b, toughness) and b.get("toughness", 0) > power]
+
+
+def trade_blockers(player: Player, power: int, toughness: int, attacker: dict | None = None) -> list[dict]:
+    """Untapped creatures that would kill the attacker but die too (a trade)."""
+    return [b for b in blockers_for(player, attacker)
+            if kills(b, toughness) and b.get("toughness", 0) <= power]
+
+
+def double_block_kills(player: Player, power: int, toughness: int, attacker: dict | None = None) -> bool:
+    """Could two blockers together kill the attacker, when no single one can?
+
+    Only power, toughness, flying/reach and deathtouch are checked (first
+    strike, menace and the like are not), so this is a rough guess.
+    """
+    blockers = blockers_for(player, attacker)
+    if len(blockers) < 2 or any(kills(b, toughness) for b in blockers):
+        return False
+    strongest = sorted((max(0, b.get("power", 0)) for b in blockers), reverse=True)
+    return strongest[0] + strongest[1] >= toughness > 0
+
+
 def nonland_permanents(player: Player) -> int:
     return sum(1 for c in player.get("battlefield", []) if "Land" not in c.get("type", ""))
 

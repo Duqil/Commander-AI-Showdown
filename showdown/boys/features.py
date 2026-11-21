@@ -456,6 +456,7 @@ def attack_context(decision: Decision) -> dict[str, Any]:
     players = {p["name"]: p for p in state["players"]}
     total_power = sum(max(0, a.get("power", 0)) for a in decision["attackers"])
     mine = threat.me(state)
+    my_creatures = threat.creatures(mine)
     instants = sum(1 for c in mine.get("hand", []) if "Instant" in c.get("type", ""))
     untapped_lands = sum(1 for c in mine.get("battlefield", [])
                          if "Land" in c.get("type", "") and not c.get("tapped"))
@@ -470,6 +471,10 @@ def attack_context(decision: Decision) -> dict[str, Any]:
         "danger": min(threat.danger_to_me(state), 2.0) / 2,
         "my_life": threat.me(state).get("life", threat.STARTING_LIFE),
         "total_power": total_power,
+        # How many creatures could swing at once (0/1s count: they still soak a blocker).
+        "attackers": sum(1 for a in decision["attackers"] if a.get("power", 0) >= 1),
+        "my_creatures": len(my_creatures),
+        "my_top_power": max((c.get("power", 0) for c in my_creatures), default=0),
         "simple": _simple.declare_attackers(decision) or {},
     }
 
@@ -528,9 +533,16 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
         if d["name"] in deals.get("sharing_with_me", []):
             f["attack_my_sharer"] = 1.0       # they share their gifts with us: attacking them is rude
         if target is not None:
-            blockers = threat.untapped_blockers(target)
+            blockers = threat.blockers_for(target, attacker)  # flyers dodge non-flyers
             # A blocker that would kill this creature and survive the hit.
-            bad_block = any(b.get("power", 0) >= toughness and b.get("toughness", 0) > power for b in blockers)
+            bad_block = bool(threat.killer_blockers(target, power, toughness, attacker))
+            double_block = threat.double_block_kills(target, power, toughness, attacker)
+            # Would losing this creature hurt? Our commander, a big hitter
+            # (4+ power or our biggest), or one carrying Equipment.
+            valuable = (attacker.get("commander", False) or power >= 4 or
+                        (power > 0 and power >= ctx["my_top_power"]) or equipped(attacker, ctx["mine"]))
+            at_risk = bad_block or double_block
+            outnumber = ctx["attackers"] - len(blockers)  # more attackers than blockers: some get through
             life = target.get("life", threat.STARTING_LIFE)
             f.update({
                 "target_is_leader": _flag(d["name"] == ctx["leader"]),
@@ -540,6 +552,15 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
                 "target_killable": _flag(threat.can_kill(target, ctx["total_power"])),
                 "target_blockers": min(len(blockers), 5) / 5,
                 "target_bad_block": _flag(bad_block),
+                # Blocks that cost us: two blockers together kill it, or one trades with it.
+                "target_double_block": _flag(double_block),
+                "target_trade_block": _flag(bool(threat.trade_blockers(target, power, toughness, attacker))),
+                # By how much our attackers outnumber their blockers (-1..1).
+                "target_outnumber": max(-5, min(5, outnumber)) / 5,
+                "target_blockers_outnumbered": _flag(outnumber > 0),
+                # Could an important creature, or one of our last ones, die here?
+                "attack_valuable_at_risk": _flag(at_risk and valuable),
+                "attack_last_creatures_at_risk": _flag(at_risk and ctx["my_creatures"] <= 2),
                 "target_weak": _flag(threat.board_power(target) == 0),  # not a threat right now
             })
         feats.append(f)

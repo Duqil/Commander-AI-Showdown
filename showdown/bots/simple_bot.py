@@ -246,12 +246,28 @@ class SimpleBot(Bot):
                            -threat.threat_score(players[d["name"]]),
                            players[d["name"]]["life"]),
         )
+        # Don't walk into a blocker that eats the attacker and lives, unless:
+        # the attack can finish that player, we promised it (revenge, push
+        # back, gang-up), or we bring more attackers than they have blockers
+        # (one blocker can only stop one attacker). If every target has such
+        # a blocker, the creature stays home.
+        attackers = sum(1 for c in decision["attackers"] if c.get("power", 0) >= 2)
+        promised = revenge | push_back | gang_targets
+
+        def safe_enough(creature: dict, name: str) -> bool:
+            player = players[name]
+            if name in promised or threat.can_kill(player, power):
+                return True
+            if attackers > len(threat.untapped_blockers(player)):
+                return True
+            return not threat.killer_blockers(player, creature.get("power", 0), creature.get("toughness", 0), creature)
+
         attacks: dict[str, int] = {}
         for creature in decision["attackers"]:
             if creature.get("power", 0) < 2:
                 continue
             for target in targets:
-                if target["index"] in creature["can_attack"]:
+                if target["index"] in creature["can_attack"] and safe_enough(creature, target["name"]):
                     attacks[str(creature["id"])] = target["index"]
                     break
         return attacks
