@@ -128,7 +128,11 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    # The target of a gang-up pushes back: a milder pull than revenge (1.5).
                    "attack_push_back": 0.75, "hurt_push_back_target": 0.75,
                    # and plays that can pay it (a removal spell, Loran's "each draw").
-                   "play_pays_removal": 1.5, "play_gives_gift": 1.5}
+                   "play_pays_removal": 1.5, "play_gives_gift": 1.5,
+                   # Attacking into blockers (features.attack_options): mild starting
+                   # pulls, so the Boys think about blocks without being scared to attack.
+                   "target_outnumber": 0.5, "attack_valuable_at_risk": -0.75,
+                   "attack_last_creatures_at_risk": -0.5}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each
 # game moves it a lot, and whether we won is mostly noise for that one choice.

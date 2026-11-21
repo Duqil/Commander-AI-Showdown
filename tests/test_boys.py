@@ -65,6 +65,50 @@ class ThreatTest(unittest.TestCase):
         self.assertEqual(threat.leader(state), "4-D")
 
 
+class SimpleBotBlockerTest(unittest.TestCase):
+    """SimpleBot doesn't send a creature into a blocker that eats it and lives."""
+
+    def decision(self, attackers):
+        state = table()
+        state["players"][2]["life"] = 40  # nobody can be finished off
+        state["players"][3]["battlefield"] = [creature(30, 4, 4)]
+        return {"kind": "attack", "player": "1-A", "state": state,
+                "defenders": [{"index": 0, "name": "2-B", "is_player": True},
+                              {"index": 1, "name": "3-C", "is_player": True},
+                              {"index": 2, "name": "4-D", "is_player": True}],
+                "attackers": [{**c, "can_attack": [0, 1, 2]} for c in attackers]}
+
+    def test_skips_a_bad_block(self):
+        from showdown.bots.simple_bot import SimpleBot
+        # B is the biggest threat but its 6/6 and 5/5 eat our 2/2; C has no blockers.
+        attacks = SimpleBot().declare_attackers(self.decision([creature(1, 2)]))
+        self.assertEqual(attacks["1"], 1)
+
+    def test_stays_home_when_every_target_is_bad(self):
+        from showdown.bots.simple_bot import SimpleBot
+        decision = self.decision([creature(1, 2)])
+        decision["state"]["players"][2]["battlefield"] = [creature(20, 5)]
+        self.assertEqual(SimpleBot().declare_attackers(decision), {})
+
+    def test_attacks_when_blockers_are_outnumbered(self):
+        from showdown.bots.simple_bot import SimpleBot
+        attacks = SimpleBot().declare_attackers(self.decision([creature(i, 2) for i in (1, 2, 3)]))
+        self.assertEqual(set(attacks.values()), {0})  # 3 attackers vs B's 2 blockers: go for the leader
+
+    def test_flyer_ignores_ground_blockers(self):
+        from showdown.bots.simple_bot import SimpleBot
+        flyer = creature(1, 2, oracle="Flying")
+        self.assertEqual(SimpleBot().declare_attackers(self.decision([flyer]))["1"], 0)  # over B's 6/6
+        self.assertTrue(threat.has_keyword({"oracle": "Flying, vigilance"}, "vigilance"))
+        self.assertFalse(threat.has_keyword({"oracle": "Creatures you control have flying."}, "flying"))
+
+    def test_attacks_for_lethal(self):
+        from showdown.bots.simple_bot import SimpleBot
+        decision = self.decision([creature(1, 2)])
+        decision["state"]["players"][1]["life"] = 2
+        self.assertEqual(SimpleBot().declare_attackers(decision)["1"], 0)
+
+
 class FeatureTest(unittest.TestCase):
     def test_attack_features(self):
         decision = attack_decision()
@@ -77,6 +121,30 @@ class FeatureTest(unittest.TestCase):
         self.assertEqual(feats[1]["target_bad_block"], 1.0)    # B's 6/6 eats our 3/3
         # SimpleBot finishes off a player it can kill (C at 4 life), so its prior points at C.
         self.assertEqual(feats[2]["simple_prior"], 1.0)
+
+    def test_blocker_features(self):
+        decision = attack_decision()
+        ctx = features.attack_context(decision)
+        feats, _ = features.attack_options(decision["attackers"][0], decision, ctx)
+        b, c, d = feats[1], feats[2], feats[3]
+        self.assertEqual(b["target_blockers_outnumbered"], 0.0)  # 2 attackers vs B's 2 blockers
+        self.assertEqual(b["target_outnumber"], 0.0)
+        self.assertEqual(c["target_outnumber"], 0.4)             # C has no blockers: 2 more
+        self.assertEqual(b["attack_valuable_at_risk"], 1.0)      # our biggest creature into a 6/6
+        self.assertEqual(b["attack_last_creatures_at_risk"], 1.0)  # we only have two creatures
+        self.assertEqual(d["target_trade_block"], 0.0)           # D's 2/2 can't kill our 3/3
+        self.assertEqual(c["attack_valuable_at_risk"], 0.0)
+
+    def test_double_block(self):
+        state = table()
+        state["players"][3]["battlefield"] = [creature(30, 2), creature(31, 2)]
+        self.assertTrue(threat.double_block_kills(state["players"][3], 3, 3))   # 2+2 kill a 3/3
+        self.assertFalse(threat.double_block_kills(state["players"][3], 3, 5))  # not a 3/5
+        self.assertFalse(threat.double_block_kills(state["players"][1], 3, 3))  # B's 6/6 does it alone
+        decision = attack_decision(state)
+        ctx = features.attack_context(decision)
+        feats, _ = features.attack_options(decision["attackers"][0], decision, ctx)
+        self.assertEqual(feats[3]["target_double_block"], 1.0)
 
     def test_zero_power_creatures_usually_stay_home(self):
         decision = attack_decision()

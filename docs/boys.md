@@ -96,6 +96,28 @@ SimpleBot finishes off a player it can kill this turn, otherwise attacks the
 biggest threat. Knockouts still count in full.
 This works for any deck: pingers, drains, burn.
 
+**Attacking into blockers.** A 2/2 swinging at a player with an untapped 3/4
+just dies for nothing. SimpleBot now skips a target when one of its untapped
+creatures would kill the attacker and survive, unless the attack can finish
+that player, it was promised (revenge, push back, a gang-up), or we bring more
+attackers than they have blockers. It tries the next target instead, or stays
+home. The Boys get inputs to weigh blocks themselves (`features.attack_options`):
+
+| Input | Meaning | Starts at |
+|---|---|---|
+| `target_bad_block` | a blocker kills it and survives | learned |
+| `target_double_block` | no single blocker kills it, two together do | 0 |
+| `target_trade_block` | a blocker kills it but dies too | 0 |
+| `target_outnumber` | our attackers minus their blockers, -1..1 | 0.5 |
+| `target_blockers_outnumbered` | more attackers than blockers | 0 |
+| `attack_valuable_at_risk` | commander, 4+ power, our biggest or equipped, and a bad or double block waits | -0.75 |
+| `attack_last_creatures_at_risk` | same, and we have 2 creatures or fewer | -0.5 |
+
+The starting pulls are mild on purpose, so the Boys think about blocks
+without getting scared of attacking. Besides power and toughness, flying/reach
+and deathtouch are read from the cards' keyword lines (`threat.has_keyword`);
+first strike, menace and keywords granted by other cards are not.
+
 **Learning on top of SimpleBot.** Every option has a `simple_prior` feature
 that is 1 for SimpleBot's choice, and every brain starts with weight 2.0 on
 it. So a new Boy picks SimpleBot's move about two times in three and
