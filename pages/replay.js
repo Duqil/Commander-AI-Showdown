@@ -10,12 +10,29 @@
 //
 // app.js itself is unchanged. This file is loaded just before it (build_site.py).
 // Link to one game directly with  ...?replay=<id>
+//
+// Replays you have opened are remembered in your own browser (localStorage),
+// and shown greyed out with a "Watched" label. Nobody else sees this, and
+// nothing is sent anywhere. New replays have new file names, so they start
+// out unwatched.
 
 "use strict";
 
 (() => {
   const replay = { list: null, current: null };   // current = { id, config, events, images }
   const realFetch = window.fetch.bind(window);
+
+  // --- "already watched" memory, kept only in this browser -------------------
+  const WATCHED_KEY = "showdown-watched-replays";
+  function watchedSet() {
+    try { return new Set(JSON.parse(localStorage.getItem(WATCHED_KEY) || "[]")); }
+    catch { return new Set(); }   // private window or blocked storage: just show nothing as watched
+  }
+  function setWatched(id, yes) {
+    const seen = watchedSet();
+    if (yes) seen.add(id); else seen.delete(id);
+    try { localStorage.setItem(WATCHED_KEY, JSON.stringify([...seen])); } catch { /* not saved, fine */ }
+  }
 
   const answer = (data, status = 200) =>
     new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -30,6 +47,7 @@
     if (!list.some((g) => g.id === id)) return false;   // only ids from the list, nothing else
     const game = await (await realFetch(`replays/${encodeURIComponent(id)}.json`)).json();
     replay.current = { id, ...game };
+    setWatched(id, true);   // opened = watched (also for a shared ?replay= link)
     return true;
   }
 
@@ -93,7 +111,13 @@
       #replays .replay b { font-size: 15px; }
       #replays .replay button { grid-row: span 2; }
       #replays .note { margin-top: 18px; }
-      #replays a { color: var(--accent); }`;
+      #replays a { color: var(--accent); }
+      #replays .replay.watched b,
+      #replays .replay.watched .about { color: var(--muted); opacity: .7; font-weight: normal; }
+      #replays .replay .seen { font-size: 11px; color: var(--muted); border: 1px solid var(--line);
+                               border-radius: 10px; padding: 0 6px; margin-left: 8px; font-weight: normal;
+                               cursor: pointer; }
+      #replays .replay .seen:hover { border-color: var(--muted); }`;
     document.head.append(style);
 
     // Our own list of replays, with a title and who played what.
@@ -107,33 +131,49 @@
       Card images from <a href="https://scryfall.com">Scryfall</a>.</p>`;
     document.querySelector(".setup-box h1").after(box);
 
-    replayList().then((list) => {
+    function showList(list) {
       const listBox = document.querySelector("#replay-list");
+      const seen = watchedSet();
       listBox.innerHTML = "";
       listBox.classList.remove("muted", "small");
       if (!list.length) listBox.textContent = "No replays yet.";
       for (const g of list) {
+        const watched = seen.has(g.id);
         const row = document.createElement("div");
-        row.className = "replay";
+        row.className = watched ? "replay watched" : "replay";
         const title = document.createElement("b");
         title.textContent = g.title;
+        if (watched) {
+          // Small "Watched" label; click it to mark the game as unwatched again.
+          const tag = document.createElement("span");
+          tag.className = "seen";
+          tag.textContent = "Watched";
+          tag.title = "You have opened this replay in this browser. Click to mark it unwatched.";
+          tag.onclick = () => { setWatched(g.id, false); showList(list); };
+          title.append(tag);
+        }
         const watch = document.createElement("button");
-        watch.className = "primary";
-        watch.textContent = "Watch";
+        watch.className = watched ? "" : "primary";   // grey button for watched games
+        watch.textContent = watched ? "Watch again" : "Watch";
         watch.onclick = async () => {
           await loadReplay(g.id);
           history.replaceState(null, "", `?replay=${encodeURIComponent(g.id)}`);   // a link you can share
           enterGame();   // from app.js
         };
         const about = document.createElement("span");
-        about.className = "muted small";
+        about.className = "muted small about";
         about.textContent = g.about;
         row.append(title, watch, about);
         listBox.append(row);
       }
-    });
+    }
+    replayList().then(showList);
 
     // "Main Menu" goes back to the list: forget the ?replay= link.
-    document.querySelector("#btn-setup").addEventListener("click", () => history.replaceState(null, "", location.pathname));
+    // Also redraw the list, so the game you just watched shows as watched.
+    document.querySelector("#btn-setup").addEventListener("click", () => {
+      history.replaceState(null, "", location.pathname);
+      replayList().then(showList);
+    });
   });
 })();

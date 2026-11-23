@@ -66,3 +66,11 @@ On github.com, click the file in `pages/replays`, open the **...** menu, pick
 2. Delete the `pages/` folder and `.github/workflows/replay-site.yml`, commit and push.
 
 Nothing else in the project uses these files.
+
+## "Watched" marks
+
+When you open a replay, your browser remembers it (in `localStorage`, on your
+computer only) and the list shows it greyed out with a small **Watched** label
+and a grey **Watch again** button. Click the label to mark it unwatched again.
+Other visitors don't see your marks. Marks are kept per file name, so newly
+uploaded replays always start out unwatched.
