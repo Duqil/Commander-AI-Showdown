@@ -65,6 +65,8 @@ def answer_decision(bot: Bot, decision: Decision):
         return bot.choose_card(decision)
     if kind == "confirm_trigger":
         return bot.confirm_trigger(decision)
+    if kind == "choose_mode":
+        return bot.choose_mode(decision)
     return None  # a kind this bot doesn't know: let Forge decide
 
 

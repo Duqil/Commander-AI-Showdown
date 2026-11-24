@@ -503,24 +503,29 @@ public class PythonPlayerController extends PlayerControllerAi {
             starts.add(sa);
         }
         for (SpellAbility start : starts) {
-            for (SpellAbility a = start; a != null; a = a.getSubAbility()) {
-                if (a.getApi() == null) {
-                    continue;
-                }
-                JsonObject e = new JsonObject();
-                e.addProperty("api", a.getApi().name());
-                e.addProperty("targets", a.usesTargeting());
-                JsonObject params = new JsonObject();
-                for (String key : EFFECT_PARAMS) {
-                    if (a.hasParam(key)) {
-                        params.addProperty(key, a.getParam(key));
-                    }
-                }
-                e.add("params", params);
-                out.add(e);
-            }
+            addEffects(start, out);
         }
         return out;
+    }
+
+    /** One entry per step of ``start`` and its sub-abilities ("then ..."). */
+    private static void addEffects(SpellAbility start, JsonArray out) {
+        for (SpellAbility a = start; a != null; a = a.getSubAbility()) {
+            if (a.getApi() == null) {
+                continue;
+            }
+            JsonObject e = new JsonObject();
+            e.addProperty("api", a.getApi().name());
+            e.addProperty("targets", a.usesTargeting());
+            JsonObject params = new JsonObject();
+            for (String key : EFFECT_PARAMS) {
+                if (a.hasParam(key)) {
+                    params.addProperty(key, a.getParam(key));
+                }
+            }
+            e.add("params", params);
+            out.add(e);
+        }
     }
 
     private static JsonArray modeNames(List<? extends SpellAbility> modes) {
@@ -542,6 +547,7 @@ public class PythonPlayerController extends PlayerControllerAi {
     public List<forge.game.spellability.AbilitySub> chooseModeForAbility(SpellAbility sa,
             List<forge.game.spellability.AbilitySub> possible, int min, int num, boolean allowRepeat) {
         List<forge.game.spellability.AbilitySub> chosen = super.chooseModeForAbility(sa, possible, min, num, allowRepeat);
+        chosen = askModes(sa, possible, min, num, allowRepeat, chosen);
         try {
             List<String> picked = new ArrayList<>();
             List<String> skipped = new ArrayList<>();
@@ -556,6 +562,68 @@ public class PythonPlayerController extends PlayerControllerAi {
             // logging only; never break the game over it
         }
         return chosen;
+    }
+
+    /**
+     * Ask Python which modes to choose ("choose up to X" triggers like Riku's,
+     * charms...). Forge's AI pick is sent along as a hint; null, or an answer
+     * that doesn't fit the rules (too few, too many, repeats), keeps it.
+     */
+    private List<forge.game.spellability.AbilitySub> askModes(SpellAbility sa,
+            List<forge.game.spellability.AbilitySub> possible, int min, int num, boolean allowRepeat,
+            List<forge.game.spellability.AbilitySub> forgePick) {
+        if (possible == null || possible.isEmpty() || sa.hasParam("Pawprint")) {
+            // Pawprint charms (the Seasons) spend a budget of pawprints, not a
+            // count of modes: Forge's AI keeps those for now.
+            return forgePick;
+        }
+        try {
+            JsonObject extra = new JsonObject();
+            extra.add("source", StateSnapshot.card(sa.getHostCard()));
+            extra.addProperty("description", sa.getDescription());
+            extra.addProperty("min", min);
+            extra.addProperty("max", num);
+            JsonArray modes = new JsonArray();
+            JsonArray suggested = new JsonArray();
+            for (int i = 0; i < possible.size(); i++) {
+                forge.game.spellability.AbilitySub m = possible.get(i);
+                JsonObject mj = new JsonObject();
+                mj.addProperty("index", i);
+                mj.addProperty("description", m.getDescription());
+                JsonArray eff = new JsonArray();
+                addEffects(m, eff);
+                mj.add("effects", eff);
+                modes.add(mj);
+                if (forgePick != null && forgePick.contains(m)) {
+                    suggested.add(i);
+                }
+            }
+            extra.add("modes", modes);
+            extra.add("suggested", suggested);
+            // Can I still play a land this turn? (An exiled card that turns out to be a land.)
+            Player me = getPlayer();
+            boolean myTurn = getGame().getPhaseHandler().isPlayerTurn(me);
+            extra.addProperty("land_drop_left", myTurn
+                    && (me.getMaxLandPlaysInfinite() || me.getLandsPlayedThisTurn() < me.getMaxLandPlays()));
+            JsonElement choice = ask("choose_mode", extra).get("choice");
+            if (isNull(choice) || !choice.isJsonArray()) {
+                return forgePick;
+            }
+            List<forge.game.spellability.AbilitySub> picked = new ArrayList<>();
+            for (JsonElement e : choice.getAsJsonArray()) {
+                int i = e.getAsInt();
+                if (i < 0 || i >= possible.size() || (!allowRepeat && picked.contains(possible.get(i)))) {
+                    return forgePick;
+                }
+                picked.add(possible.get(i));
+            }
+            if (picked.size() < min || picked.size() > num) {
+                return forgePick;
+            }
+            return picked;
+        } catch (RuntimeException e) {
+            return forgePick; // never break the game over a mode choice
+        }
     }
 
     /** A "choose one or more" spell or ability (Charm, Spree, Escalate...). */

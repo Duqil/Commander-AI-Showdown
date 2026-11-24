@@ -24,7 +24,7 @@ from __future__ import annotations
 import random
 
 from showdown.bots.base import Bot, Decision
-from showdown.boys import critic, features, threat
+from showdown.boys import modes, critic, features, threat
 from showdown.boys.brain import Step
 from showdown.boys.reward import (BROKE_A_DEAL, OFFER_DECLINED, OFFER_MADE, PARTNER_BROKE_MY_DEAL,
                                   damage_weight, game_reward, mulligan_bonus, turn_bonus)
@@ -130,6 +130,23 @@ class BoyBot(Bot):
             return None  # several targets at once: leave it to Forge's AI for now
         picked = self._pick("target", features.target_options(decision))
         return [decision["candidates"][picked]["index"]]
+
+    def choose_mode(self, decision: Decision) -> list[int] | None:
+        """Modes one at a time: each step picks a mode not chosen yet, or "stop"
+        (once enough are chosen). Features: boys/modes.py."""
+        self._observe(decision["state"])
+        if not decision.get("modes"):
+            return None
+        chosen: list[int] = []
+        while True:
+            feats, picks = modes.mode_options(decision, chosen)
+            if not feats:
+                break
+            pick = picks[self._pick("mode", feats)]
+            if pick is None:
+                break
+            chosen.append(pick)
+        return chosen
 
     def pay_keyword_cost(self, decision: Decision) -> int | None:
         self._observe(decision["state"])

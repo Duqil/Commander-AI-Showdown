@@ -303,6 +303,12 @@ class SimpleBot(Bot):
         pick = next((c["index"] for c in cands if c["name"] == planned), None)
         return None if pick is None else [pick]
 
+    def choose_mode(self, decision: Decision) -> list[int] | None:
+        """Forge's pick, but a "play it soon" exile only when the card could be
+        used; otherwise a lasting mode (counter, token). See boys/modes.py."""
+        from showdown.boys import modes  # boys.modes imports cards, which is fine; keep it local like features
+        return modes.simple_pick(decision)
+
     def harm_target(self, decision: Decision) -> list[int] | None:
         if decision.get("max", 1) != 1:
             return None  # several targets at once: Forge's pick
