@@ -31,6 +31,7 @@ from showdown.boys.reward import (BROKE_A_DEAL, OFFER_DECLINED, OFFER_MADE, PART
 from showdown.boys.storage import load_brain, save_brain
 
 HAND_LIMIT = 7  # maximum hand size at the end of your turn
+HINT = "simple_prior"  # SimpleBot's pick, as an input (hidden now and then while training: hint_dropout)
 
 
 class BoyBot(Bot):
@@ -97,6 +98,10 @@ class BoyBot(Bot):
             effects[3] += max(0, discarded - useful)
 
     def _pick(self, kind: str, options: list[features.Features]) -> int:
+        if self.learn and self.brain.hint_dropout and self.rng.random() < self.brain.hint_dropout:
+            # Training without the hint now and then: decide (and learn) from
+            # my own inputs, not from what SimpleBot would do.
+            options = [{k: v for k, v in o.items() if k != HINT} for o in options]
         step = self.brain.choose(kind, options, self.rng, explore=self.explore)
         step.turn = self.last_state.get("turn", 0) if self.last_state else 0
         if self.deck is None and self.last_state:
