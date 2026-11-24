@@ -146,7 +146,7 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "land_bounce_full_hand": -1.5,
                    # Gang-ups: join the weakest player's attackers? No. Ask the player
                    # left out (a 2v2) rather than someone already ganging up on me.
-                   "accept_against_weakest": -2.0, "gang_to_ganging_me": -2.0,
+                   "gang_against_weakest": -3.0, "accept_against_weakest": -2.0, "gang_to_ganging_me": -2.0,
                    "gang_outsider_vs_ganger": 1.5}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each

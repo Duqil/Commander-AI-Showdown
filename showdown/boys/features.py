@@ -917,7 +917,8 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
         for against in opponents:
             if against["name"] == to["name"]:
                 continue
-            # No gang-ups on the weakest player, unless they hurt me lately or owe me a payback.
+            # Ganging up on the weakest player is frowned upon (starts strongly
+            # disliked, brain.py), unless they hurt me lately or owe me a payback.
             reason = against["name"] in hurt_me or against["name"] in view["deals"].get("revenge", []) \
                 or against["name"] in view["deals"].get("push_back", [])
             picks_on_weakest = threat.punching_down(state, me["name"], against["name"]) and not reason
@@ -936,8 +937,9 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
                 "gang_to_ganging_me": _flag(to["name"] in ganging_me),
                 # Turning it into a 2v2: the player left out joins me against one of my gangers.
                 "gang_outsider_vs_ganger": _flag(against["name"] in ganging_me and to["name"] not in ganging_me),
+                "gang_against_weakest": _flag(picks_on_weakest),
             }
-            for rounds in DEAL_LENGTHS + (UNTIL_OUT,) if "gang_up" in menu and not picks_on_weakest else ():
+            for rounds in DEAL_LENGTHS + (UNTIL_OUT,) if "gang_up" in menu else ():
                 offer = {"type": "gang_up", "to": to["name"], "against": against["name"], "rounds": rounds}
                 feats.append({**gang, **length_features("gang", rounds), "simple_prior": _flag(simple == offer)})
                 offers.append(offer)

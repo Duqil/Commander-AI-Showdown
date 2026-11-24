@@ -301,12 +301,14 @@ Teaming up against the player who is already struggling (stuck on lands, no
 board) is frowned upon at a real table, and Kaiba Prime had learned to do it
 anyway. So (Adam's replay notes, 2026-11-24):
 
-- Nobody offers a gang-up against the weakest player at the table
+- A gang-up offer against the weakest player at the table
   (`threat.punching_down`: the lowest threat score, not counting the one
-  offering), unless that player hurt them lately or owes them a revenge or
-  push back.
-- SimpleBot says no to such offers; the Boys see `accept_against_weakest`
-  (starts at -2.0).
+  offering) has `gang_against_weakest`, which starts strongly disliked
+  (-3.0). It isn't banned (Adam: playing well matters more than winning, but
+  the Boys should still be able to learn), and it doesn't apply when that
+  player hurt them lately or owes them a revenge or push back.
+- SimpleBot never offers one and says no to such offers; the Boys see
+  `accept_against_weakest` (starts at -2.0).
 - When two players gang up on you, ask the third one: `gang_outsider_vs_ganger`
   (+1.5) for a 2v2, and `gang_to_ganging_me` (-2.0) for asking one of the
   players already ganging up on you. The deals view has `ganging_me` for this.

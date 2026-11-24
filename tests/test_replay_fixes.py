@@ -155,14 +155,16 @@ class GangUpOnWeakestTest(unittest.TestCase):
         self.assertTrue(threat.punching_down(s, "1-A", "3-C"))
         self.assertFalse(threat.punching_down(s, "1-A", "2-B"))
 
-    def test_no_gang_up_offers_on_the_weakest(self):
+    def test_gang_up_on_the_weakest_is_disliked_not_banned(self):
         s = self.board()
         view = {"kind": "offer_deal", "player": "1-A", "state": s,
                 "deals": DealBook(["1-A", "2-B", "3-C", "4-D"]).view_for("1-A", s)}
-        _, offers = features.offer_options(view)
-        gang = [o for o in offers if o["type"] == "gang_up"]
-        self.assertTrue(gang)
-        self.assertFalse(any(o["against"] == "3-C" for o in gang))
+        feats, offers = features.offer_options(view)
+        on_c = [f for f, o in zip(feats, offers) if o["type"] == "gang_up" and o["against"] == "3-C"]
+        on_b = [f for f, o in zip(feats, offers) if o["type"] == "gang_up" and o["against"] == "2-B"]
+        self.assertTrue(on_c)  # still an option the Boys can learn about
+        self.assertTrue(all(f["gang_against_weakest"] == 1.0 for f in on_c))
+        self.assertTrue(all(f["gang_against_weakest"] == 0.0 for f in on_b))
 
     def test_answers(self):
         s = self.board()
