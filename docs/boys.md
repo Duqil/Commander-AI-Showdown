@@ -173,6 +173,13 @@ it. So a new Boy picks SimpleBot's move about two times in three and
 something else the rest of the time. If you improve SimpleBot, every Boy's
 starting instinct improves with it.
 
+The catch: a Boy can lean on that hint for good. Kaiba Prime's play weight
+on it grew to 6.5 and 96% of his plays matched SimpleBot's, quirks included.
+So a brain can set `hint_dropout` (in its JSON file): the share of training
+decisions where the hint is hidden, so he has to decide, and learn, with his
+own inputs (Adam, 2026-11-24). Tests and replays always show it, so a test
+shows whether he can stand on his own yet.
+
 **Mulligans.** Commander's first mulligan is free; every one after that puts
 a card on the bottom. The game loop counts mulligans (`mulligans_so_far` in
 the decision), a mulligan that costs a card gets a bonus of -0.1, and

@@ -751,3 +751,19 @@ class StatsTest(unittest.TestCase):
         self.assertAlmostEqual(decks["kuja"]["win_rate"], 1 / 3)
         self.assertEqual(bots["simple"]["games"], 4)
         self.assertEqual(bots["boy:Kaiba"]["win_rate"], 0.5)
+
+
+class HintDropoutTest(unittest.TestCase):
+    """Training without SimpleBot's hint now and then (Adam, 2026-11-24)."""
+
+    def test_hint_hidden_only_while_learning(self):
+        from showdown.bots.boy_bot import BoyBot
+        from showdown.boys.brain import Brain
+        options = [{"a": 1.0, "simple_prior": 1.0}, {"b": 1.0}]
+        for learn, expect_hidden in ((True, True), (False, False)):
+            bot = BoyBot("tester_hint", learn=learn, seed=1)
+            bot.brain = Brain("tester_hint", hint_dropout=1.0)
+            bot._pick("play", options)
+            hidden = "simple_prior" not in bot.steps[-1].options[0]
+            self.assertEqual(hidden, expect_hidden)
+        self.assertEqual(Brain.from_dict(Brain("x", hint_dropout=0.33).to_dict()).hint_dropout, 0.33)

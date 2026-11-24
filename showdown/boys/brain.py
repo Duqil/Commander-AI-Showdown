@@ -198,6 +198,10 @@ class Brain:
     bonus_baseline: float = 0.0     # running average turn bonus per choice
     games: int = 0                  # games learned from
     learning_rate: float = 0.1
+    # While training, the share of decisions where SimpleBot's pick ("simple_prior")
+    # is hidden, so the Boy has to decide with his own inputs (Adam, 2026-11-24).
+    # Tests and replays never hide it. 0 = always shown.
+    hint_dropout: float = 0.0
     temperature: float = 1.0        # higher = more random, lower = greedier
     card_memory: bool = False       # learn a number per card too (cards.py)
 
@@ -304,6 +308,7 @@ class Brain:
                 "bonus_baseline": round(self.bonus_baseline, 4),
                 "learning_rate": self.learning_rate,
                 "temperature": self.temperature,
+                "hint_dropout": self.hint_dropout,
                 # Expected reward: "bias" is the average, the rest add or subtract.
                 "critic": dict(sorted(((k, round(v, 4)) for k, v in self.critic.items()),
                                       key=lambda kv: -abs(kv[1]))),
@@ -338,5 +343,6 @@ class Brain:
             games=data.get("games", 0),
             learning_rate=data.get("learning_rate", 0.1),
             temperature=data.get("temperature", 1.0),
+            hint_dropout=data.get("hint_dropout", 0.0),
             card_memory=data.get("card_memory", False),
         )
