@@ -96,6 +96,16 @@ class Bot:
         """
         return None
 
+    def choose_mode(self, decision: Decision) -> list[int] | None:
+        """A "choose one or more" spell or trigger: the mode indexes to choose,
+        or None for Forge's AI pick (decision["suggested"]).
+
+        decision["modes"]: each with "index", "description" and "effects".
+        decision["min"], decision["max"]: how many modes may be chosen.
+        decision["land_drop_left"]: can I still play a land this turn?
+        """
+        return None
+
     def confirm_trigger(self, decision: Decision) -> bool | None:
         """An optional ("you may") triggered ability: use it (True), don't (False),
         or None to let Forge's AI decide.

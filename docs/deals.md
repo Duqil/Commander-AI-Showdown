@@ -136,9 +136,13 @@ Removal (or any harm) aimed at a partner or one of their cards breaks the
 deal too, just like attacking them (Adam's replay notes, 2026-11-24): the
 game runner shows every target a bot picks to `DealBook.note_target`. The
 Boys see `hurt_partner` on target choices (starts at -3.0) and SimpleBot
-picks another target. Board wipes don't target anyone, so they never break a
-deal; instead the Boys weigh what each player would lose (`wipe_my_share`,
-`wipe_good_trade`, `wipe_partner_share`, see showdown/boys/removal.py).
+picks another target. Board wipes don't target anyone. A team-up exists to
+take down a player who's too big (Adam, 2026-11-24), so a wipe only breaks a
+gang-up when it costs the partner more than it costs the player they're both
+after (costing the partner more than the caster is fine). The Boys see it
+coming as `wipe_breaks_deal` (-2.0), next to `wipe_my_share`,
+`wipe_good_trade` and `wipe_partner_share` (showdown/boys/removal.py);
+SimpleBot holds such a wipe.
 
 It counts for both new partners, the one who offered and the one who said
 yes. A declined offer breaks nothing. The Boys see `offer_breaks_deal` and

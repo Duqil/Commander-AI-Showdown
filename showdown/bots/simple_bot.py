@@ -185,8 +185,9 @@ class SimpleBot(Bot):
         if removal.removal_features(option, state, True, removes).get("removal_ward_unpayable"):
             return True  # the creature we'd remove has ward we can't pay yet: wait
         wipe = removal.wipe_features(option, state, decision.get("deals", {}))
-        if wipe and (wipe.get("wipe_my_share", 0) >= 0.5 or wipe.get("wipe_hits_nothing")):
-            return True  # a board wipe that hurts us at least as much as everyone else together
+        if wipe and (wipe.get("wipe_my_share", 0) >= 0.5 or wipe.get("wipe_hits_nothing")
+                     or wipe.get("wipe_breaks_deal")):
+            return True  # a board wipe that hurts us (or our gang-up partner) more than it helps
         if not timing.instant_speed(option) or timing.from_exile(option):
             return False
         too_many = state["phase"] == "MAIN2" and self.me(decision).get("hand_size", 0) > 7
@@ -302,6 +303,12 @@ class SimpleBot(Bot):
         planned = decision.get("deals", {}).get("share_next")
         pick = next((c["index"] for c in cands if c["name"] == planned), None)
         return None if pick is None else [pick]
+
+    def choose_mode(self, decision: Decision) -> list[int] | None:
+        """Forge's pick, but a "play it soon" exile only when the card could be
+        used; otherwise a lasting mode (counter, token). See boys/modes.py."""
+        from showdown.boys import modes  # boys.modes imports cards, which is fine; keep it local like features
+        return modes.simple_pick(decision)
 
     def harm_target(self, decision: Decision) -> list[int] | None:
         if decision.get("max", 1) != 1:

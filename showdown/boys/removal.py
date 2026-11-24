@@ -15,8 +15,8 @@ none of them looks at card names (everything is read from rules text):
 
 3. Board wipes. "Destroy all creatures" or "each player sacrifices a
    creature" hits everyone, you included. Worth it when the others lose more
-   than you do. A wipe doesn't target anyone, so it never breaks a deal
-   (showdown/deals.py), but a partner losing a lot still matters.
+   than you do. A wipe that costs a gang-up partner more than the player
+   you're both after breaks the deal (showdown/deals.py, Adam 2026-11-24).
 """
 
 from __future__ import annotations
@@ -159,12 +159,24 @@ def wipe_losses(card: dict, state: dict) -> dict[str, float] | None:
     return losses
 
 
+def wipe_breaks_gang_up(losses: dict[str, float], me: str, deal: dict) -> bool:
+    """A gang-up is two players teaming up on someone too big (Adam, 2026-11-24).
+    A wipe that costs my partner more than it costs our target hurts the
+    team more than the target: that breaks the deal. Costing my partner more
+    than me is fine."""
+    if deal.get("kind") != "gang_up" or not deal.get("against"):
+        return False
+    partner = deal["b"] if deal.get("a") == me else deal["a"]
+    return losses.get(partner, 0.0) > losses.get(deal["against"], 0.0)
+
+
 def wipe_features(option: dict, state: dict, deals: dict) -> dict[str, float]:
     """Is this board wipe worth it? Compares what I lose with what the others lose.
 
     wipe_my_share: my part of everything the wipe destroys (0 = only others lose).
     wipe_good_trade: the biggest threat loses more than I do.
     wipe_partner_share: my deal partners' part of it (they won't like that).
+    wipe_breaks_deal: it costs a gang-up partner more than our target (the deal breaks).
     """
     card = option.get("card", {})
     if not option.get("is_spell"):
@@ -182,5 +194,6 @@ def wipe_features(option: dict, state: dict, deals: dict) -> dict[str, float]:
         "wipe_my_share": losses.get(me, 0.0) / total,
         "wipe_good_trade": float(leader is not None and leader != me and losses.get(leader, 0.0) > losses.get(me, 0.0)),
         "wipe_partner_share": sum(v for k, v in losses.items() if k in partners) / total,
+        "wipe_breaks_deal": float(any(wipe_breaks_gang_up(losses, me, d) for d in deals.get("active", []))),
     }
     return {k: v for k, v in feats.items() if v}

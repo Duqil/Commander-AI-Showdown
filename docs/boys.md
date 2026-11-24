@@ -133,8 +133,9 @@ first strike, menace and keywords granted by other cards are not.
   damage to each creature, each player sacrifices a creature: we count what
   each player would lose (mana value + power, double for a commander).
   `wipe_my_share` (-2.0), `wipe_good_trade` (+1.0: the leader loses more than
-  me), `wipe_partner_share` (-0.5). SimpleBot holds a wipe when its own share
-  is half or more.
+  me), `wipe_partner_share` (-0.5), `wipe_breaks_deal` (-2.0: it costs a
+  gang-up partner more than our target, which breaks the deal). SimpleBot
+  holds a wipe when its own share is half or more, or it would break a deal.
 
 **Lands.** On a turn where the extra mana wouldn't be used before my next
 turn, a land that enters tapped goes first, so the untapped ones are ready
@@ -143,6 +144,28 @@ later; Evolving Wilds and the like count as tapped lands (`mana.slow_land`).
 instant up. A bounce land with 8+ cards in hand, when another land could be
 played, means a discard: `land_bounce_full_hand` (-1.5), and SimpleBot plays
 the other land.
+
+**Choosing modes** (`showdown/boys/modes.py`). "Choose one or more" spells and
+triggers (charms, Riku of Many Paths) used to have their modes picked by
+Forge's AI. Now the bridge asks Python (`choose_mode`, Forge's pick comes
+along as `suggested`). Every mode can be the strong one depending on the
+moment, so the Boys learn it instead of copying one habit (Adam, 2026-11-24):
+
+- SimpleBot keeps Forge's pick, except that "exile the top card, you may play
+  it" only goes when the card is likely usable. Nobody knows the card, so it
+  goes by the moment (Adam's rule): nothing else in hand to cast this turn,
+  2 cards or fewer in hand, and 3+ mana open (or a land drop left). If it
+  lasts until next turn, 3+ spare mana next turn (after the spells already
+  in hand) with a small hand also counts. Otherwise a lasting mode (counter,
+  token) instead.
+- The Boys choose one mode at a time, then "stop". Inputs: `mode_lasting`,
+  `mode_impulse`, `mode_impulse_now` and `mode_impulse_next_turn` (it
+  could likely be played then), `mode_impulse_wasted` (neither), `mode_role:<role>` and `simple_prior`. Starting pulls
+  are mild (`mode_impulse_wasted` -0.75, `mode_impulse_now` +0.5,
+  `mode_lasting` +0.25), so every mode keeps getting tried.
+
+Pawprint charms (the Seasons: a budget of pawprints, not a count of modes)
+are still Forge's pick. Needs `scripts/build_bridge.sh`.
 
 **Learning on top of SimpleBot.** Every option has a `simple_prior` feature
 that is 1 for SimpleBot's choice, and every brain starts with weight 2.0 on

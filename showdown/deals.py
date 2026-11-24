@@ -569,6 +569,29 @@ class DealBook:
                 messages.append(self._revenge_done(r, f"{r.victim} knocked {r.breaker}'s board down"))
         return messages
 
+    def note_play(self, player: str, decision: dict, choice: int | None) -> list[dict]:
+        """A bot cast something. A board wipe that costs a gang-up partner more
+        than the player they're both after breaks that deal (Adam, 2026-11-24)."""
+        if decision.get("kind") != "play" or choice is None:
+            return []
+        from showdown.boys import removal  # here, not at the top: keeps imports light
+        option = next((o for o in decision.get("options", []) if o.get("index") == choice), None)
+        if not option or not option.get("is_spell"):
+            return []
+        state = decision.get("state", {})
+        losses = removal.wipe_losses(option.get("card", {}), state)
+        if not losses:
+            return []
+        turn = state.get("turn", self._turn)
+        messages: list[dict] = []
+        for deal in self.deals_of(player, turn):
+            if deal.broken_by is None and removal.wipe_breaks_gang_up(losses, player, deal.to_dict()):
+                partner = deal.other(player)
+                name = option.get("card", {}).get("name", "a board wipe")
+                messages.append(self._break(deal, player, turn, "harm",
+                                            why=f"by casting {name}, which costs {partner} more than {deal.against}"))
+        return messages
+
     def note_target(self, player: str, decision: dict, choice: list[int] | None) -> list[dict]:
         """A bot aimed something at targets. Returns deal messages (a favour paid, a gift shared).
 
@@ -591,7 +614,7 @@ class DealBook:
             if harmful and owner != player:
                 # Removal (or any harm) aimed at a deal partner or their cards
                 # breaks the deal, just like attacking them. Board wipes don't
-                # target anyone, so they never count here.
+                # target anyone: note_play checks those.
                 for deal in self.deals_of(player, turn):
                     if deal.other(player) == owner and deal.broken_by is None:
                         source = decision.get("source", {}).get("name", "a spell")

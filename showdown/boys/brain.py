@@ -140,14 +140,17 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "removal_ward_unpayable": -1.5, "instant_removal_no_rush": -1.0,
                    "taps_out_holding_removal": -0.75,
                    # Board wipes: worth it when the others lose more than I do.
-                   "wipe_my_share": -2.0, "wipe_good_trade": 1.0, "wipe_partner_share": -0.5,
+                   "wipe_my_share": -2.0, "wipe_good_trade": 1.0, "wipe_partner_share": -0.5, "wipe_breaks_deal": -2.0,
                    "wipe_hits_nothing": -2.0,
                    # A bounce land that makes me discard, when another land would do.
                    "land_bounce_full_hand": -1.5,
                    # Gang-ups: join the weakest player's attackers? No. Ask the player
                    # left out (a 2v2) rather than someone already ganging up on me.
                    "gang_against_weakest": -3.0, "accept_against_weakest": -2.0, "gang_to_ganging_me": -2.0,
-                   "gang_outsider_vs_ganger": 1.5}
+                   "gang_outsider_vs_ganger": 1.5,
+                   # Modes (modes.py): mild starting pulls only, so every mode
+                   # keeps getting tried and the Boys learn when each one is best.
+                   "mode_impulse_wasted": -0.75, "mode_impulse_now": 0.5, "mode_lasting": 0.25}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each
 # game moves it a lot, and whether we won is mostly noise for that one choice.
@@ -168,7 +171,7 @@ CARD_RATE = 0.5
 CARD_SHRINK = 0.005
 
 DECISION_KINDS = ("mulligan", "play", "attack", "target", "pick_card", "keyword_cost", "offer_whether", "offer_type",
-                  "offer", "answer")
+                  "offer", "answer", "mode")
 
 
 @dataclass

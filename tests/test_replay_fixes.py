@@ -98,6 +98,28 @@ class PartnerTest(unittest.TestCase):
         self.assertIn("by aiming Doom Blade at C50", msgs[0]["text"])
         self.assertEqual(msgs[0]["deal"]["broken_how"], "harm")
 
+    def test_wipe_breaks_a_gang_up_only_when_partner_loses_more_than_target(self):
+        wrath = {"id": 80, "name": "Wrath", "type": "Sorcery", "cmc": 4, "oracle": "Destroy all creatures."}
+        def run(partner_board, target_board):
+            book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+            book.deals.append(deals.Deal(id=1, kind="gang_up", a="1-A", b="2-B", against="3-C", made_turn=8,
+                                         expires_turn=12))
+            state = table(boards={"1-A": [creature(1, 1, controller="1-A", cmc=1)],
+                                  "2-B": partner_board, "3-C": target_board})
+            option = {"index": 0, "is_spell": True, "card": wrath}
+            decision = {"kind": "play", "state": state, "options": [option]}
+            feats = removal.wipe_features(option, state, book.view_for("1-A", state))
+            return book.note_play("1-A", decision, 0), feats
+        # Partner loses more than me, but less than the target: fine.
+        msgs, feats = run([creature(50, 3)], [creature(60, 6, controller="3-C", cmc=6)])
+        self.assertEqual(msgs, [])
+        self.assertFalse(feats.get("wipe_breaks_deal"))
+        # Partner loses more than the target: the deal breaks.
+        msgs, feats = run([creature(50, 6, cmc=6)], [creature(60, 2, controller="3-C", cmc=2)])
+        self.assertEqual([m["event"] for m in msgs], ["break"])
+        self.assertIn("costs 2-B more than 3-C", msgs[0]["text"])
+        self.assertEqual(feats["wipe_breaks_deal"], 1.0)
+
     def test_partner_features_and_simple_bot(self):
         state = table(boards={"2-B": [creature(50, 5)], "3-C": [creature(51, 2, controller="3-C")]})
         decision = {"kind": "choose_targets", "state": state, "api": "Destroy", "params": {},
