@@ -24,8 +24,8 @@ import re
 
 from typing import Any
 
-from showdown.bots.simple_bot import SimpleBot
-from showdown.boys import cards, colors, combat, commander, mana, threat, timing
+from showdown.bots.simple_bot import SimpleBot, full_hand_bounce
+from showdown.boys import cards, colors, combat, commander, mana, removal, threat, timing
 from showdown.deals import DEAL_TYPES, GIFT_TEXT, HURT_DAMAGE, PAY_LENGTHS, biggest_threat_card, can_hit, card_of, gift_cards, recurring_gift_cards, removal_cards, removes
 
 Features = dict[str, float]
@@ -227,6 +227,12 @@ def play_options(decision: Decision) -> list[Features]:
             **mana.tap_out_features(option, threat.me(state), when["my_main"]),
             **mana.combo_timing_features(option, threat.me(state), when["my_main"]),
             **(mana.land_fit(card, threat.me(state)) if is_land else {}),
+            # A bounce land that would push my hand over 7 (a discard) when another land would do.
+            "land_bounce_full_hand": _flag(is_land and colors.returns_a_land(card) and full_hand_bounce(threat.me(state), decision["options"])),
+            # Removal: ward I can't pay, instant removal with no rush, keeping mana up, wipes (removal.py).
+            **removal.removal_features(option, state, when["my_main"], removes),
+            **removal.taps_out_holding_removal(option, state, when["my_main"], removes),
+            **removal.wipe_features(option, state, decision.get("deals", {})),
             **(attach_features(option, state, my_turn) if is_ability else {}),
             **timing_features(option, card, is_land, is_spell, when),
             # Card memory: a learned number for this very card (cards.py).
@@ -724,6 +730,12 @@ def target_options(decision: Decision) -> list[Features]:
             # and costs nothing, but it is a real threat.
             "hurt_damage_dealer": min(recent.get(cand.get("id"), 0), 5) / 5 if harmful and not mine else 0.0,
             "target_commander": _flag(cand.get("commander", False)),
+            # Harm aimed at a deal partner or their cards breaks the deal (deals.py).
+            "hurt_partner": _flag(harmful and not mine and owner in decision.get("deals", {}).get("protected", [])),
+            # Its ward asks for more mana than I'd have left: the spell would just be countered.
+            "target_ward_unpayable": _flag(harmful and not mine and not is_player and
+                                           removal.ward_unpayable(cand, players.get(you, {}),
+                                                                  removal.cost_still_to_pay(decision, players.get(you, {})))),
             "target_of_leader": _flag(owner == leader),
             **target_combat_features(cand, harmful, fight),
             **cards.target_features(cand, harmful, decision),  # card memory (cards.py)
@@ -901,9 +913,15 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
                           "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], None)),
                           "simple_prior": _flag(simple == offer)})
             offers.append(offer)
+        ganging_me = set(view["deals"].get("ganging_me", []))
         for against in opponents:
             if against["name"] == to["name"]:
                 continue
+            # Ganging up on the weakest player is frowned upon (starts strongly
+            # disliked, brain.py), unless they hurt me lately or owe me a payback.
+            reason = against["name"] in hurt_me or against["name"] in view["deals"].get("revenge", []) \
+                or against["name"] in view["deals"].get("push_back", [])
+            picks_on_weakest = threat.punching_down(state, me["name"], against["name"]) and not reason
             gang = {
                 "offer_gang_up": 1.0, **{f"gang_{k}": v for k, v in base.items()},
                 # Neither of us could hurt them much yet: a pointless gang-up.
@@ -915,6 +933,11 @@ def offer_options(view: Decision) -> tuple[list[Features], list[dict]]:
                 # They hurt me lately (damage, or harm aimed at me or my cards): a reason to gang up.
                 "gang_against_hurt_me": _flag(against["name"] in hurt_me),
                 "offer_breaks_deal": _flag(breaks_my_deal(view["deals"], to["name"], against["name"])),
+                # Asking someone who is ganging up on me to join me: unlikely, and odd.
+                "gang_to_ganging_me": _flag(to["name"] in ganging_me),
+                # Turning it into a 2v2: the player left out joins me against one of my gangers.
+                "gang_outsider_vs_ganger": _flag(against["name"] in ganging_me and to["name"] not in ganging_me),
+                "gang_against_weakest": _flag(picks_on_weakest),
             }
             for rounds in DEAL_LENGTHS + (UNTIL_OUT,) if "gang_up" in menu else ():
                 offer = {"type": "gang_up", "to": to["name"], "against": against["name"], "rounds": rounds}
@@ -1042,6 +1065,8 @@ def answer_options(view: Decision) -> list[Features]:
         # Attacking someone we already have a deal with would break that deal.
         accept["accept_against_partner"] = _flag(offer.get("against") in view["deals"]["protected"])
         accept["accept_against_hurt_me"] = _flag(offer.get("against") in hurt_me_lately(view))
+        # Joining a gang-up on the weakest player at the table (frowned upon, starts disliked).
+        accept["accept_against_weakest"] = _flag(threat.punching_down(state, offerer, offer.get("against", "")))
         # Neither of us could hurt the target much yet: nothing to gain.
         offerer_p = next((p for p in state.get("players", []) if p["name"] == offerer), {})
         accept["accept_gang_pointless"] = _flag(threat.board_power(threat.me(state)) + threat.board_power(offerer_p)

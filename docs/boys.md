@@ -118,6 +118,32 @@ without getting scared of attacking. Besides power and toughness, flying/reach
 and deathtouch are read from the cards' keyword lines (`threat.has_keyword`);
 first strike, menace and keywords granted by other cards are not.
 
+**Removal that works** (`showdown/boys/removal.py`, Adam's replay notes 2026-11-24):
+
+- *Ward.* "Ward {2}" is read from the text. A target whose ward we couldn't
+  pay after casting the spell gets `target_ward_unpayable` (-3.0), and
+  SimpleBot picks another one. Casting removal while the creature it would
+  go for has such ward gets `removal_ward_unpayable` (-1.5): better to wait
+  for the mana. SimpleBot waits.
+- *Instant removal.* Cast in my own main phase with nothing urgent (no high
+  danger, nothing dealt 3+ damage last round): `instant_removal_no_rush`
+  (-1.0). A sorcery that leaves too little mana for the instant removal I
+  hold, while an opponent has a creature: `taps_out_holding_removal` (-0.75).
+- *Board wipes.* Destroy/exile all creatures, all creatures get -X/-X, N
+  damage to each creature, each player sacrifices a creature: we count what
+  each player would lose (mana value + power, double for a commander).
+  `wipe_my_share` (-2.0), `wipe_good_trade` (+1.0: the leader loses more than
+  me), `wipe_partner_share` (-0.5). SimpleBot holds a wipe when its own share
+  is half or more.
+
+**Lands.** On a turn where the extra mana wouldn't be used before my next
+turn, a land that enters tapped goes first, so the untapped ones are ready
+later; Evolving Wilds and the like count as tapped lands (`mana.slow_land`).
+"Used before my next turn" also counts casting a spell now while keeping an
+instant up. A bounce land with 8+ cards in hand, when another land could be
+played, means a discard: `land_bounce_full_hand` (-1.5), and SimpleBot plays
+the other land.
+
 **Learning on top of SimpleBot.** Every option has a `simple_prior` feature
 that is 1 for SimpleBot's choice, and every brain starts with weight 2.0 on
 it. So a new Boy picks SimpleBot's move about two times in three and

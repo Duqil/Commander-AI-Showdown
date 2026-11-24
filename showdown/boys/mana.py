@@ -34,6 +34,17 @@ def enters_tapped(card: dict) -> bool:
     return bool(_ENTERS_TAPPED.search(text)) and "unless" not in text.lower()
 
 
+# "Sacrifice it: search your library for a land, put it onto the battlefield tapped"
+# (Evolving Wilds and the like): no mana this turn either, so it counts as a tapped land.
+_FETCHES_TAPPED = re.compile(r"sacrifice[^:]*: search your library for [^.]*land[^.]*onto the battlefield tapped", re.I)
+
+
+def slow_land(card: dict) -> bool:
+    """A land that gives no mana the turn it's played: enters tapped, or
+    fetches a land that enters tapped."""
+    return enters_tapped(card) or bool(_FETCHES_TAPPED.search(card.get("oracle", "") or ""))
+
+
 def makes_mana(card: dict) -> bool:
     """A permanent that taps for mana: a land, a mana rock, a mana creature."""
     return bool(card.get("produces")) or colors.is_land(card) or bool(_MAKES_MANA.search(card.get("oracle", "") or ""))
@@ -129,8 +140,9 @@ def combo_timing_features(option: dict, player: dict, my_main: bool) -> dict[str
 def land_fit(land: dict, player: dict) -> dict[str, float]:
     """Does this land drop fit this turn's mana?
 
-    tapland_costs_a_play: it enters tapped, and a spell in my hand needs
-      exactly the one extra mana an untapped land would give this turn.
+    tapland_costs_a_play: it enters tapped (or fetches a tapped land), and the
+      one extra mana an untapped land gives would be used before my next turn
+      (a spell needs exactly one more, or it lets me keep an instant up).
     tapland_on_quiet_turn: it enters tapped, and the extra mana wouldn't be
       used anyway: the best turn to get a tapped land out of the way.
     untapped_land_on_quiet_turn: an untapped land on such a turn, while a
@@ -138,10 +150,16 @@ def land_fit(land: dict, player: dict) -> dict[str, float]:
     """
     now = untapped_mana(player)
     have = colors.available(player) | colors.useful_colors(land, player)
-    needs_one_more = any(c.get("cmc", 0) == now + 1 and colors.castable_by(c, have)
-                         for c in spells_in_hand(player))
-    tapped = enters_tapped(land)
-    tapland_in_hand = any(colors.is_land(c) and enters_tapped(c) and c.get("id") != land.get("id")
+    castable = [c for c in spells_in_hand(player) if colors.castable_by(c, have)]
+    # The extra mana is useful before my next turn if a spell needs exactly
+    # one more, or if I could cast a spell now and still keep an instant up
+    # for the other players' turns only with that extra mana.
+    needs_one_more = any(c.get("cmc", 0) == now + 1 for c in castable) or any(
+        is_instant_speed(i) and s.get("id") != i.get("id") and not is_instant_speed(s)
+        and s.get("cmc", 0) <= now < s.get("cmc", 0) + i.get("cmc", 0) <= now + 1
+        for i in castable for s in castable)
+    tapped = slow_land(land)
+    tapland_in_hand = any(colors.is_land(c) and slow_land(c) and c.get("id") != land.get("id")
                           for c in player.get("hand", []))
     feats = {
         "tapland_costs_a_play": float(tapped and needs_one_more),

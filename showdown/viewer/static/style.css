@@ -163,6 +163,7 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: v
 .label { font-size: 10px; line-height: 1.3; padding: 0 4px; border-radius: 4px; white-space: nowrap; cursor: help; }
 .label.status { background: #7a2e1d; }
 .label.gained { background: #1d5fa8; }
+.label.token { background: #5a5a5a; }
 .badge.chosen { left: 50%; top: 2px; transform: translateX(-50%); background: #6b4fa0; white-space: nowrap; }
 .card.stolen { outline: 3px solid var(--owner); outline-offset: 1px; } /* owner's seat colour */
 .badge.tapped-n { left: 2px; top: 20px; }

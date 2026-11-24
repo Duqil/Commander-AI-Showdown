@@ -132,7 +132,7 @@ class Deal:
     rounds: int = DEAL_ROUNDS  # 1-4, or UNTIL_OUT (0): a gang-up until its target is out
     against: str | None = None # gang_up: the player they both attack
     broken_by: str | None = None
-    broken_how: str | None = None  # "attack", or "new_deal" (a deal that went against this one)
+    broken_how: str | None = None  # "attack", "harm" (removal etc. aimed at the partner), "new_deal" or "unpaid"
     ended: str | None = None   # why it ended early without anyone breaking it ("3-C is out")
     paid: bool = True          # a favour (removal, gift) is unpaid until the offerer pays
     pay_rounds: int = PAY_ROUNDS  # ...within this many rounds (1 or 2)...
@@ -278,6 +278,8 @@ class DealBook:
             "revenge": self.revenge_owed(name),
             # Players ganging up on me that I haven't pushed back against yet (one setback each).
             "push_back": self.pushback_owed(name),
+            # Everyone in a gang-up against me right now (pushed back or not).
+            "ganging_me": sorted({p for d in self.active(turn) if d.against == name for p in (d.a, d.b)}),
             # Favours I promised and haven't paid yet (removal on X, or a gift to my partner):
             "owed": [{"kind": d.kind, "to": d.b, "against": d.against, "pay_by": d.pay_by, "card_id": d.card_id}
                      for d in self._owing() if d.a == name],
@@ -586,6 +588,16 @@ class DealBook:
             owner = cand["name"] if cand.get("is_player") else cand.get("controller")
             if harmful:
                 self._hurt(owner, player)
+            if harmful and owner != player:
+                # Removal (or any harm) aimed at a deal partner or their cards
+                # breaks the deal, just like attacking them. Board wipes don't
+                # target anyone, so they never count here.
+                for deal in self.deals_of(player, turn):
+                    if deal.other(player) == owner and deal.broken_by is None:
+                        source = decision.get("source", {}).get("name", "a spell")
+                        what = owner if cand.get("is_player") else cand.get("name", "a card")
+                        messages.append(self._break(deal, player, turn, "harm",
+                                                    why=f"by aiming {source} at {what}"))
             if harmful and not cand.get("is_player") and owner != player and "id" in cand:
                 self._targeted.setdefault(player, set()).add(cand["id"])
             if not harmful and cand.get("is_player") and owner != player:

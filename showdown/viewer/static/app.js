@@ -812,8 +812,14 @@ function updateCard(node, c, player) {
   // Word labels near the top left, one per line:
   //  * statuses such as Suspected or Goaded (rust red). Hover shows who caused them.
   //  * keywords gained until end of turn, such as Flying from a pump spell (blue).
-  if (c.statuses?.length || c.gained_keywords?.length) {
+  //  * "Token" (grey) on tokens, so a token copy of a real card stands out.
+  if (c.token || c.statuses?.length || c.gained_keywords?.length) {
     const box = el("span", "badge labels");
+    if (c.token) {
+      const label = el("span", "label token", "Token");
+      label.title = "Token: not a real card. It stops existing when it leaves the battlefield.";
+      box.append(label);
+    }
     for (const status of c.statuses || []) {
       const name = status.split(" by ")[0]; // "Goaded by 3-Nelly" -> "Goaded"
       const rule = STATUS_RULES[name];

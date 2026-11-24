@@ -132,6 +132,14 @@ So does agreeing to a new deal that goes against an old one (Adam's call,
 | Nelly has peace with Zangief | Nelly joins a gang-up on Zangief | Nelly breaks the peace with Zangief |
 | Nelly and Zidane gang up on Zangief | Nelly makes peace (or teams up) with Zangief | Nelly breaks the gang-up with Zidane |
 
+Removal (or any harm) aimed at a partner or one of their cards breaks the
+deal too, just like attacking them (Adam's replay notes, 2026-11-24): the
+game runner shows every target a bot picks to `DealBook.note_target`. The
+Boys see `hurt_partner` on target choices (starts at -3.0) and SimpleBot
+picks another target. Board wipes don't target anyone, so they never break a
+deal; instead the Boys weigh what each player would lose (`wipe_my_share`,
+`wipe_good_trade`, `wipe_partner_share`, see showdown/boys/removal.py).
+
 It counts for both new partners, the one who offered and the one who said
 yes. A declined offer breaks nothing. The Boys see `offer_breaks_deal` and
 `accept_breaks_deal` (both start at -2.0), so they can learn when switching
@@ -286,3 +294,21 @@ their cards. `DealBook` remembers it and tells bots as `"hurt_me"`. Offering at 
 with no reason (nobody far ahead, nobody hurt me, no favour I could pay)
 starts out disliked (`offer_no_reason` -1.5).
 | `forge` | Forge's own AI can't make deals: offers to it are declined. |
+
+## No gang-ups on the weakest player
+
+Teaming up against the player who is already struggling (stuck on lands, no
+board) is frowned upon at a real table, and Kaiba Prime had learned to do it
+anyway. So (Adam's replay notes, 2026-11-24):
+
+- A gang-up offer against the weakest player at the table
+  (`threat.punching_down`: the lowest threat score, not counting the one
+  offering) has `gang_against_weakest`, which starts strongly disliked
+  (-3.0). It isn't banned (Adam: playing well matters more than winning, but
+  the Boys should still be able to learn), and it doesn't apply when that
+  player hurt them lately or owes them a revenge or push back.
+- SimpleBot never offers one and says no to such offers; the Boys see
+  `accept_against_weakest` (starts at -2.0).
+- When two players gang up on you, ask the third one: `gang_outsider_vs_ganger`
+  (+1.5) for a 2v2, and `gang_to_ganging_me` (-2.0) for asking one of the
+  players already ganging up on you. The deals view has `ganging_me` for this.
