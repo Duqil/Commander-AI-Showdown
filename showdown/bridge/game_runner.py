@@ -147,6 +147,8 @@ def play(
                 mulligans[msg["player"]] = mulligans.get(msg["player"], 0) + 1
             if book is not None and msg.get("kind") == "attack":
                 deal_messages(book.check_attack(msg["player"], msg, choice))
+            if book is not None and msg.get("kind") == "play":
+                deal_messages(book.note_play(msg["player"], msg, choice))  # a wipe that hurts a partner?
             if book is not None and msg.get("kind") == "choose_targets":
                 # Harm aimed at a deal-breaker counts as revenge; targets can also pay a favour or share a gift.
                 deal_messages(book.note_target(msg["player"], msg, choice))

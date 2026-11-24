@@ -133,8 +133,9 @@ first strike, menace and keywords granted by other cards are not.
   damage to each creature, each player sacrifices a creature: we count what
   each player would lose (mana value + power, double for a commander).
   `wipe_my_share` (-2.0), `wipe_good_trade` (+1.0: the leader loses more than
-  me), `wipe_partner_share` (-0.5). SimpleBot holds a wipe when its own share
-  is half or more.
+  me), `wipe_partner_share` (-0.5), `wipe_breaks_deal` (-2.0: it costs a
+  gang-up partner more than our target, which breaks the deal). SimpleBot
+  holds a wipe when its own share is half or more, or it would break a deal.
 
 **Lands.** On a turn where the extra mana wouldn't be used before my next
 turn, a land that enters tapped goes first, so the untapped ones are ready

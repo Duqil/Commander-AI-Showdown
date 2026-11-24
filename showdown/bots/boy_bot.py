@@ -220,10 +220,13 @@ class BoyBot(Bot):
                     step.deal_bonus += BROKE_A_DEAL
                     break
         elif breaker == player and deal.get("broken_how") == "harm":
-            # We broke it by aiming removal (or other harm) at our partner:
-            # the target choice that did it pays.
+            # We broke it by aiming removal (or other harm) at our partner, or
+            # with a board wipe that cost them more than our target: the
+            # choice that did it pays.
             for step in reversed(self.steps):
-                if step.kind == "target" and step.options[step.picked].get("hurt_partner"):
+                picked = step.options[step.picked]
+                if (step.kind == "target" and picked.get("hurt_partner")) or \
+                        (step.kind == "play" and picked.get("wipe_breaks_deal")):
                     step.deal_bonus += BROKE_A_DEAL
                     break
         elif breaker == player:

@@ -185,8 +185,9 @@ class SimpleBot(Bot):
         if removal.removal_features(option, state, True, removes).get("removal_ward_unpayable"):
             return True  # the creature we'd remove has ward we can't pay yet: wait
         wipe = removal.wipe_features(option, state, decision.get("deals", {}))
-        if wipe and (wipe.get("wipe_my_share", 0) >= 0.5 or wipe.get("wipe_hits_nothing")):
-            return True  # a board wipe that hurts us at least as much as everyone else together
+        if wipe and (wipe.get("wipe_my_share", 0) >= 0.5 or wipe.get("wipe_hits_nothing")
+                     or wipe.get("wipe_breaks_deal")):
+            return True  # a board wipe that hurts us (or our gang-up partner) more than it helps
         if not timing.instant_speed(option) or timing.from_exile(option):
             return False
         too_many = state["phase"] == "MAIN2" and self.me(decision).get("hand_size", 0) > 7
