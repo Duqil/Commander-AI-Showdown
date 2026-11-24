@@ -202,6 +202,13 @@ class BoyBot(Bot):
                 if step.kind in ("offer", "answer"):  # (the "offer_type" step before it isn't charged)
                     step.deal_bonus += BROKE_A_DEAL
                     break
+        elif breaker == player and deal.get("broken_how") == "harm":
+            # We broke it by aiming removal (or other harm) at our partner:
+            # the target choice that did it pays.
+            for step in reversed(self.steps):
+                if step.kind == "target" and step.options[step.picked].get("hurt_partner"):
+                    step.deal_bonus += BROKE_A_DEAL
+                    break
         elif breaker == player:
             # We broke it, with the attack we just chose: our latest attack
             # choice that went at a deal partner.

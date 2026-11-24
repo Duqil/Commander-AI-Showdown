@@ -45,9 +45,9 @@ first Python exercise.
 from __future__ import annotations
 
 from showdown.bots.base import Bot, Decision
-from showdown.boys import colors, combat, commander, mana, threat, timing
+from showdown.boys import colors, combat, commander, mana, removal, threat, timing
 from showdown.boys.threat import game_round
-from showdown.deals import recurring_gift_cards
+from showdown.deals import recurring_gift_cards, removes
 
 MAIN_PHASES = {"MAIN1", "MAIN2"}
 EARLIEST_DEAL_ROUND = 3     # no deals in rounds 1-2
@@ -93,14 +93,24 @@ def spell_priority(option: dict, hand: list[dict]) -> tuple:
     return (engine_first, timing.from_exile(option), not wasted_etb, spell_size(option), is_cmdr)
 
 
-def land_priority(option: dict, me: dict) -> tuple:
+def land_priority(option: dict, me: dict, options: list[dict] | None = None) -> tuple:
     """Which land to play: one from exile first (it won't stay playable), then
-    not a tapped land when a spell needs the extra mana this turn, then the
-    land whose colors help most, with a bonus for a tapped land on a turn the
-    extra mana wouldn't be used anyway (get it out of the way)."""
+    not a tapped land when the extra mana would be used before my next turn,
+    then not a bounce land that would make me discard, then a tapped land on
+    a turn the extra mana wouldn't be used anyway (get it out of the way, so
+    the untapped ones are ready when needed), then the land whose colors help
+    most. Evolving Wilds and the like count as tapped lands."""
     fit = mana.land_fit(option["card"], me)
-    return (timing.from_exile(option), not fit.get("tapland_costs_a_play"),
-            colors.land_value(option["card"], me) + 0.5 * fit.get("tapland_on_quiet_turn", 0.0))
+    full_hand = colors.returns_a_land(option["card"]) and options is not None and \
+        full_hand_bounce(me, options)
+    return (timing.from_exile(option), not fit.get("tapland_costs_a_play"), not full_hand,
+            bool(fit.get("tapland_on_quiet_turn")), colors.land_value(option["card"], me))
+
+
+def full_hand_bounce(me: dict, options: list[dict]) -> bool:
+    """8+ cards in hand and another land to play: a bounce land would mean a discard."""
+    other_land = any(o.get("is_land") and not colors.returns_a_land(o.get("card", {})) for o in options)
+    return other_land and me.get("hand_size", len(me.get("hand", []))) > 7
 
 
 def etb_mostly_wasted(option: dict) -> bool:
@@ -142,7 +152,7 @@ class SimpleBot(Bot):
             # whose colors help most (a first Swamp for a hand of black
             # spells). max() keeps the first one on a tie.
             me = self.me(decision)
-            return max(lands, key=lambda o: land_priority(o, me))["index"]
+            return max(lands, key=lambda o: land_priority(o, me, options))["index"]
 
         # Abilities (not spells, not land drops) that Forge's own AI would use
         # right now. "forge_would_play" is Forge's hint: it knows when an
@@ -171,9 +181,14 @@ class SimpleBot(Bot):
         """Hold an instant in our main phase: it can wait for a better moment.
         Not when it's from exile (it may run out) or we'd discard it at the end
         of the turn anyway."""
+        state = decision["state"]
+        if removal.removal_features(option, state, True, removes).get("removal_ward_unpayable"):
+            return True  # the creature we'd remove has ward we can't pay yet: wait
+        wipe = removal.wipe_features(option, state, decision.get("deals", {}))
+        if wipe and (wipe.get("wipe_my_share", 0) >= 0.5 or wipe.get("wipe_hits_nothing")):
+            return True  # a board wipe that hurts us at least as much as everyone else together
         if not timing.instant_speed(option) or timing.from_exile(option):
             return False
-        state = decision["state"]
         too_many = state["phase"] == "MAIN2" and self.me(decision).get("hand_size", 0) > 7
         return not too_many
 
@@ -273,14 +288,50 @@ class SimpleBot(Bot):
         return attacks
 
     def choose_targets(self, decision: Decision) -> list[int] | None:
-        """Only for gifts to an opponent: follow our sharing plan. Everything else: Forge's pick."""
+        """Gifts to an opponent: follow our sharing plan. Harm: Forge's pick,
+        unless it hits a deal partner (that breaks the deal) or has ward we
+        can't pay (the spell would be countered); then the best other target."""
         from showdown.boys.features import is_harmful  # features imports this module, so import late
         cands = decision.get("candidates", [])
-        if not cands or is_harmful(decision) or not all(c.get("is_player") for c in cands):
+        if not cands:
+            return None
+        if is_harmful(decision):
+            return self.harm_target(decision)
+        if not all(c.get("is_player") for c in cands):
             return None
         planned = decision.get("deals", {}).get("share_next")
         pick = next((c["index"] for c in cands if c["name"] == planned), None)
         return None if pick is None else [pick]
+
+    def harm_target(self, decision: Decision) -> list[int] | None:
+        if decision.get("max", 1) != 1:
+            return None  # several targets at once: Forge's pick
+        me = self.me(decision)
+        you = decision["state"]["you"]
+        partners = set(decision.get("deals", {}).get("protected", []))
+        cost = removal.cost_still_to_pay(decision, me)
+
+        def owner(c: dict) -> str:
+            return c["name"] if c.get("is_player") else c.get("controller", "")
+
+        def bad(c: dict) -> bool:
+            return owner(c) in partners or (not c.get("is_player") and owner(c) != you
+                                            and removal.ward_unpayable(c, me, cost))
+
+        cands = decision["candidates"]
+        suggested = [c for c in cands if c["index"] in decision.get("suggested", [])]
+        if suggested and not any(bad(c) for c in suggested):
+            return None  # Forge's pick is fine
+        players = {p["name"]: p for p in decision["state"]["players"]}
+        # Same kind of target Forge picked (a creature, a player...), an opponent's, not a bad one.
+        kind = (suggested[0].get("is_player", False)) if suggested else None
+        good = [c for c in cands if owner(c) not in (you, "") and not bad(c)
+                and (kind is None or c.get("is_player", False) == kind)]
+        if not good:
+            return None
+        best = max(good, key=lambda c: (threat.threat_score(players.get(owner(c), {})),
+                                        c.get("power", 0) or 0, c.get("cmc", 0) or 0))
+        return [best["index"]]
 
     # --- deals ----------------------------------------------------------------
 
@@ -318,6 +369,9 @@ class SimpleBot(Bot):
             return False  # you broke a deal with us. No.
         if trust < 0.5 or threat.leader(view["state"]) == offerer:
             return False
+        offer = view["offer"]
+        if offer.get("kind") == "gang_up" and threat.punching_down(view["state"], offerer, offer.get("against", "")):
+            return False  # ganging up on the weakest player: not how we play
         # Who gains more? Say no when they'd gain clearly more than we do.
         my_gain, their_gain = threat.deal_gains(view["state"], offerer)
         return their_gain <= my_gain + GAIN_MARGIN

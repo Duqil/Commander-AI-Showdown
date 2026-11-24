@@ -169,6 +169,19 @@ def leader(state: State) -> str | None:
     return max(opps, key=threat_score)["name"]
 
 
+def punching_down(state: State, offerer: str, against: str) -> bool:
+    """Would ganging up on ``against`` pick on the weakest player at the table?
+
+    The weakest = lowest threat score among everyone still in except the one
+    offering. Ganging up on someone who is already struggling (stuck on lands,
+    no board) is frowned upon at a real table: gang-ups are for the leader.
+    """
+    others = [p for p in state["players"] if not p.get("lost") and p["name"] != offerer]
+    if len(others) < 2:
+        return False
+    return min(others, key=threat_score)["name"] == against
+
+
 def threat_rank(state: State, name: str) -> float:
     """0.0 for the biggest threat, 1.0 for the smallest, in between for others."""
     opps = sorted(opponents(state), key=threat_score, reverse=True)

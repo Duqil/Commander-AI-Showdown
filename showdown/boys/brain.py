@@ -132,7 +132,22 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    # Attacking into blockers (features.attack_options): mild starting
                    # pulls, so the Boys think about blocks without being scared to attack.
                    "target_outnumber": 0.5, "attack_valuable_at_risk": -0.75,
-                   "attack_last_creatures_at_risk": -0.5}
+                   "attack_last_creatures_at_risk": -0.5,
+                   # Replay fixes (Adam's notes, 2026-11-24). Partners: harm on a
+                   # partner breaks the deal (deals.py). Ward we can't pay: the
+                   # removal is countered. Instant removal can wait for their turn.
+                   "hurt_partner": -3.0, "target_ward_unpayable": -3.0,
+                   "removal_ward_unpayable": -1.5, "instant_removal_no_rush": -1.0,
+                   "taps_out_holding_removal": -0.75,
+                   # Board wipes: worth it when the others lose more than I do.
+                   "wipe_my_share": -2.0, "wipe_good_trade": 1.0, "wipe_partner_share": -0.5,
+                   "wipe_hits_nothing": -2.0,
+                   # A bounce land that makes me discard, when another land would do.
+                   "land_bounce_full_hand": -1.5,
+                   # Gang-ups: join the weakest player's attackers? No. Ask the player
+                   # left out (a 2v2) rather than someone already ganging up on me.
+                   "accept_against_weakest": -2.0, "gang_to_ganging_me": -2.0,
+                   "gang_outsider_vs_ganger": 1.5}
 
 # Some decisions learn slower. A mulligan happens once or twice a game, so each
 # game moves it a lot, and whether we won is mostly noise for that one choice.
