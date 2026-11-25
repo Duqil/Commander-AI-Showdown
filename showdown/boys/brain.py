@@ -141,7 +141,8 @@ DEFAULT_WEIGHTS = {"simple_prior": 2.0, "attack_zero_power": -3.0, "forge_sugges
                    "taps_out_holding_removal": -0.75,
                    # Board wipes: worth it when the others lose more than I do.
                    "wipe_my_share": -2.0, "wipe_good_trade": 1.0, "wipe_partner_share": -0.5, "wipe_breaks_deal": -2.0,
-                   "hurt_gang_target": 1.0, "attack_dodges_gang_target": -0.5,
+                   "hurt_gang_target": 1.0, "attack_dodges_gang_target": -1.0,
+                   "target_leader_bad_block": -2.0,
                    "wipe_hits_nothing": -2.0,
                    # A bounce land that makes me discard, when another land would do.
                    "land_bounce_full_hand": -1.5,

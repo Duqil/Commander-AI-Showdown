@@ -112,6 +112,14 @@ home. The Boys get inputs to weigh blocks themselves (`features.attack_options`)
 | `target_blockers_outnumbered` | more attackers than blockers | 0 |
 | `attack_valuable_at_risk` | commander, 4+ power, our biggest or equipped, and a bad or double block waits | -0.75 |
 | `attack_last_creatures_at_risk` | same, and we have 2 creatures or fewer | -0.5 |
+| `target_leader_bad_block` | the biggest threat, and a blocker kills it and survives | -2.0 |
+
+`target_leader_bad_block` (Adam, 2026-11-25): the brain adds inputs up one
+by one, so with only "biggest threat" (+) and "bad block" (-) it can't learn
+"go for the leader, but not into a killer blocker". Kaiba Prime's leader pull
+grew past his bad-block fear and he fed the leader's blockers. This input is
+the two together, so he can learn that case on its own. Staying home or
+attacking elsewhere stay open, nothing is banned.
 
 The starting pulls are mild on purpose, so the Boys think about blocks
 without getting scared of attacking. Besides power and toughness, flying/reach

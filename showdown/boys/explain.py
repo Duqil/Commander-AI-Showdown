@@ -133,7 +133,7 @@ def strength(v: float) -> str:
 def sentence(r: dict) -> str:
     """Readable lines, e.g.:
     Attacks: Weaver at 4-Nahiri. His own choice (SimpleBot: Weaver at 1-Riku). 74% sure.
-    For it: the biggest threat (strong). Against the 2nd choice, Weaver at 1-Riku: a blocker would kill it (strong).
+    Reason: the biggest threat (strong). Against the 2nd choice, Weaver at 1-Riku: a blocker would kill it (strong).
     """
     who = {"follows": "Same as SimpleBot", "no hint": "No SimpleBot advice"}.get(
         r["follow"], f"His own choice (SimpleBot: {r.get('simple_pick')})")
@@ -141,7 +141,7 @@ def sentence(r: dict) -> str:
     pro = [f"{k} ({strength(v)})" for k, v, side in r["reasons"] if side == "for"]
     con = [f"{k} ({strength(v)})" for k, v, side in r["reasons"] if side == "against"]
     if pro:
-        text += " For it: " + ", ".join(pro) + "."
+        text += " Reason: " + ", ".join(pro) + "."
     if con:
         text += f" Against the 2nd choice, {r['runner_up']}: " + ", ".join(con) + "."
     if not pro and not con:

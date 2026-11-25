@@ -23,7 +23,7 @@ class ExplainTest(unittest.TestCase):
         self.assertEqual(r["simple_pick"], "home")
         self.assertEqual(r["runner_up"], "home")
         self.assertEqual(r["reasons"][0], ("the biggest threat", 4.0, "for"))
-        self.assertIn("His own choice (SimpleBot: home). 80% sure. For it: the biggest threat (strong).",
+        self.assertIn("His own choice (SimpleBot: home). 80% sure. Reason: the biggest threat (strong).",
                       explain.sentence(r))
 
     def test_avoids(self):

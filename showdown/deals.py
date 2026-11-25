@@ -70,7 +70,8 @@ VICTIM_TRUST_LOSS = 0.5
 OTHERS_TRUST_LOSS = 0.25
 KEPT_TRUST_GAIN = 0.1   # a deal ran its full length: both partners trust each other a bit more
 HELP_TRUST_GAIN = 0.05  # you attacked the gang-up target: your partner trusts you a bit more
-DODGE_TRUST_LOSS = 0.05 # you could hit the gang-up target but attacked someone else: a bit less
+DODGE_TRUST_LOSS = 0.1  # most of your attack went at someone else while the gang-up target was open
+DODGE_SHARE = 0.5       # ...meaning more than this share of your attacking power
 DEAL_TYPES = ("peace", "gang_up", "removal", "gift")
 # Plain peace deals ("no attacks for N rounds") are ON ICE (Adam, 2026-11-19):
 # they never felt right, so for now games run without them and we watch how
@@ -496,18 +497,24 @@ class DealBook:
         attacked = {defenders.get(i) for i in (choice or {}).values()}
         could_hit = {defenders.get(i) for a in decision.get("attackers", [])
                      if (a.get("power") or 0) > 0 for i in a.get("can_attack", [])}
+        power = {str(a["id"]): max(0, a.get("power") or 0) for a in decision.get("attackers", []) if "id" in a}
+        total_power = sum(power.values())
         messages = []
         for deal in self.deals_of(attacker, turn):
             victim = deal.other(attacker)
+            elsewhere = sum(power.get(str(cid), 0) for cid, i in (choice or {}).items()
+                            if defenders.get(i) not in (deal.against, victim, None))
             if victim in could_hit and victim not in attacked:
                 deal.tested = True
             if deal.against in attacked and victim not in attacked:
                 self._gain_trust(victim, attacker, HELP_TRUST_GAIN)  # kept their word
-            elif (deal.kind == "gang_up" and deal.against in could_hit
-                  and attacked - {deal.against, victim, None}):
-                # Attacked someone else while the agreed target was open (Adam,
-                # 2026-11-24): not a break, but the partner trusts them a bit less.
-                self._lose_trust_one(victim, attacker, DODGE_TRUST_LOSS)
+            elif deal.kind == "gang_up" and deal.against in could_hit:
+                # A little pressure on someone else is fine; sending most of the
+                # attack there while the agreed target was open is not (Adam,
+                # 2026-11-25): not a break, but the partner trusts them less.
+                share = elsewhere / total_power if total_power else 0.0
+                if share > DODGE_SHARE:
+                    self._lose_trust_one(victim, attacker, DODGE_TRUST_LOSS * share)
             if victim in attacked:
                 messages.append(self._break(deal, attacker, turn, "attack"))
         return messages

@@ -934,7 +934,13 @@ class GangUpTargetTest(unittest.TestCase):
     def test_dodging_the_target_costs_trust(self):
         book = self.book()
         book.check_attack("1-A", attack("1-A"), {"7": 3})  # hits 4-D while 3-C was open
-        self.assertAlmostEqual(book.trust["2-B"]["1-A"], 1.0 - deals.DODGE_TRUST_LOSS)
+        self.assertAlmostEqual(book.trust["2-B"]["1-A"], 1.0 - deals.DODGE_TRUST_LOSS)  # all of it went elsewhere
+        book = self.book()
+        small = attack("1-A")
+        small["attackers"] = [{"id": 7, "power": 1, "can_attack": [0, 1, 2, 3]},
+                              {"id": 8, "power": 4, "can_attack": [0, 1, 2, 3]}]
+        book.check_attack("1-A", small, {"7": 3})  # a little pressure on 4-D is fine
+        self.assertEqual(book.trust["2-B"]["1-A"], 1.0)
         book = self.book()
         book.check_attack("1-A", attack("1-A"), {})  # staying home is neutral
         self.assertEqual(book.trust["2-B"]["1-A"], 1.0)

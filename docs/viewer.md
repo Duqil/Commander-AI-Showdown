@@ -68,7 +68,7 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   every offer, answer and break so far.
 * **Reasons.** The Reasons tab says why a Boy chose what it did, e.g.
   "Attacks: Weaver at 4-Nahiri. His own choice (SimpleBot: Weaver at
-  1-Riku). 74% sure. For it: the biggest threat (strong). Against the 2nd
+  1-Riku). 74% sure. Reason: the biggest threat (strong). Against the 2nd
   choice, Weaver at 1-Riku: a blocker would kill it (strong)." "Same as
   SimpleBot" means it picked what SimpleBot would; own choices are
   highlighted. At the top: how often each Boy picked the same as SimpleBot

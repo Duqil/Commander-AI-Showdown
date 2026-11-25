@@ -535,7 +535,10 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
         if d["name"] in deals.get("gang_targets", []):
             f["attack_gang_target"] = 1.0     # we promised to attack them
         elif gang_open and d.get("is_player") and d["name"] not in deals.get("protected", []):
-            f["attack_dodges_gang_target"] = 1.0  # hitting someone else instead: the partner trusts us less
+            # Hitting someone else instead, weighed by how much of my attack this
+            # creature is: a little pressure elsewhere is fine, sending the army
+            # there is not (the partner trusts us less, Adam 2026-11-25).
+            f["attack_dodges_gang_target"] = power / max(1, ctx["total_power"])
         if d["name"] in deals.get("grudges", []):
             f["attack_grudge"] = 1.0          # they broke a deal with us this game
         if d["name"] in deals.get("revenge", []):
@@ -564,6 +567,10 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
                 "target_killable": _flag(threat.can_kill(target, ctx["total_power"])),
                 "target_blockers": min(len(blockers), 5) / 5,
                 "target_bad_block": _flag(bad_block),
+                # Both at once: going for the leader, into a blocker that kills it and survives.
+                # On its own input, so "hit the leader" and "feed the leader's blockers" can be
+                # learned apart (Adam, 2026-11-25).
+                "target_leader_bad_block": _flag(bad_block and d["name"] == ctx["leader"]),
                 # Blocks that cost us: two blockers together kill it, or one trades with it.
                 "target_double_block": _flag(double_block),
                 "target_trade_block": _flag(bool(threat.trade_blockers(target, power, toughness, attacker))),
