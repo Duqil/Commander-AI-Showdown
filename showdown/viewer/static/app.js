@@ -22,6 +22,7 @@ const EVENT_STYLES = {
   game_start:   { cls: "turn", banner: true, delay: 1200 },
   log:          { cls: "", delay: 450 },
   bot_choice:   { cls: "bot_choice", delay: 500 },
+  bot_reason:   { cls: "bot_reason", delay: 0 }, // the Reasons tab: no pause, the game goes on
   game_over:    { cls: "game_over", banner: true, delay: 0 },
   error:        { cls: "error", banner: true, delay: 0 },
   deal_offer:   { cls: "deal", delay: 400 },   // deals also get an icon between the boards (playDealMoment)
@@ -81,7 +82,7 @@ const app = {
   shownStateSeq: -1, // which snapshot is drawn right now
   lastLife: {},      // to flash life changes
   knownCards: new Set(), // card ids drawn before, to animate new arrivals
-  logTab: "log",     // which log tab is open: "log", "all" (phases & mana too) or "politics"
+  logTab: "log",     // which log tab is open: "log", "all" (phases & mana too), "politics" or "reasons"
   followLog: true,   // keep the log scrolled to the newest line (off while you scroll up)
   stepping: false,   // true while playback moves forward one event (not when jumping)
   shownStack: [],    // the stack drawn right now, to spot newly cast spells
@@ -559,6 +560,7 @@ function render() {
   }
   // The Politics tab changes with deal events too, which carry no table snapshot.
   if (app.logTab === "politics") drawPolitics(app.shownStateSeq >= 0 ? app.events[app.shownStateSeq].state.turn : 0);
+  if (app.logTab === "reasons") drawReasons();
   const last = app.events[app.pos - 1];
   if (last?.kind === "game_over") $("#turn-info").textContent = $("#turn-info").title = last.text;
 }
@@ -941,6 +943,9 @@ function showBanner(text, ms = 1600, cls = "") {
 // ===========================================================================
 function isShownInLog(ev) {
   if (app.logTab === "politics") return ev.kind.startsWith("deal_");
+  // Why the Boys chose what they did: only in the Reasons tab.
+  if (app.logTab === "reasons") return ev.kind === "bot_reason";
+  if (ev.kind === "bot_reason") return false;
   // The bot's own "keeps its hand"/"mulligans" line says the same as Forge's
   // "has kept a hand of 7 cards" right after it, so it's small print.
   if (ev.kind === "bot_choice" && ev.category === "MULLIGAN") return app.logTab === "all";
@@ -1041,6 +1046,7 @@ function makeLogLine(ev) {
   if (ev.player && ev.kind !== "log") line.style.borderLeftColor = `var(--seat-${seatIndex(ev.player)})`;
   if (ev.kind === "log" && ev.category !== "TURN") line.append(el("span", "cat", categoryLabel(ev)));
   line.append(document.createTextNode(cleanText(logText(ev))));
+  if (ev.kind === "bot_reason" && ev.data?.follow === "own call") line.classList.add("own-call");
   // Forge logs life changes as "Life: 2-Anhelo 33 > 36": green when it went up.
   const life = ev.category === "LIFE" && /(\d+)\s*>\s*(\d+)/.exec(ev.text);
   if (life && Number(life[2]) > Number(life[1])) line.classList.add("gain");
@@ -1126,6 +1132,7 @@ for (const tab of document.querySelectorAll(".log-tabs button")) {
     app.logTab = tab.dataset.log;
     document.querySelectorAll(".log-tabs button").forEach((t) => t.classList.toggle("on", t === tab));
     $("#politics-now").classList.toggle("hidden", app.logTab !== "politics");
+    $("#reasons-now").classList.toggle("hidden", app.logTab !== "reasons");
     rebuildLog();
     render();
   };
@@ -1295,6 +1302,30 @@ function dealsNow(turn) {
 }
 
 function shortName(player) { return player.replace(/^\d+-/, ""); }
+
+/**
+ * The top of the Reasons tab: how often each Boy followed SimpleBot's pick
+ * so far this game, and how often it made its own call (counted over every
+ * choice, also the routine ones the tab doesn't write out).
+ */
+function drawReasons() {
+  const box = $("#reasons-now");
+  const latest = {};
+  for (let i = 0; i < app.pos; i++) {
+    const ev = app.events[i];
+    if (ev.kind === "bot_reason") latest[ev.player] = ev.data.counts;
+  }
+  box.replaceChildren(el("h4", "", "Same choice as SimpleBot so far"));
+  const names = Object.keys(latest).sort();
+  if (!names.length) box.append(el("p", "muted", "No Boy has explained a choice yet."));
+  for (const name of names) {
+    const c = latest[name];
+    const total = c.follows + c["own call"];
+    const pct = total ? Math.round((100 * c.follows) / total) : 0;
+    box.append(el("div", "politics-row", `${shortName(name)}: same as SimpleBot ${pct}% · own choice ${c["own call"]} of ${total}`));
+  }
+  box.append(el("h4", "", "Why (own choices highlighted)"));
+}
 
 /** The "Right now" part of the Politics tab: deals that are on, who is hunted, grudges. */
 function drawPolitics(turn) {

@@ -504,6 +504,10 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
     targets: list[int | None] = [None]
 
     defenders = {d["index"]: d for d in decision["defenders"]}
+    deal_view = decision.get("deals", {})
+    # Could this creature hit the player we agreed to gang up on?
+    gang_open = any(defenders.get(i, {}).get("name") in deal_view.get("gang_targets", [])
+                    for i in attacker.get("can_attack", []))
     for index in attacker.get("can_attack", []):
         d = defenders.get(index)
         if d is None:
@@ -530,6 +534,11 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
             f["attack_breaks_deal"] = 1.0     # we have a deal with them: attacking breaks it
         if d["name"] in deals.get("gang_targets", []):
             f["attack_gang_target"] = 1.0     # we promised to attack them
+        elif gang_open and d.get("is_player") and d["name"] not in deals.get("protected", []):
+            # Hitting someone else instead, weighed by how much of my attack this
+            # creature is: a little pressure elsewhere is fine, sending the army
+            # there is not (the partner trusts us less, Adam 2026-11-25).
+            f["attack_dodges_gang_target"] = power / max(1, ctx["total_power"])
         if d["name"] in deals.get("grudges", []):
             f["attack_grudge"] = 1.0          # they broke a deal with us this game
         if d["name"] in deals.get("revenge", []):
@@ -558,6 +567,10 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
                 "target_killable": _flag(threat.can_kill(target, ctx["total_power"])),
                 "target_blockers": min(len(blockers), 5) / 5,
                 "target_bad_block": _flag(bad_block),
+                # Both at once: going for the leader, into a blocker that kills it and survives.
+                # On its own input, so "hit the leader" and "feed the leader's blockers" can be
+                # learned apart (Adam, 2026-11-25).
+                "target_leader_bad_block": _flag(bad_block and d["name"] == ctx["leader"]),
                 # Blocks that cost us: two blockers together kill it, or one trades with it.
                 "target_double_block": _flag(double_block),
                 "target_trade_block": _flag(bool(threat.trade_blockers(target, power, toughness, attacker))),
@@ -753,6 +766,8 @@ def target_options(decision: Decision) -> list[Features]:
             f["hurt_revenge_target"] = 1.0
         if harmful and not mine and owner in deals.get("push_back", []):
             f["hurt_push_back_target"] = 1.0  # ganging up on us: push back
+        if harmful and not mine and owner in deals.get("gang_targets", []):
+            f["hurt_gang_target"] = 1.0  # removal on the player we're ganging up on: the plan
         # Paying a favour we promised (deals.py): harm on X's stuff, or help for our partner.
         owed = deals.get("owed", [])
         # A named removal ("remove Kefka") is only paid by that card.

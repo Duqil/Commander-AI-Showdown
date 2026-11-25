@@ -920,3 +920,56 @@ class GiftPlayTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GangUpTargetTest(unittest.TestCase):
+    """Dodging the agreed target costs a little trust; removal on it is liked (Adam, 2026-11-25)."""
+
+    def book(self):
+        book = DealBook(["1-A", "2-B", "3-C", "4-D"])
+        book.deals.append(deals.Deal(id=1, kind="gang_up", a="1-A", b="2-B", against="3-C", made_turn=5,
+                                     expires_turn=12))
+        return book
+
+    def test_dodging_the_target_costs_trust(self):
+        book = self.book()
+        book.check_attack("1-A", attack("1-A"), {"7": 3})  # hits 4-D while 3-C was open
+        self.assertAlmostEqual(book.trust["2-B"]["1-A"], 1.0 - deals.DODGE_TRUST_LOSS)  # all of it went elsewhere
+        book = self.book()
+        small = attack("1-A")
+        small["attackers"] = [{"id": 7, "power": 1, "can_attack": [0, 1, 2, 3]},
+                              {"id": 8, "power": 4, "can_attack": [0, 1, 2, 3]}]
+        book.check_attack("1-A", small, {"7": 3})  # a little pressure on 4-D is fine
+        self.assertEqual(book.trust["2-B"]["1-A"], 1.0)
+        book = self.book()
+        book.check_attack("1-A", attack("1-A"), {})  # staying home is neutral
+        self.assertEqual(book.trust["2-B"]["1-A"], 1.0)
+
+    def test_boy_inputs(self):
+        from showdown.boys import features
+        book = self.book()
+        s = state(turn=6)
+        decision = dict(attack("1-A"), deals=book.view_for("1-A", s))
+        decision["defenders"] = [dict(d, is_player=True) for d in decision["defenders"]]
+        decision["state"]["players"][0]["battlefield"] = [{"id": 7, "name": "Bear", "type": "Creature",
+                                                           "power": 2, "toughness": 2, "controller": "1-A"}]
+        ctx = features.attack_context(decision)
+        feats, targets = features.attack_options(decision["attackers"][0], decision, ctx)
+        by_target = dict(zip(targets, feats))
+        self.assertEqual(by_target[2].get("attack_gang_target"), 1.0)
+        self.assertEqual(by_target[3].get("attack_dodges_gang_target"), 1.0)
+        self.assertIsNone(by_target[1].get("attack_dodges_gang_target"))  # the partner: that's a break instead
+
+    def test_removal_on_the_target_is_an_input(self):
+        from showdown.boys import features
+        book = self.book()
+        s = state(turn=6)
+        bear = {"id": 50, "name": "Bear", "type": "Creature", "power": 2, "toughness": 2, "cmc": 2, "oracle": ""}
+        decision = {"kind": "choose_targets", "state": s, "api": "Destroy", "params": {},
+                    "description": "Destroy target creature.", "source": {"name": "Doom Blade", "cmc": 2},
+                    "deals": book.view_for("1-A", s), "suggested": [0], "min": 1, "max": 1,
+                    "candidates": [dict(bear, index=0, controller="3-C", is_player=False),
+                                   dict(bear, id=51, index=1, controller="4-D", is_player=False)]}
+        feats = features.target_options(decision)
+        self.assertEqual(feats[0].get("hurt_gang_target"), 1.0)
+        self.assertIsNone(feats[1].get("hurt_gang_target"))

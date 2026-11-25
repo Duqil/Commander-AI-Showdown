@@ -66,6 +66,15 @@ before the viewer existed, rebuild the bridge once (takes seconds, in Git Bash):
   ✋ decline, 💔 broken (which also gets a red banner). The **Politics** tab
   next to the log shows the deals that are on right now and grudges, and
   every offer, answer and break so far.
+* **Reasons.** The Reasons tab says why a Boy chose what it did, e.g.
+  "Attacks: Weaver at 4-Nahiri. His own choice (SimpleBot: Weaver at
+  1-Riku). 74% sure. Reason: the biggest threat (strong). Against the 2nd
+  choice, Weaver at 1-Riku: a blocker would kill it (strong)." "Same as
+  SimpleBot" means it picked what SimpleBot would; own choices are
+  highlighted. At the top: how often each Boy picked the same as SimpleBot
+  so far. Every choice counts toward that, but routine ones (passing like
+  SimpleBot, or agreeing with it at 90%+ sure) aren't written out. See
+  showdown/boys/explain.py.
 * **Statuses.** A creature that is suspected or goaded gets a label with the
   word ("Suspected", "Goaded") near its top left, like counters. Hover shows
   the rules and who goaded it. Monstrous, renowned, saddled, ring-bearer,

@@ -270,7 +270,9 @@ button.danger:hover { background: rgba(229, 83, 75, .15); }
 .log-tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
                    padding: 4px 8px; font-size: 12px; color: var(--muted); }
 .log-tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
-#politics-now { font-size: 12px; }
+#politics-now, #reasons-now { font-size: 12px; }
+#reasons-now h4 { margin: 4px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.log-line.own-call { background: rgba(255, 200, 80, 0.12); }
 #politics-now h4 { margin: 4px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .politics-row { padding: 2px 0; }
 .politics-row.peace { color: #8fd694; }

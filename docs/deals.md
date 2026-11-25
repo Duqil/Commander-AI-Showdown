@@ -157,6 +157,15 @@ A broken deal is a big event:
 - **Reputation:** the victim's trust in the breaker drops by 0.5, everyone
   else's by 0.25. SimpleBot refuses offers from anyone below 0.5.
 
+**Keeping a gang-up honest** (Adam, 2026-11-25). Attacking the agreed target
+raises the partner's trust a little (+0.05). A little pressure on someone
+else is fine, but sending more than half of your attacking power at someone
+*else* while the target was open lowers it (-0.1 x that share): not a break,
+but not what was agreed. Staying home (building up) is neutral. The Boys see
+it as `attack_dodges_gang_target` (-1.0 x this creature's share of my
+attacking power), and removal aimed at the target's things as
+`hurt_gang_target` (+1.0). Both are learnable.
+
 ## Revenge: one real setback, then it's over
 
 Real players usually pay a betrayal back, but going all-in for the rest of

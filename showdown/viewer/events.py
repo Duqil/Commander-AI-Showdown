@@ -36,6 +36,7 @@ EVENT_KINDS = {
     "game_start": "Seats and decks are known; the game is about to begin.",
     "log": "A line from Forge's game log (category = Forge's type, e.g. LAND, COMBAT).",
     "bot_choice": "A Python bot made a decision (mulligan, attack, ...).",
+    "bot_reason": "Why a Boy chose what it did, and whether it followed SimpleBot (the Reasons tab).",
     "game_over": "The game ended. data has the winner and final life totals.",
     "error": "Something went wrong (Forge crashed, the game was stopped, ...).",
     # Deals between bots (showdown/deals.py):
@@ -101,6 +102,8 @@ class TimelineBuilder:
         self.seen_choices: dict[int, dict] = {}  # card id -> its "chosen" dict, last time we looked
         self.seen_exile: set = set()  # ids of cards we've already seen in an exile zone
         self.exile_started = False  # the first snapshot only fills seen_exile
+        # Per player: how often a Boy followed SimpleBot's pick, went its own way, or had no hint.
+        self.follow: dict[str, dict[str, int]] = {}
 
     def feed(self, msg: dict) -> list[Event]:
         kind = msg.get("type")
@@ -181,12 +184,29 @@ class TimelineBuilder:
 
     def _on_answer(self, msg: dict) -> list[Event]:
         decision, choice = msg["decision"], msg["choice"]
-        text = describe_choice(decision, choice)
-        if text is None:
-            return []
         player = decision.get("player")
-        return [make_event("bot_choice", f"{player} ({msg.get('bot')}) {text}",
-                           turn=self.turn, player=player, category=decision.get("kind", "").upper())]
+        events = self._reasons(player, msg.get("bot"), msg.get("reasons") or [])
+        text = describe_choice(decision, choice)
+        if text is not None:
+            events.insert(0, make_event("bot_choice", f"{player} ({msg.get('bot')}) {text}",
+                                        turn=self.turn, player=player, category=decision.get("kind", "").upper()))
+        return events
+
+    def _reasons(self, player: str, bot: str | None, reasons: list[dict]) -> list[Event]:
+        """The Reasons tab: why a Boy chose what it did (showdown/boys/explain.py).
+        Every choice counts toward the follow rate; routine ones (passing
+        like SimpleBot would, and very sure of it) aren't written out."""
+        from showdown.boys.explain import sentence  # here: keeps the viewer's imports light
+        events = []
+        for r in reasons:
+            counts = self.follow.setdefault(player, {"follows": 0, "own call": 0})
+            if r["follow"] in counts:
+                counts[r["follow"]] += 1
+            if routine(r):
+                continue
+            events.append(make_event("bot_reason", f"{player}: {sentence(r)}", turn=self.turn, player=player,
+                                     category="REASON", follow=r["follow"], bot=bot, counts=dict(counts)))
+        return events
 
     def _on_deal(self, msg: dict) -> list[Event]:
         """A deal was offered, accepted, declined, kept, ended or broken, or revenge was taken (see showdown/deals.py)."""
@@ -205,6 +225,15 @@ class TimelineBuilder:
         return [make_event("game_over", text, turn=self.turn, player=msg.get("winner"),
                            winner=msg.get("winner"), draw=msg.get("draw", False),
                            players=msg.get("players", []))]
+
+
+def routine(reason: dict) -> bool:
+    """A choice not worth a line in the Reasons tab: passing priority the way
+    SimpleBot would, or anything SimpleBot would do too when 90%+ sure.
+    Own calls are always shown."""
+    if reason["follow"] == "own call":
+        return False
+    return (reason["kind"] == "play" and reason["picked"] == "pass") or reason["sure"] >= 0.9
 
 
 def describe_choice(decision: dict, choice: Any) -> str | None:
