@@ -24,14 +24,29 @@ from __future__ import annotations
 import random
 
 from showdown.bots.base import Bot, Decision
-from showdown.boys import modes, critic, features, threat
+from showdown.boys import modes, critic, explain, features, threat
 from showdown.boys.brain import Step
 from showdown.boys.reward import (BROKE_A_DEAL, OFFER_DECLINED, OFFER_MADE, PARTNER_BROKE_MY_DEAL,
                                   damage_weight, game_reward, mulligan_bonus, turn_bonus)
 from showdown.boys.storage import load_brain, save_brain
 
 HAND_LIMIT = 7  # maximum hand size at the end of your turn
+DEAL_KINDS = {"offer_whether", "offer_type", "offer", "answer"}
 HINT = "simple_prior"  # SimpleBot's pick, as an input (hidden now and then while training: hint_dropout)
+
+
+def play_labels(options: list[dict]) -> list[str]:
+    """Names for the play options (and "pass" last), for the Reasons tab."""
+    out = []
+    for o in options:
+        name = o.get("card", {}).get("name", "?")
+        out.append(name if o.get("is_land") or o.get("is_spell") else f"{name} (ability)")
+    return out + ["pass"]
+
+
+def short(text: str, n: int = 40) -> str:
+    text = " ".join(str(text).replace("CARDNAME", "it").split())
+    return text if len(text) <= n else text[:n - 1] + "…"
 
 
 class BoyBot(Bot):
@@ -43,6 +58,7 @@ class BoyBot(Bot):
         self.explore = explore
         self.rng = random.Random(seed)
         self.steps: list[Step] = []          # every choice made this game
+        self.reasons: list[dict] = []        # why, for the viewer's Reasons tab (explain.py); taken by pop_reasons()
         self.last_state: dict | None = None  # the table as we last saw it
         self.result: dict | None = None      # filled in by game_over()
         self.deck: str | None = None         # our commander's name, as first seen (for the critic)
@@ -97,7 +113,12 @@ class BoyBot(Bot):
                          if c.get("id") not in seen and (c.get("graveyard_use") or c.get("discard_me")))
             effects[3] += max(0, discarded - useful)
 
-    def _pick(self, kind: str, options: list[features.Features]) -> int:
+    def pop_reasons(self) -> list[dict]:
+        """The reasons for the choices made since the last call (one decision can have several picks)."""
+        out, self.reasons = self.reasons, []
+        return out
+
+    def _pick(self, kind: str, options: list[features.Features], labels: list[str] | None = None) -> int:
         if self.learn and self.brain.hint_dropout and self.rng.random() < self.brain.hint_dropout:
             # Training without the hint now and then: decide (and learn) from
             # my own inputs, not from what SimpleBot would do.
@@ -108,13 +129,18 @@ class BoyBot(Bot):
             self.deck = critic.my_commander(threat.me(self.last_state))
         step.situation = critic.situation(self.last_state, self.deck)
         self.steps.append(step)
+        # Deal choices show up in the Politics tab already.
+        reason = None if kind in DEAL_KINDS else explain.explain(self.brain, kind, options, step.picked,
+                                                                 step.probs, labels)
+        if reason is not None:
+            self.reasons.append(reason)
         return step.picked
 
     # --- decisions ---------------------------------------------------------------
 
     def keep_hand(self, decision: Decision) -> bool:
         self._observe(decision["state"])
-        keep = self._pick("mulligan", features.mulligan_options(decision)) == 0  # option 0 = keep
+        keep = self._pick("mulligan", features.mulligan_options(decision), ["keep", "mulligan"]) == 0  # option 0 = keep
         step = self.steps[-1]
         step.pregame = True
         # The first mulligan is free; each one after it costs a card.
@@ -124,8 +150,8 @@ class BoyBot(Bot):
 
     def choose_play(self, decision: Decision) -> int | None:
         self._observe(decision["state"])
-        picked = self._pick("play", features.play_options(decision))
         options = decision["options"]
+        picked = self._pick("play", features.play_options(decision), play_labels(options))
         # The extra last option is "pass".
         return None if picked == len(options) else options[picked]["index"]
 
@@ -133,7 +159,8 @@ class BoyBot(Bot):
         self._observe(decision["state"])
         if decision.get("max", 1) != 1 or not decision["candidates"]:
             return None  # several targets at once: leave it to Forge's AI for now
-        picked = self._pick("target", features.target_options(decision))
+        picked = self._pick("target", features.target_options(decision),
+                            [c.get("name", "?") for c in decision["candidates"]])
         return [decision["candidates"][picked]["index"]]
 
     def choose_mode(self, decision: Decision) -> list[int] | None:
@@ -143,11 +170,13 @@ class BoyBot(Bot):
         if not decision.get("modes"):
             return None
         chosen: list[int] = []
+        by_index = {m["index"]: m.get("description", "") for m in decision["modes"]}
         while True:
             feats, picks = modes.mode_options(decision, chosen)
             if not feats:
                 break
-            pick = picks[self._pick("mode", feats)]
+            labels = [short(by_index.get(i, "stop")) for i in picks]
+            pick = picks[self._pick("mode", feats, labels)]
             if pick is None:
                 break
             chosen.append(pick)
@@ -155,14 +184,15 @@ class BoyBot(Bot):
 
     def pay_keyword_cost(self, decision: Decision) -> int | None:
         self._observe(decision["state"])
-        pay = self._pick("keyword_cost", features.keyword_cost_options(decision)) == 1
+        pay = self._pick("keyword_cost", features.keyword_cost_options(decision), ["skip it", "pay it"]) == 1
         return decision.get("max", 1) if pay else 0
 
     def choose_card(self, decision: Decision) -> int | None:
         self._observe(decision["state"])
         if not decision["candidates"]:
             return None
-        picked = self._pick("pick_card", features.pick_options(decision))
+        picked = self._pick("pick_card", features.pick_options(decision),
+                            [c.get("name", "?") for c in decision["candidates"]])
         return decision["candidates"][picked]["index"]
 
     def declare_attackers(self, decision: Decision) -> dict[str, int]:
@@ -171,7 +201,10 @@ class BoyBot(Bot):
         attacks: dict[str, int] = {}
         for attacker in decision["attackers"]:
             option_features, targets = features.attack_options(attacker, decision, ctx)
-            target = targets[self._pick("attack", option_features)]
+            names = {d["index"]: d.get("name", "?") for d in decision.get("defenders", [])}
+            labels = [f"{attacker.get('name', '?')} stays home" if t is None else
+                      f"{attacker.get('name', '?')} at {names.get(t, '?')}" for t in targets]
+            target = targets[self._pick("attack", option_features, labels)]
             if target is not None:
                 attacks[str(attacker["id"])] = target
         return attacks

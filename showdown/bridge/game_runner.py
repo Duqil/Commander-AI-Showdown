@@ -154,10 +154,12 @@ def play(
                 deal_messages(book.note_target(msg["player"], msg, choice))
             conn.answer(msg["id"], choice)
             decisions += 1
+            # Boys also say why (showdown/boys/explain.py), for the Reasons tab.
+            reasons = bot.pop_reasons() if hasattr(bot, "pop_reasons") else []
             if on_message:
                 # Tell the viewer what the bot decided (Forge never echoes it back).
                 on_message({"type": "answer", "decision": msg, "choice": choice,
-                            "bot": bot.name if bot else None})
+                            "bot": bot.name if bot else None, "reasons": reasons})
         elif kind == "game_over":
             if msg.get("error"):
                 # A broken game isn't a real draw: nobody should learn from it.
