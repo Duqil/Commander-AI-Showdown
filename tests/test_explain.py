@@ -22,14 +22,16 @@ class ExplainTest(unittest.TestCase):
         self.assertEqual(r["follow"], "own call")
         self.assertEqual(r["simple_pick"], "home")
         self.assertEqual(r["runner_up"], "home")
-        self.assertEqual(r["reasons"][0], ("the biggest threat", 4.0))
-        self.assertIn("own call, 80% sure", explain.sentence(r))
+        self.assertEqual(r["reasons"][0], ("the biggest threat", 4.0, "for"))
+        self.assertIn("His own choice (SimpleBot: home). 80% sure. For it: the biggest threat (strong).",
+                      explain.sentence(r))
 
     def test_avoids(self):
         options = [{"stay_home": 1.0, "simple_prior": 1.0}, {"target_bad_block": 1.0, "simple_prior": 0.0}]
         r = explain.explain(self.brain, "attack", options, 0, [0.9, 0.1])
         self.assertEqual(r["follow"], "follows")
-        self.assertEqual(r["reasons"], [("avoids a blocker would kill it", 3.0)])
+        self.assertEqual(r["reasons"], [("a blocker would kill it", 3.0, "against")])
+        self.assertIn("Against the 2nd choice, option 2: a blocker would kill it (strong).", explain.sentence(r))
 
     def test_timeline_counts_every_choice_but_writes_only_interesting_ones(self):
         b = TimelineBuilder()

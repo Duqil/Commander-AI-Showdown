@@ -9,6 +9,8 @@ top few, in plain words, plus:
 * whether he followed SimpleBot's pick ("follows"), went his own way
   ("own call"), or had no hint to go by ("no hint": SimpleBot had no pick
   for this kind of choice, or the hint was hidden while training).
+  The viewer says it in words: "Same as SimpleBot", "His own choice
+  (SimpleBot: ...)", "No SimpleBot advice".
 
 This is what drove the choice, not a plan or a feeling: a Boy has no plan
 beyond the decision in front of him.
@@ -55,6 +57,25 @@ LABELS = {
     "mode_impulse_wasted": "the card would likely be wasted",
     "keep_good_lands": "a good number of lands",
     "mulligan_deeper": "another mulligan costs a card",
+    "attack": "attacking at all",
+    "attack_small": "a small attacker",
+    "attack_grudge": "a grudge",
+    "target_blockers": "has blockers",
+    "play_in_combat": "playing during combat",
+    "pass_in_fight": "passing during a fight",
+    "trick_my_unblocked": "a pump for my unblocked attacker",
+    "pass_keeping_instant_mana": "keeping mana for an instant",
+    "instant_speed_spell": "an instant-speed spell",
+    "instant_removal_no_rush": "removal that could wait",
+    "forge_suggested": "Forge's AI suggests it",
+    "ability_forge_would_play": "an ability Forge's AI would use",
+    "ability": "using an ability",
+    "ability_on_my_turn": "using an ability on my turn",
+    "keep_color_coverage": "covers my colors",
+    "keep_land_distance": "close to the ideal land count",
+    "pick_land_new_color": "a new color",
+    "pick_land_color_value": "colors my cards need",
+    "home_power": "a good blocker to keep home",
 }
 
 
@@ -92,19 +113,37 @@ def explain(brain, kind: str, options: list[dict], picked: int, probs: list[floa
     for k, v in sorted(diff.items(), key=lambda kv: -kv[1])[:3]:
         if v < 0.3:
             break
-        # Mostly a minus on the next best option: say what this choice avoids.
-        avoided = theirs.get(k, 0.0) < 0 and abs(theirs.get(k, 0.0)) > abs(mine.get(k, 0.0))
-        reasons.append((f"avoids {k}" if avoided else k, round(v, 1)))
+        # Mostly a minus on the 2nd choice: it's a reason against that one.
+        against = theirs.get(k, 0.0) < 0 and abs(theirs.get(k, 0.0)) > abs(mine.get(k, 0.0))
+        reasons.append((k, round(v, 1), "against" if against else "for"))
     return {"kind": kind, "picked": name(picked), "runner_up": name(runner),
             "sure": round(probs[picked], 2), "follow": follow,
             "simple_pick": name(simple) if simple is not None and simple != picked else None,
             "reasons": reasons}
 
 
+KIND_WORDS = {"play": "Plays", "attack": "Attacks", "target": "Targets", "mode": "Chooses mode",
+              "mulligan": "Mulligan", "pick_card": "Picks", "keyword_cost": "Extra cost"}
+
+
+def strength(v: float) -> str:
+    return "strong" if v >= 3 else "medium" if v >= 1 else "slight"
+
+
 def sentence(r: dict) -> str:
-    """One readable line: what, how sure, why, and what SimpleBot would do."""
-    why = ", ".join(f"{k} {v:+.1f}" for k, v in r["reasons"]) or "close call"
-    text = f"{r['kind']}: {r['picked']} ({r['follow']}, {round(r['sure'] * 100)}% sure). Why: {why}. Next best: {r['runner_up']}."
-    if r.get("simple_pick"):
-        text += f" SimpleBot: {r['simple_pick']}."
+    """Readable lines, e.g.:
+    Attacks: Weaver at 4-Nahiri. His own choice (SimpleBot: Weaver at 1-Riku). 74% sure.
+    For it: the biggest threat (strong). Against the 2nd choice, Weaver at 1-Riku: a blocker would kill it (strong).
+    """
+    who = {"follows": "Same as SimpleBot", "no hint": "No SimpleBot advice"}.get(
+        r["follow"], f"His own choice (SimpleBot: {r.get('simple_pick')})")
+    text = f"{KIND_WORDS.get(r['kind'], r['kind'])}: {r['picked']}. {who}. {round(r['sure'] * 100)}% sure."
+    pro = [f"{k} ({strength(v)})" for k, v, side in r["reasons"] if side == "for"]
+    con = [f"{k} ({strength(v)})" for k, v, side in r["reasons"] if side == "against"]
+    if pro:
+        text += " For it: " + ", ".join(pro) + "."
+    if con:
+        text += f" Against the 2nd choice, {r['runner_up']}: " + ", ".join(con) + "."
+    if not pro and not con:
+        text += f" Only just ahead of the 2nd choice, {r['runner_up']}."
     return text

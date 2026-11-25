@@ -1315,16 +1315,16 @@ function drawReasons() {
     const ev = app.events[i];
     if (ev.kind === "bot_reason") latest[ev.player] = ev.data.counts;
   }
-  box.replaceChildren(el("h4", "", "Follows SimpleBot so far"));
+  box.replaceChildren(el("h4", "", "Same choice as SimpleBot so far"));
   const names = Object.keys(latest).sort();
   if (!names.length) box.append(el("p", "muted", "No Boy has explained a choice yet."));
   for (const name of names) {
     const c = latest[name];
     const total = c.follows + c["own call"];
     const pct = total ? Math.round((100 * c.follows) / total) : 0;
-    box.append(el("div", "politics-row", `${shortName(name)}: follows ${pct}% · own call ${c["own call"]} of ${total}`));
+    box.append(el("div", "politics-row", `${shortName(name)}: same as SimpleBot ${pct}% · own choice ${c["own call"]} of ${total}`));
   }
-  box.append(el("h4", "", "Why (own calls highlighted)"));
+  box.append(el("h4", "", "Why (own choices highlighted)"));
 }
 
 /** The "Right now" part of the Politics tab: deals that are on, who is hunted, grudges. */

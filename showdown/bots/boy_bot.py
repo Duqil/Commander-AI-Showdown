@@ -45,7 +45,7 @@ def play_labels(options: list[dict]) -> list[str]:
 
 
 def short(text: str, n: int = 40) -> str:
-    text = " ".join(str(text).replace("CARDNAME", "it").split())
+    text = " ".join(str(text).replace("CARDNAME", "it").split()).rstrip(".")
     return text if len(text) <= n else text[:n - 1] + "…"
 
 
