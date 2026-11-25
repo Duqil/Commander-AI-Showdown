@@ -70,6 +70,7 @@ VICTIM_TRUST_LOSS = 0.5
 OTHERS_TRUST_LOSS = 0.25
 KEPT_TRUST_GAIN = 0.1   # a deal ran its full length: both partners trust each other a bit more
 HELP_TRUST_GAIN = 0.05  # you attacked the gang-up target: your partner trusts you a bit more
+DODGE_TRUST_LOSS = 0.05 # you could hit the gang-up target but attacked someone else: a bit less
 DEAL_TYPES = ("peace", "gang_up", "removal", "gift")
 # Plain peace deals ("no attacks for N rounds") are ON ICE (Adam, 2026-11-19):
 # they never felt right, so for now games run without them and we watch how
@@ -502,6 +503,11 @@ class DealBook:
                 deal.tested = True
             if deal.against in attacked and victim not in attacked:
                 self._gain_trust(victim, attacker, HELP_TRUST_GAIN)  # kept their word
+            elif (deal.kind == "gang_up" and deal.against in could_hit
+                  and attacked - {deal.against, victim, None}):
+                # Attacked someone else while the agreed target was open (Adam,
+                # 2026-11-24): not a break, but the partner trusts them a bit less.
+                self._lose_trust_one(victim, attacker, DODGE_TRUST_LOSS)
             if victim in attacked:
                 messages.append(self._break(deal, attacker, turn, "attack"))
         return messages

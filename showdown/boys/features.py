@@ -504,6 +504,10 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
     targets: list[int | None] = [None]
 
     defenders = {d["index"]: d for d in decision["defenders"]}
+    deal_view = decision.get("deals", {})
+    # Could this creature hit the player we agreed to gang up on?
+    gang_open = any(defenders.get(i, {}).get("name") in deal_view.get("gang_targets", [])
+                    for i in attacker.get("can_attack", []))
     for index in attacker.get("can_attack", []):
         d = defenders.get(index)
         if d is None:
@@ -530,6 +534,8 @@ def attack_options(attacker: dict, decision: Decision, ctx: dict[str, Any]) -> t
             f["attack_breaks_deal"] = 1.0     # we have a deal with them: attacking breaks it
         if d["name"] in deals.get("gang_targets", []):
             f["attack_gang_target"] = 1.0     # we promised to attack them
+        elif gang_open and d.get("is_player") and d["name"] not in deals.get("protected", []):
+            f["attack_dodges_gang_target"] = 1.0  # hitting someone else instead: the partner trusts us less
         if d["name"] in deals.get("grudges", []):
             f["attack_grudge"] = 1.0          # they broke a deal with us this game
         if d["name"] in deals.get("revenge", []):
@@ -753,6 +759,8 @@ def target_options(decision: Decision) -> list[Features]:
             f["hurt_revenge_target"] = 1.0
         if harmful and not mine and owner in deals.get("push_back", []):
             f["hurt_push_back_target"] = 1.0  # ganging up on us: push back
+        if harmful and not mine and owner in deals.get("gang_targets", []):
+            f["hurt_gang_target"] = 1.0  # removal on the player we're ganging up on: the plan
         # Paying a favour we promised (deals.py): harm on X's stuff, or help for our partner.
         owed = deals.get("owed", [])
         # A named removal ("remove Kefka") is only paid by that card.
