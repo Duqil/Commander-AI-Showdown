@@ -65,6 +65,7 @@ def train(brain, games=8000, seed=7):
 
 
 def test_learns_inputs_that_only_matter_together():
+    # learning_rate 0.005: in real games each choice moves the brain only a little.
     for seed in range(3):
-        assert train(Brain("P", learning_rate=0.05), seed=seed) < 0.9
-        assert train(Brain("N", neural=True, learning_rate=0.05), seed=seed) == 1.0
+        assert train(Brain("P", learning_rate=0.005), seed=seed) < 0.9
+        assert train(Brain("N", neural=True, learning_rate=0.005), seed=seed) == 1.0

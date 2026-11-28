@@ -61,7 +61,7 @@ import zlib
 from showdown.boys import cards
 
 SIZE = 4            # numbers per input's taste
-RATE = 1.0          # the add-on learns at the same speed as the weights
+RATE = 5.0          # the add-on learns 5x faster than the weights (it starts tiny, see tests/test_net.py)
 START_SIZE = 0.1    # starting tastes are random between -0.1 and +0.1
 LIMIT = 3.0         # no taste number may grow beyond +-3 (keeps it calm)
 HINT = "simple_prior"   # SimpleBot's pick: not an input (see above)
