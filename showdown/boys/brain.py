@@ -24,6 +24,9 @@ For every remembered choice, each weight is nudged by
 
     learning_rate * advantage * (feature of the picked option - average feature)
 
+Boys with the neural add-on switched on (net.py) add a "gut feeling" to the
+score, which can learn inputs that only matter together.
+
 Choices also get a bonus for damage and knockouts in their own turn
 (reward.py), so a good attack is rewarded right away.
 
@@ -43,7 +46,7 @@ import random
 import threading
 from dataclasses import dataclass, field
 
-from showdown.boys import cards, critic
+from showdown.boys import cards, critic, net
 
 Features = dict[str, float]
 
@@ -206,6 +209,10 @@ class Brain:
     hint_dropout: float = 0.0
     temperature: float = 1.0        # higher = more random, lower = greedier
     card_memory: bool = False       # learn a number per card too (cards.py)
+    # The neural add-on (net.py): a "gut feeling" for inputs that matter together,
+    # added to the score, for Boys that have it switched on. One per kind of decision.
+    neural: bool = False
+    nets: dict[str, dict[str, list[float]]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self._lock = threading.Lock()
@@ -213,11 +220,19 @@ class Brain:
     # --- choosing -------------------------------------------------------------
 
     def score(self, kind: str, features: Features) -> float:
+        return self.linear_score(kind, features) + self.gut_feeling(kind, features)
+
+    def linear_score(self, kind: str, features: Features) -> float:
+        """The weights part of the score: one number per input, added up."""
         w = self.weights.setdefault(kind, {})
         # A feature the brain has never seen starts at its default weight (usually 0).
         # Card memory features only count for Boys that have card memory.
         return sum(w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) * value for name, value in features.items()
                    if self.card_memory or not cards.is_card_feature(name))
+
+    def gut_feeling(self, kind: str, features: Features) -> float:
+        """The neural add-on's part of the score (net.py). 0 without the add-on."""
+        return net.score(self.nets.get(kind), kind, features) if self.neural else 0.0
 
     def probabilities(self, kind: str, options: list[Features]) -> list[float]:
         with self._lock:
@@ -288,6 +303,9 @@ class Brain:
                         cards_seen.add((step.kind, name))
                     else:
                         w[name] = w.get(name, DEFAULT_WEIGHTS.get(name, 0.0)) + rate * gradient
+                if self.neural:  # the add-on learns from the same choice (net.py)
+                    net.learn(self.nets.setdefault(step.kind, {}), step.kind,
+                              step.options, step.probs, step.picked, rate)
             for kind, name in cards_seen:  # the once-per-game shrink (CARD_SHRINK)
                 self.weights[kind][name] *= 1 - CARD_SHRINK
             # The critic learns from this game too, *after* it was used, so a
@@ -328,6 +346,9 @@ class Brain:
                                                     for k, v in w.items() if cards.is_card_feature(k)),
                                                    key=lambda kv: -abs(kv[1])))
                                  for kind, w in self.weights.items()}
+            if self.neural:
+                data["neural"] = True
+                data["nets"] = net.to_dict(self.nets)
             return data
 
     @classmethod
@@ -347,4 +368,6 @@ class Brain:
             temperature=data.get("temperature", 1.0),
             hint_dropout=data.get("hint_dropout", 0.0),
             card_memory=data.get("card_memory", False),
+            neural=data.get("neural", False),
+            nets=net.from_dict(data.get("nets", {})),
         )

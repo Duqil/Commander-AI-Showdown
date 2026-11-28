@@ -18,7 +18,7 @@ beyond the decision in front of him.
 
 from __future__ import annotations
 
-from showdown.boys import cards
+from showdown.boys import cards, net
 
 HINT = "simple_prior"
 
@@ -105,6 +105,10 @@ def explain(brain, kind: str, options: list[dict], picked: int, probs: list[floa
             if k == HINT or (cards.is_card_feature(k) and not brain.card_memory):
                 continue
             out[label(k)] = out.get(label(k), 0.0) + w.get(k, DEFAULT_WEIGHTS.get(k, 0.0)) * v
+        if brain.neural:  # the neural add-on (net.py): each pair of inputs is a reason of its own
+            for (a, b), v in net.pairs(brain.nets.get(kind), kind, o).items():
+                key = f"{label(a)} together with {label(b)}"
+                out[key] = out.get(key, 0.0) + v
         return out
 
     mine, theirs = parts(options[picked]), parts(options[runner])
