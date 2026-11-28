@@ -38,7 +38,10 @@
     new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 
   async function replayList() {
-    if (!replay.list) replay.list = await (await realFetch("replays/index.json")).json();
+    // "no-cache" = always ask GitHub if the list changed. Without it the browser can
+    // keep an old list for ~10 minutes after new replays go up, and those old
+    // games no longer exist on the site, so they won't play.
+    if (!replay.list) replay.list = await (await realFetch("replays/index.json", { cache: "no-cache" })).json();
     return replay.list;
   }
 
